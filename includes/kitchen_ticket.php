@@ -265,6 +265,19 @@ function printStationTicket(
         $banner = trim('*** ' . mb_strtoupper((string) $order['channel'], 'UTF-8') . ' *** ' . $banner);
     }
 
+    // Online customers: name, address and phones on the slip; no waiter.
+    $customer = [];
+    if (($order['channel'] ?? '') === 'online' && !empty($order['online_customer_id'])) {
+        $cs = $pdo->prepare("SELECT first_name, last_name, address, street_number, mobile, landline FROM online_customers WHERE id = ?");
+        $cs->execute([(int) $order['online_customer_id']]);
+        if ($c = $cs->fetch()) {
+            $customer[] = 'CLIENTE: ' . trim($c['first_name'] . ' ' . $c['last_name']);
+            $customer[] = trim($c['address'] . ', ' . $c['street_number']);
+            $customer[] = 'Cell: ' . $c['mobile'];
+            if (!empty($c['landline'])) $customer[] = 'Tel: ' . $c['landline'];
+        }
+    }
+
     $ticket = [
         'title'        => $title !== '' ? $title : 'CUCINA',
         'banner'       => $banner,
@@ -274,7 +287,8 @@ function printStationTicket(
         'order_label'  => 'Ordine',
         'order_number' => (string) ($order['order_number'] ?? ''),
         'waiter_label' => 'Cameriere',
-        'waiter'       => (string) ($order['waiter_name'] ?? ''),
+        'waiter'       => $customer ? '' : (string) ($order['waiter_name'] ?? ''),
+        'customer'     => $customer,
         'time'         => date('d/m/Y H:i'),
         'items'        => $items,
     ];

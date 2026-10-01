@@ -34,6 +34,7 @@ class ThermalPrinter
      *   title?:string, table_label?:string, table?:string,
      *   order_label?:string, order_number?:string,
      *   waiter_label?:string, waiter?:string, time?:string,
+     *   customer?:array<int,string>,
      *   items?:array<int,array{qty?:int,name?:string,mods?:array<int,string>,note?:string}>
      * } $t
      * @return array{ok:bool, error?:string, bytes?:int}
@@ -105,6 +106,16 @@ class ThermalPrinter
             $out .= $this->enc((string) $t['time']) . self::LF;
         }
         $out .= $line . self::LF;
+
+        // Online customer: who it is for and how to reach them (first line bold).
+        if (!empty($t['customer'])) {
+            foreach (array_values($t['customer']) as $i => $cl) {
+                if ($i === 0) $out .= self::ESC . '!' . "\x08";
+                $out .= $this->enc((string) $cl) . self::LF;
+                if ($i === 0) $out .= self::ESC . '!' . "\x00";
+            }
+            $out .= $line . self::LF;
+        }
 
         // Items
         foreach (($t['items'] ?? []) as $it) {
