@@ -7,7 +7,8 @@ Work continues here.
 ## What the app is
 PHP + MariaDB restaurant POS ("ristorante"): admin, cashier, waiter, kitchen, guest ordering
 (QR menu), fiscal printing via the Epson RT printer, card payments (Epson RT protocol 17 / Dojo),
-Glovo orders, device monitor (MikroTik). This repo (pub) is live at https://pub.upgradesrls.com;
+Glovo orders, device monitor (MikroTik), "Clienti online" (one QR for a shop with no tables:
+sign-up with WhatsApp code, then ordering; `online.php`, `includes/online_order.php`, Admin > Clienti online). This repo (pub) is live at https://pub.upgradesrls.com;
 the original (`order` repo) is still live at https://ristorante.upgradesrls.com.
 
 ## Project notes
