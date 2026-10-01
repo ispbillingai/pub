@@ -61,7 +61,7 @@ function printCashierBillForOrder(int $orderId, ?array $order = null): array
     $ws  = $pdo->query("SELECT name FROM workspaces LIMIT 1")->fetch();
 
     $ticket = [
-        'brand'        => (string) ($ws['name'] ?? 'RistoUpgrade'),
+        'brand'        => (string) ($ws['name'] ?? 'Focacciami'),
         'title'        => 'CONTO',
         'subtitle'     => 'Documento non fiscale',
         'table_label'  => 'Tavolo',

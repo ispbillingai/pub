@@ -4,7 +4,7 @@
  */
 return [
     // ---- App / chrome ----
-    'app_name'        => 'RistoUpgrade',
+    'app_name'        => 'Focacciami',
     'footer_tagline'  => 'Restaurant Management System',
     'language'        => 'Language',
 

@@ -57,7 +57,7 @@ function renderOrderPdf(int $orderId): string
     $payments = $stmt->fetchAll();
 
     $ws    = $pdo->query("SELECT name FROM workspaces LIMIT 1")->fetch();
-    $brand = $ws['name'] ?? 'RistoUpgrade';
+    $brand = $ws['name'] ?? 'Focacciami';
 
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetTitle(pdfText(t('pdf_order_title') . ' ' . $order['order_number']));

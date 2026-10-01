@@ -39,7 +39,7 @@ function tIn(string $lang, string $key, array $vars = []): string
 function restaurantName(): string
 {
     $ws = getDBConnection()->query("SELECT name FROM workspaces LIMIT 1")->fetch();
-    return (string) ($ws['name'] ?? 'RistoUpgrade');
+    return (string) ($ws['name'] ?? 'Focacciami');
 }
 
 /** "Here is your table's link and your access code, this is what you can do". */

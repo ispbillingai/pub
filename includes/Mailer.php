@@ -27,7 +27,7 @@ class Mailer
     public function send(string $to, string $subject, string $htmlBody): array
     {
         $fromEmail = trim((string) ($this->cfg['from_email'] ?? '')) ?: 'noreply@localhost';
-        $fromName  = trim((string) ($this->cfg['from_name'] ?? '')) ?: 'RistoUpgrade';
+        $fromName  = trim((string) ($this->cfg['from_name'] ?? '')) ?: 'Focacciami';
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
             return ['ok' => false, 'error' => 'invalid recipient'];
         }

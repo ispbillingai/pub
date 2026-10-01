@@ -6,7 +6,7 @@
 
 $currentUser = getCurrentUser();
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
-$pageTitle = $pageTitle ?? 'RistoUpgrade';
+$pageTitle = $pageTitle ?? 'Focacciami';
 $unreadCount = $currentUser ? getUnreadNotificationsCount($currentUser['id']) : 0;
 $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
     && strpos($_SERVER['PHP_SELF'] ?? '', '/admin/') !== false;
