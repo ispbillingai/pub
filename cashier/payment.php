@@ -14,6 +14,8 @@ if (!$orderId) { header('Location: /cashier/index.php'); exit; }
 
 $order = getOrderById($orderId);
 if (!$order || $order['status'] === 'paid') { header('Location: /cashier/index.php'); exit; }
+// Online customers' orders come from (and go back to) Cassa > Ordini online.
+$backUrl = ($order['channel'] ?? 'dine_in') === 'online' ? '/cashier/online.php' : '/cashier/index.php';
 
 calculateOrderTotals($orderId);
 $order = getOrderById($orderId); // refresh after recalc
@@ -131,7 +133,7 @@ include __DIR__ . '/../includes/header.php';
         <?php if ($isSeatBill): ?>
             <a href="/cashier/payment.php?order=<?= (int) $order['parent_order_id'] ?>" class="btn btn-outline"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
         <?php endif; ?>
-        <a href="/cashier/index.php" class="btn btn-outline"><i class="fas fa-arrow-left"></i> <?= te('back') ?></a>
+        <a href="<?= $backUrl ?>" class="btn btn-outline"><i class="fas fa-arrow-left"></i> <?= te('back') ?></a>
     </div>
 </div>
 
@@ -264,7 +266,7 @@ include __DIR__ . '/../includes/header.php';
                         <!-- Test mode (Settings): close the bill without money -->
                         <button class="btn-test" onclick="payVirtual(this)"><i class="fas fa-flask"></i> <?= te('test_pay_btn') ?><small><?= te('test_pay_hint') ?></small></button>
                     <?php endif; ?>
-                    <button class="btn-cancel" onclick="location.href='/cashier/index.php'"><?= te('cancel') ?></button>
+                    <button class="btn-cancel" onclick="location.href='<?= $backUrl ?>'"><?= te('cancel') ?></button>
                 </div>
                 <p id="k-choose-err" class="dev-err" style="margin-top:10px;text-align:center;"></p>
             </div>
@@ -350,7 +352,7 @@ include __DIR__ . '/../includes/header.php';
                 <?php if ($isSeatBill): ?>
                     <a class="btn btn-success btn-block" style="margin-top:8px;" href="/cashier/payment.php?order=<?= (int) $order['parent_order_id'] ?>"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
                 <?php endif; ?>
-                <a class="btn btn-outline btn-block" style="margin-top:8px;" href="/cashier/index.php"><?= te('done') ?></a>
+                <a class="btn btn-outline btn-block" style="margin-top:8px;" href="<?= $backUrl ?>"><?= te('done') ?></a>
             </div>
         </div>
     </div>

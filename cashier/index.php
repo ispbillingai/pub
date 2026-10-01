@@ -62,6 +62,7 @@ try {
         JOIN users u ON o.waiter_id = u.id
         LEFT JOIN stations st ON o.till_id = st.id
         WHERE o.status = 'bill_requested'
+          AND COALESCE(o.channel, 'dine_in') <> 'online'   -- online customers: Cassa > Ordini online
           -- a table order emptied into seat bills: nothing to take, the seat bills are listed
           AND NOT (o.parent_order_id IS NULL AND o.total = 0 AND EXISTS (
                 SELECT 1 FROM orders sb WHERE sb.parent_order_id = o.id AND sb.status NOT IN ('paid', 'cancelled')))
@@ -86,6 +87,9 @@ try {
 } catch (Exception $e) {
     $todayStats = ['total_orders' => 0, 'total_revenue' => 0];
 }
+
+// Online customers' orders waiting at the till (their own panel).
+$onlineOpen = (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE channel = 'online' AND status NOT IN ('paid', 'cancelled')")->fetchColumn();
 
 $pageTitle = t('nav_cashier');
 
@@ -126,6 +130,13 @@ include __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<a href="/cashier/online.php" class="card mb-lg" style="display:flex;align-items:center;gap:14px;padding:14px 18px;text-decoration:none;color:inherit;border-left:5px solid var(--primary);">
+    <i class="fas fa-globe" style="font-size:1.6rem;color:var(--primary);"></i>
+    <div style="flex:1;"><strong><?= te('cash_online_title') ?></strong><br>
+        <span class="text-muted" style="font-size:.9rem;"><?= te('cash_online_banner', ['n' => $onlineOpen]) ?></span></div>
+    <i class="fas fa-chevron-right text-muted"></i>
+</a>
 
 <?php if (!empty($pendingBills)): ?>
 <!-- Pending Bills -->

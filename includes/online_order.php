@@ -17,8 +17,12 @@
  * Every screen JOINs a table, room and waiter, so, as with Glovo, the orders
  * hang off a hidden room "Clienti online" (active = 0), a table "ONLINE" that
  * is never occupied and a disabled system user. Once sent, the order shows in
- * the cashier's "bills to collect" with the customer's name. No notification
- * goes to waiters or cashiers: "ready" goes to the customer (onlineNotifyReady).
+ * the till's own panel (Cassa > Ordini online). No notification goes to
+ * waiters or cashiers: "ready" goes to the customer (onlineNotifyReady).
+ *
+ * Paying: every online order has a secret pay_token. Its QR (on the
+ * customer's page and with the "ready" WhatsApp) opens the order's payment
+ * when the cashier scans it in cashier/online.php.
  */
 
 require_once __DIR__ . '/functions.php';
@@ -314,12 +318,12 @@ function onlineSendCart(array $customer, array $cart): array
         $notes = trim((string) $customer['intolerances']) !== '' ? 'INTOLLERANZE: ' . trim($customer['intolerances']) : null;
         $pdo->prepare("
             INSERT INTO orders (order_number, table_id, table_label, room_id, waiter_id, number_of_people, cover_charge_per_person,
-                                status, notes, channel, customer_name, customer_country, customer_phone, created_by_guest, online_customer_id)
-            VALUES (?, ?, ?, ?, ?, 0, 0, 'open', ?, ?, ?, ?, ?, 1, ?)
+                                status, notes, channel, customer_name, customer_country, customer_phone, created_by_guest, online_customer_id, pay_token)
+            VALUES (?, ?, ?, ?, ?, 0, 0, 'open', ?, ?, ?, ?, ?, 1, ?, ?)
         ")->execute([
             generateOrderNumber(), $sys['table_id'], onlineOrderLabel($customer), $sys['room_id'], $sys['user_id'], $notes,
             ONLINE_CHANNEL, trim($customer['first_name'] . ' ' . $customer['last_name']), $customer['mobile_country'],
-            $customer['mobile'], (int) $customer['id'],
+            $customer['mobile'], (int) $customer['id'], bin2hex(random_bytes(12)),
         ]);
         $order = getOrderById((int) $pdo->lastInsertId());
     }
@@ -355,11 +359,73 @@ function onlineNotifyReady(array $order): void
     $st = $pdo->prepare("SELECT 1 FROM whatsapp_outbox WHERE order_id = ? AND kind = 'online_ready' AND created_at >= ? LIMIT 1");
     $st->execute([(int) $order['id'], $it['last_added']]);
     if ($st->fetchColumn()) return;                                       // already told
+    // With the QR to show at the till (as an image, when the server can draw it).
+    $token = onlinePayToken($order);
     queueGuestWhatsapp((int) $order['id'], null, 'online_ready', $order['customer_phone'],
         tIn(guestLang($order['customer_country'] ?? 'IT'), 'online_ready_text', [
             'name' => strtok((string) $order['customer_name'], ' ') ?: '', 'restaurant' => restaurantName(),
             'order' => $order['order_number'], 'total' => formatCurrency($order['total']),
-        ]));
+        ]), onlineQrPngAvailable() ? onlineQrImageUrl($token) : null);
+}
+
+/* ---- Paying at the till with the order's QR ---- */
+
+/** The order's secret pay token (made on first use for orders older than it). */
+function onlinePayToken(array $order): string
+{
+    if (!empty($order['pay_token'])) return (string) $order['pay_token'];
+    $token = bin2hex(random_bytes(12));
+    getDBConnection()->prepare("UPDATE orders SET pay_token = ? WHERE id = ? AND pay_token IS NULL")->execute([$token, (int) $order['id']]);
+    $stmt = getDBConnection()->prepare("SELECT pay_token FROM orders WHERE id = ?");
+    $stmt->execute([(int) $order['id']]);
+    return (string) $stmt->fetchColumn();
+}
+
+/** What the QR says: the till's page for this order (a scanner types it, a phone camera opens it). */
+function onlinePayUrl(string $token): string
+{
+    require_once __DIR__ . '/menu_pdf.php';
+    return publicUrl('cashier/online.php?pay=' . $token);
+}
+
+/** The QR as a PNG (online-qr.php), for WhatsApp. */
+function onlineQrImageUrl(string $token): string
+{
+    require_once __DIR__ . '/menu_pdf.php';
+    return publicUrl('online-qr.php?t=' . $token);
+}
+
+/** The pay token in what the scanner typed: the whole link or the bare token. */
+function onlinePayTokenFromScan(string $scan): ?string
+{
+    $scan = trim($scan);
+    if (preg_match('/[?&]pay=([a-f0-9]{24})(?![a-f0-9])/i', $scan, $m)) return strtolower($m[1]);
+    return preg_match('/^[a-f0-9]{24}$/i', $scan) ? strtolower($scan) : null;
+}
+
+/** The online order with this pay token (any status), or null. */
+function onlineOrderByPayToken(string $token): ?array
+{
+    if (!preg_match('/^[a-f0-9]{24}$/', $token)) return null;
+    $stmt = getDBConnection()->prepare("SELECT id FROM orders WHERE pay_token = ? AND channel = ?");
+    $stmt->execute([$token, ONLINE_CHANNEL]);
+    $id = $stmt->fetchColumn();
+    return $id ? getOrderById((int) $id) : null;
+}
+
+/** The server can draw QR images (the qrencode tool is installed). */
+function onlineQrPngAvailable(): bool
+{
+    static $ok = null;
+    return $ok ??= is_executable('/usr/bin/qrencode');
+}
+
+/** A QR of $text as PNG bytes, or null. */
+function onlineQrPng(string $text): ?string
+{
+    if (!onlineQrPngAvailable()) return null;
+    $png = shell_exec('/usr/bin/qrencode -t PNG -s 10 -m 3 -l M -o - ' . escapeshellarg($text));
+    return is_string($png) && substr($png, 1, 3) === 'PNG' ? $png : null;
 }
 
 /** What the customer sees: their order's dishes and how each is doing, the total. */
@@ -383,7 +449,7 @@ function onlineOrderState(array $customer): array
         'success'  => true,
         'enabled'  => onlineOrderEnabled(),
         'customer' => ['first_name' => $customer['first_name']],
-        'order'    => $order ? ['number' => $order['order_number']] : null,
+        'order'    => $order ? ['number' => $order['order_number'], 'pay_url' => onlinePayUrl(onlinePayToken($order))] : null,
         'items'    => $items,
         'all_ready'=> $items && !array_filter($items, fn($i) => !in_array($i['status'], ['ready', 'served'], true)),
         'total_fmt'=> formatCurrency($order['total'] ?? 0),

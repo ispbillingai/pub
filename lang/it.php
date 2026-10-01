@@ -1300,10 +1300,34 @@ return [
     'online_enable_confirm' => 'Riattivare questo cliente?',
 
     // ---- Online customers: order ready ----
-    'online_ready_text' => 'Ciao {name}, il tuo ordine *{order}* da *{restaurant}* è pronto! 🎉'."\n".''."\n".'Passa al banco a ritirarlo: paghi {total} alla cassa.',
+    'online_ready_text' => 'Ciao {name}, il tuo ordine *{order}* da *{restaurant}* è pronto! 🎉'."\n".''."\n".'Passa al banco a ritirarlo e mostra alla cassa il QR qui sotto per pagare {total}.',
 
     // ---- Kitchen: online orders ready all together ----
     'kitchen_order_ready' => 'Ordine pronto',
     'kitchen_online_hint' => 'Ordine online: si segna pronto tutto insieme, il cliente riceve un unico avviso.',
     'kitchen_online_whole' => 'Gli ordini online si segnano pronti tutti insieme: usa "Ordine pronto".',
+
+    // ---- Till: online orders panel, pay QR ----
+    'online_pay_qr_title' => 'Il tuo QR per pagare',
+    'online_pay_qr_text' => 'Mostralo alla cassa quando ritiri: il cassiere lo inquadra e incassa il tuo ordine.',
+    'cash_online_title' => 'Ordini online',
+    'cash_online_banner' => '{n} ordini online da incassare: apri il pannello',
+    'cash_online_scan_title' => 'Scansiona il QR del cliente',
+    'cash_online_scan_hint' => 'Il cliente mostra il QR (nella sua pagina o nel WhatsApp "ordine pronto"): leggilo con il lettore o con la fotocamera e si apre il pagamento del suo ordine.',
+    'cash_online_scan_ph' => 'Lettore QR: inquadra il codice del cliente',
+    'cash_online_scan_go' => 'Apri',
+    'cash_online_camera' => 'Fotocamera',
+    'cash_online_camera_err' => 'Fotocamera non disponibile: usa il lettore o apri l\'ordine dalla lista.',
+    'cash_online_scan_unknown' => 'QR non riconosciuto: non corrisponde a nessun ordine online.',
+    'cash_online_scan_paid' => 'L\'ordine {order} di {name} è già stato pagato.',
+    'cash_online_scan_cancelled' => 'L\'ordine {order} è stato annullato.',
+    'cash_online_open' => 'Da incassare',
+    'cash_online_ready' => 'Pronti da ritirare',
+    'cash_online_paid_today' => 'Incassati oggi ({n})',
+    'cash_online_none' => 'Nessun ordine online da incassare.',
+    'cash_online_st_ready' => 'Pronto',
+    'cash_online_st_cooking' => 'In preparazione',
+    'cash_online_collect' => 'Incassa',
+    'cash_online_paid_title' => 'Ordini online pagati oggi',
+    'cash_online_method' => 'Pagamento',
 ];

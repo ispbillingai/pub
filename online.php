@@ -156,6 +156,9 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .video-sheet video { width: 100%; max-height: 60vh; border-radius: 12px; background: #000; }
 .ready-banner { position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 30; background: var(--ok); color: #fff; border-radius: 16px; padding: 16px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; gap: 14px; align-items: center; }
 .ready-banner i { font-size: 1.8rem; }
+.pay-qr { text-align: center; }
+#payQr { display: flex; justify-content: center; padding: 8px 0 4px; }
+#payQr img, #payQr canvas { width: 220px; height: 220px; }
 .ready-banner strong { display: block; font-size: 1.05rem; }
 .ready-banner button { margin-left: auto; background: rgba(255,255,255,.2); border: 0; color: #fff; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 700; }
 </style>
@@ -322,6 +325,11 @@ $footHtml = ob_get_clean(); ?>
         <div class="total"><span><?= te('guest_to_pay') ?></span><span id="total"></span></div>
         <div class="pay-note"><i class="fas fa-cash-register"></i><span><?= te('online_pay_at_till') ?></span></div>
     </div>
+    <div class="card pay-qr">
+        <h2><i class="fas fa-qrcode"></i> <?= te('online_pay_qr_title') ?></h2>
+        <p class="sub"><?= te('online_pay_qr_text') ?></p>
+        <div id="payQr"></div>
+    </div>
     <?= $footHtml ?>
     <p class="whoami"><button class="link-btn" onclick="logout()"><?= te('online_not_you') ?></button></p>
 </main>
@@ -333,6 +341,7 @@ $footHtml = ob_get_clean(); ?>
     <button onclick="$('readyBanner').hidden = true">OK</button>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 const L = <?= json_encode($L, JSON_UNESCAPED_UNICODE) ?>;
 const API = '/api/online.php';
@@ -380,7 +389,16 @@ function render(s) {
             <span class="st st-${esc(i.status)}">${esc(i.label)}</span></div>`).join('');
     $('total').textContent = s.total_fmt;
     $('allReady').hidden = !s.all_ready;
+    renderPayQr(s.order && s.order.pay_url);
     notifyReady(s);
+}
+
+// The order's QR for the till (drawn here, redrawn only if it changes).
+function renderPayQr(url) {
+    if (!url || url === renderPayQr.url || typeof QRCode === 'undefined') return;
+    renderPayQr.url = url;
+    $('payQr').innerHTML = '';
+    new QRCode($('payQr'), { text: url, width: 440, height: 440, correctLevel: QRCode.CorrectLevel.M });
 }
 
 /* ---- Not signed in: returning (mobile) or new customer, then the code ---- */

@@ -76,6 +76,9 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
                 <a href="/cashier/index.php" class="<?= strpos($currentPage, 'cashier') !== false ? 'active' : '' ?>">
                     <i class="fas fa-cash-register"></i> <?= te('nav_cashier') ?>
                 </a>
+                <a href="/cashier/online.php" class="<?= ($_SERVER['PHP_SELF'] ?? '') === '/cashier/online.php' ? 'active' : '' ?>">
+                    <i class="fas fa-globe"></i> <?= te('cash_online_title') ?>
+                </a>
             <?php endif; ?>
 
             <?php if (hasRole(['admin', 'kitchen'])): ?>

@@ -1300,10 +1300,34 @@ return [
     'online_enable_confirm' => 'Enable this customer again?',
 
     // ---- Online customers: order ready ----
-    'online_ready_text' => 'Hi {name}, your order *{order}* from *{restaurant}* is ready! 🎉'."\n".''."\n".'Come to the counter to collect it: you pay {total} at the till.',
+    'online_ready_text' => 'Hi {name}, your order *{order}* from *{restaurant}* is ready! 🎉'."\n".''."\n".'Come to the counter to collect it and show the QR below at the till to pay {total}.',
 
     // ---- Kitchen: online orders ready all together ----
     'kitchen_order_ready' => 'Order ready',
     'kitchen_online_hint' => 'Online order: marked ready all together, the customer gets a single notice.',
     'kitchen_online_whole' => 'Online orders are marked ready all together: use "Order ready".',
+
+    // ---- Till: online orders panel, pay QR ----
+    'online_pay_qr_title' => 'Your QR to pay',
+    'online_pay_qr_text' => 'Show it at the till when you collect: the cashier scans it and takes payment for your order.',
+    'cash_online_title' => 'Online orders',
+    'cash_online_banner' => '{n} online orders to collect: open the panel',
+    'cash_online_scan_title' => 'Scan the customer\'s QR',
+    'cash_online_scan_hint' => 'The customer shows the QR (on their page or in the "order ready" WhatsApp): read it with the scanner or the camera and their order\'s payment opens.',
+    'cash_online_scan_ph' => 'QR scanner: scan the customer\'s code',
+    'cash_online_scan_go' => 'Open',
+    'cash_online_camera' => 'Camera',
+    'cash_online_camera_err' => 'Camera not available: use the scanner or open the order from the list.',
+    'cash_online_scan_unknown' => 'QR not recognised: it matches no online order.',
+    'cash_online_scan_paid' => 'Order {order} of {name} is already paid.',
+    'cash_online_scan_cancelled' => 'Order {order} was cancelled.',
+    'cash_online_open' => 'To collect',
+    'cash_online_ready' => 'Ready for pickup',
+    'cash_online_paid_today' => 'Collected today ({n})',
+    'cash_online_none' => 'No online orders to collect.',
+    'cash_online_st_ready' => 'Ready',
+    'cash_online_st_cooking' => 'Being prepared',
+    'cash_online_collect' => 'Collect',
+    'cash_online_paid_title' => 'Online orders paid today',
+    'cash_online_method' => 'Payment',
 ];

@@ -32,6 +32,8 @@ The PUB server was set up on 2026-10-01: Apache 2.4 + PHP 8.3 + MariaDB 10.11 (d
 Let's Encrypt certificate via certbot (auto-renews), 2 GB swap. The DB started as a copy of the live
 ristorante DB (menu, rooms, tables, staff users, settings). The device poller cron is **not**
 installed because the shop LAN (MikroTik/WireGuard) is only reachable from the ristorante server.
+`qrencode` (apt) is installed: it draws the online orders' pay QR as a PNG for WhatsApp
+(`online-qr.php`); without it the "order ready" message goes without the image.
 Do not deploy this repo to `/var/www/html/ristorante`, which still pulls from `ispbillingai/order`.
 
 ## Rules
