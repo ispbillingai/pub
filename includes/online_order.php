@@ -42,11 +42,11 @@ const ONLINE_CODE_GAP      = 60;    // a new code at most once a minute
 const ONLINE_CODE_MAX_SENDS = 5;    // codes per browser session
 const ONLINE_CODE_MAX_TRIES = 5;    // wrong codes before a new one is needed
 
-/** ['enabled' => bool] */
+/** ['enabled' => bool, 'thanks_it' / 'thanks_en' => the "paid, thank you" text ('' = default)] */
 function onlineOrderSettings(): array
 {
     $s = (array) getSetting('online_order', []);
-    return ['enabled' => !empty($s['enabled'])];
+    return ['enabled' => !empty($s['enabled']), 'thanks_it' => (string) ($s['thanks_it'] ?? ''), 'thanks_en' => (string) ($s['thanks_en'] ?? '')];
 }
 
 /** On, and WhatsApp can carry the code. */
@@ -368,6 +368,31 @@ function onlineNotifyReady(array $order): void
         ]), onlineQrPngAvailable() ? onlineQrImageUrl($token) : null);
 }
 
+/**
+ * The order has been paid at the till (thankGuestsForPaidOrder): the customer
+ * gets "payment received" with a thank-you on WhatsApp, once. Their page
+ * shows it too (onlineOrderState 'paid'). Returns how many messages were queued.
+ */
+function onlineThankPaid(array $order): int
+{
+    if (empty($order['customer_phone'])) return 0;
+    $pdo = getDBConnection();
+    $st  = $pdo->prepare("SELECT 1 FROM whatsapp_outbox WHERE order_id = ? AND kind = 'online_paid' LIMIT 1");
+    $st->execute([(int) $order['id']]);
+    if ($st->fetchColumn()) return 0;                                     // already thanked
+    $lang = guestLang($order['customer_country'] ?? 'IT');
+    $txt  = trim(onlineOrderSettings()['thanks_' . $lang]) ?: tIn($lang, 'online_paid_default');
+    $first = trim(strtok((string) $order['customer_name'], ' ') ?: '') ?: tIn($lang, 'thanks_no_name');
+    queueGuestWhatsapp((int) $order['id'], null, 'online_paid', $order['customer_phone'], strtr($txt, [
+        '{nome}' => $first, '{name}' => $first,
+        '{ristorante}' => restaurantName(), '{restaurant}' => restaurantName(),
+        '{ordine}' => $order['order_number'], '{order}' => $order['order_number'],
+        '{totale}' => formatCurrency($order['total']), '{total}' => formatCurrency($order['total']),
+    ]));
+    logActivity('online_paid_thanks_sent', 'orders', (int) $order['id']);
+    return 1;
+}
+
 /* ---- Paying at the till with the order's QR ---- */
 
 /** The order's secret pay token (made on first use for orders older than it). */
@@ -445,9 +470,20 @@ function onlineOrderState(array $customer): array
             ];
         }
     }
+    // Just paid (last 30 minutes, nothing else open): "payment received, thank you" on their page.
+    $paid = null;
+    if (!$order) {
+        $st = getDBConnection()->prepare("
+            SELECT order_number, total FROM orders WHERE online_customer_id = ? AND channel = ? AND status = 'paid'
+              AND closed_at > NOW() - INTERVAL 30 MINUTE ORDER BY closed_at DESC LIMIT 1
+        ");
+        $st->execute([(int) $customer['id'], ONLINE_CHANNEL]);
+        if ($p = $st->fetch()) $paid = ['number' => $p['order_number'], 'total_fmt' => formatCurrency($p['total'])];
+    }
     return [
         'success'  => true,
         'enabled'  => onlineOrderEnabled(),
+        'paid'     => $paid,
         'customer' => ['first_name' => $customer['first_name']],
         'order'    => $order ? ['number' => $order['order_number'], 'pay_url' => onlinePayUrl(onlinePayToken($order))] : null,
         'items'    => $items,

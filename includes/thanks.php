@@ -38,12 +38,18 @@ function thanksText(string $lang, ?string $name): string
 function thankGuestsForPaidOrder(int $orderId): int
 {
     try {
-        if (!thanksSettings()['enabled'] || !guestWhatsappEnabled()) return 0;
+        if (!guestWhatsappEnabled()) return 0;
         $pdo  = getDBConnection();
         $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch();
-        if (!$order || $order['status'] !== 'paid' || $order['channel'] !== 'dine_in') return 0;
+        if (!$order || $order['status'] !== 'paid') return 0;
+        // Online customers: "payment received" + thank-you (Admin > Clienti online).
+        if ($order['channel'] === 'online') {
+            require_once __DIR__ . '/online_order.php';
+            return onlineThankPaid($order);
+        }
+        if (!thanksSettings()['enabled'] || $order['channel'] !== 'dine_in') return 0;
 
         $rootId = (int) ($order['parent_order_id'] ?: $order['id']);
         $guests = [];                                      // phone => [name, country]

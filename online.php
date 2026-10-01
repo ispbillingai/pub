@@ -31,6 +31,7 @@ $L = [
     'code_sent_to'  => t('self_code_sent_to'),
     'hello'         => t('online_hello'),
     'order_no'      => t('online_order_no'),
+    'paid_text'     => t('online_paid_text'),
     'currency'      => formatCurrency(0),
 ];
 $countries = phoneCountryOptions();
@@ -157,6 +158,9 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .ready-banner { position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 30; background: var(--ok); color: #fff; border-radius: 16px; padding: 16px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; gap: 14px; align-items: center; }
 .ready-banner i { font-size: 1.8rem; }
 .pay-qr { text-align: center; }
+.paid-card { display: flex; gap: 14px; align-items: center; background: var(--ok); color: #fff; }
+.paid-card i { font-size: 2rem; }
+.paid-card strong { display: block; font-size: 1.1rem; }
 #payQr { display: flex; justify-content: center; padding: 8px 0 4px; }
 #payQr img, #payQr canvas { width: 220px; height: 220px; }
 .ready-banner strong { display: block; font-size: 1.05rem; }
@@ -268,6 +272,10 @@ $footHtml = ob_get_clean(); ?>
 
 <!-- Signed in: the menu and the cart -->
 <main id="shop" hidden>
+    <div class="card paid-card" id="paidCard" hidden>
+        <i class="fas fa-circle-check"></i>
+        <div><strong><?= te('online_paid_title') ?></strong><span id="paidText"></span></div>
+    </div>
     <div class="card">
         <h2><i class="fas fa-utensils"></i> <span class="hello"></span></h2>
         <p class="sub"><?= te('online_shop_intro') ?></p>
@@ -381,6 +389,7 @@ function render(s) {
     document.querySelectorAll('.hello').forEach(el => { el.textContent = L.hello.replace('{name}', s.customer.first_name); });
     if (!s.enabled && !s.items.length) { show('off'); return; }
     // The menu first (nothing ordered yet) or when asked for more.
+    renderPaid(s.paid);
     if (shopOpen || !s.items.length) { show('shop'); $('shopBack').hidden = !s.items.length; renderShop(); return; }
     show('app');
     $('orderNo').textContent = s.order ? L.order_no.replace('{n}', s.order.number) : '';
@@ -391,6 +400,20 @@ function render(s) {
     $('allReady').hidden = !s.all_ready;
     renderPayQr(s.order && s.order.pay_url);
     notifyReady(s);
+}
+
+// Paid at the till: "payment received, thank you" (with the chime when it happens while the page is open).
+let paidSeen = undefined;
+function renderPaid(p) {
+    $('paidCard').hidden = !p;
+    if (p) $('paidText').textContent = L.paid_text.replace('{order}', p.number).replace('{total}', p.total_fmt);
+    const key = p ? p.number : null;
+    if (paidSeen !== undefined && key && key !== paidSeen) {
+        playChime();
+        try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
+        window.scrollTo(0, 0);
+    }
+    paidSeen = key;
 }
 
 // The order's QR for the till (drawn here, redrawn only if it changes).

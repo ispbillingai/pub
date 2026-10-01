@@ -1330,4 +1330,12 @@ return [
     'cash_online_collect' => 'Collect',
     'cash_online_paid_title' => 'Online orders paid today',
     'cash_online_method' => 'Payment',
+
+    // ---- Online orders: paid, thank you ----
+    'online_paid_default' => 'Dear {name}, we have received your payment of {total} for order {order}. ✅'."\n".''."\n".'Thank you so much for choosing {restaurant}! We hope you enjoy everything: we look forward to your next order. See you soon! 😊',
+    'online_paid_title' => 'Payment received, thank you!',
+    'online_paid_text' => 'Order {order} paid ({total}). Thank you for choosing us: see you soon!',
+    'online_thanks_title' => 'Message after payment',
+    'online_thanks_intro' => 'As soon as the online order is paid at the till, the customer gets the payment confirmation with this thank-you on WhatsApp (Italian or English by their mobile\'s prefix). Leave empty for the default text.',
+    'online_thanks_placeholders' => '{name} = customer\'s name · {total} = amount paid · {order} = order number · {restaurant} = venue name',
 ];

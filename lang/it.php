@@ -1330,4 +1330,12 @@ return [
     'cash_online_collect' => 'Incassa',
     'cash_online_paid_title' => 'Ordini online pagati oggi',
     'cash_online_method' => 'Pagamento',
+
+    // ---- Online orders: paid, thank you ----
+    'online_paid_default' => 'Gentile {nome}, abbiamo ricevuto il tuo pagamento di {totale} per l\'ordine {ordine}. ✅'."\n".''."\n".'Grazie di cuore per aver scelto {ristorante}! Speriamo che tutto sia di tuo gradimento: ti aspettiamo presto per il prossimo ordine. A presto! 😊',
+    'online_paid_title' => 'Pagamento ricevuto, grazie!',
+    'online_paid_text' => 'Ordine {order} pagato ({total}). Grazie per averci scelto: ti aspettiamo presto!',
+    'online_thanks_title' => 'Messaggio dopo il pagamento',
+    'online_thanks_intro' => 'Appena l\'ordine online viene pagato in cassa, il cliente riceve su WhatsApp la conferma del pagamento con questo ringraziamento (in italiano o in inglese secondo il prefisso del cellulare). Lascia vuoto per usare il testo predefinito.',
+    'online_thanks_placeholders' => '{nome} = nome del cliente · {totale} = importo pagato · {ordine} = numero ordine · {ristorante} = nome del locale',
 ];

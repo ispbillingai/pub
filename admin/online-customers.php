@@ -17,7 +17,11 @@ $pdo = getDBConnection();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'settings') {
-        setSetting('online_order', ['enabled' => !empty($_POST['enabled'])]);
+        setSetting('online_order', [
+            'enabled'   => !empty($_POST['enabled']),
+            'thanks_it' => mb_substr(trim((string) ($_POST['thanks_it'] ?? '')), 0, 1000),
+            'thanks_en' => mb_substr(trim((string) ($_POST['thanks_en'] ?? '')), 0, 1000),
+        ]);
         logActivity('online_order_settings_saved', 'settings', null, ['enabled' => !empty($_POST['enabled'])]);
         header('Location: /admin/online-customers.php?success=saved');
         exit;
@@ -148,6 +152,13 @@ include __DIR__ . '/../includes/header.php';
                     <input type="checkbox" name="enabled" value="1" <?= $settings['enabled'] ? 'checked' : '' ?> style="width:20px;height:20px;">
                     <strong><?= te('online_settings_enable') ?></strong>
                 </label>
+                <h3 style="font-size:.95rem;margin:18px 0 4px;"><i class="fab fa-whatsapp" style="color:#25d366;"></i> <?= te('online_thanks_title') ?></h3>
+                <p class="text-muted" style="font-size:.85rem;margin:0 0 8px;"><?= te('online_thanks_intro') ?></p>
+                <label class="form-label">Italiano</label>
+                <textarea name="thanks_it" class="form-control" rows="4" placeholder="<?= htmlspecialchars(tIn('it', 'online_paid_default')) ?>"><?= htmlspecialchars($settings['thanks_it']) ?></textarea>
+                <label class="form-label" style="margin-top:8px;">English</label>
+                <textarea name="thanks_en" class="form-control" rows="4" placeholder="<?= htmlspecialchars(tIn('en', 'online_paid_default')) ?>"><?= htmlspecialchars($settings['thanks_en']) ?></textarea>
+                <p class="text-muted" style="font-size:.8rem;margin:6px 0 0;"><?= te('online_thanks_placeholders') ?></p>
             </div>
             <div class="card-footer">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
