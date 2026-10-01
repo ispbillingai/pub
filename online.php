@@ -161,6 +161,8 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .paid-card { display: flex; gap: 14px; align-items: center; background: var(--ok); color: #fff; }
 .paid-card i { font-size: 2rem; }
 .paid-card strong { display: block; font-size: 1.1rem; }
+.paid-close { background: rgba(255,255,255,.2); border: 0; color: #fff; border-radius: 10px; width: 38px; height: 38px; flex: 0 0 auto; cursor: pointer; }
+.paid-close i { font-size: 1rem; }
 #payQr { display: flex; justify-content: center; padding: 8px 0 4px; }
 #payQr img, #payQr canvas { width: 220px; height: 220px; }
 .ready-banner strong { display: block; font-size: 1.05rem; }
@@ -274,7 +276,8 @@ $footHtml = ob_get_clean(); ?>
 <main id="shop" hidden>
     <div class="card paid-card" id="paidCard" hidden>
         <i class="fas fa-circle-check"></i>
-        <div><strong><?= te('online_paid_title') ?></strong><span id="paidText"></span></div>
+        <div style="flex:1;"><strong><?= te('online_paid_title') ?></strong><span id="paidText"></span></div>
+        <button type="button" class="paid-close" onclick="dismissPaid()" aria-label="<?= te('close') ?>"><i class="fas fa-xmark"></i></button>
     </div>
     <div class="card">
         <h2><i class="fas fa-utensils"></i> <span class="hello"></span></h2>
@@ -402,10 +405,18 @@ function render(s) {
     notifyReady(s);
 }
 
-// Paid at the till: "payment received, thank you" (with the chime when it happens while the page is open).
-let paidSeen = undefined;
+// Paid at the till: "payment received, thank you" (with the chime when it happens
+// while the page is open). Gone for good once closed or a new order is started.
+const PAID_KEY = 'online-paid-dismissed';
+let paidSeen = undefined, paidShown = null;
+const paidDismissed = () => { try { return localStorage.getItem(PAID_KEY); } catch (e) { return null; } };
+function dismissPaid() {
+    if (paidShown) { try { localStorage.setItem(PAID_KEY, paidShown); } catch (e) {} }
+    $('paidCard').hidden = true;
+}
 function renderPaid(p) {
-    $('paidCard').hidden = !p;
+    paidShown = p ? p.number : null;
+    $('paidCard').hidden = !p || paidDismissed() === p.number || cart.length > 0;
     if (p) $('paidText').textContent = L.paid_text.replace('{order}', p.number).replace('{total}', p.total_fmt);
     const key = p ? p.number : null;
     if (paidSeen !== undefined && key && key !== paidSeen) {
@@ -559,6 +570,7 @@ function lineInc(idx, d) {
     saveCart(); cartChanged();
 }
 function cartChanged() {
+    if (cart.length && paidShown) dismissPaid();   // a new order is under way
     renderShop();
     if ($('cartSheet').classList.contains('on')) renderCartLines();
 }
