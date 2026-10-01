@@ -1,0 +1,258 @@
+<?php
+/**
+ * Cashier Dashboard
+ * Restaurant POS System
+ */
+
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/table_visual.php';
+requireRole(['admin', 'cashier']);
+
+$pdo = getDBConnection();
+
+// Tills configured? (controls whether the "Till" column is shown)
+$tills = getTills();
+
+// Get all tables with their current status - FIXED QUERY
+try {
+    $stmt = $pdo->query("
+        SELECT 
+            t.id,
+            t.table_number,
+            t.capacity,
+            t.status,
+            t.current_order_id,
+            r.id as room_id,
+            r.name as room_name,
+            o.id as order_id,
+            o.order_number,
+            o.total,
+            o.status as order_status,
+            o.number_of_people,
+            o.table_label
+        FROM tables_restaurant t
+        JOIN rooms r ON t.room_id = r.id
+        LEFT JOIN orders o ON (o.table_id = t.id OR o.id = t.current_order_id) AND o.status NOT IN ('paid', 'cancelled')
+            AND o.parent_order_id IS NULL
+        WHERE r.active = 1
+        ORDER BY r.sort_order, r.name, t.table_number + 0, t.table_number
+    ");
+    $tables = $stmt->fetchAll();
+} catch (Exception $e) {
+    $tables = [];
+}
+
+// Get orders awaiting payment - FIXED QUERY
+try {
+    $stmt = $pdo->query("
+        SELECT 
+            o.id,
+            o.order_number,
+            o.total,
+            o.status,
+            o.number_of_people,
+            o.updated_at,
+            COALESCE(o.table_label, t.table_number) AS table_number,
+            r.name as room_name,
+            u.full_name as waiter_name,
+            st.name as till_name
+        FROM orders o
+        JOIN tables_restaurant t ON o.table_id = t.id
+        JOIN rooms r ON o.room_id = r.id
+        JOIN users u ON o.waiter_id = u.id
+        LEFT JOIN stations st ON o.till_id = st.id
+        WHERE o.status = 'bill_requested'
+          -- a table order emptied into seat bills: nothing to take, the seat bills are listed
+          AND NOT (o.parent_order_id IS NULL AND o.total = 0 AND EXISTS (
+                SELECT 1 FROM orders sb WHERE sb.parent_order_id = o.id AND sb.status NOT IN ('paid', 'cancelled')))
+        ORDER BY o.updated_at ASC
+    ");
+    $pendingBills = $stmt->fetchAll();
+} catch (Exception $e) {
+    $pendingBills = [];
+}
+
+// Today's stats
+try {
+    $stmt = $pdo->query("
+        SELECT 
+            COUNT(*) as total_orders,
+            COALESCE(SUM(total), 0) as total_revenue
+        FROM orders 
+        WHERE status = 'paid' 
+        AND DATE(closed_at) = CURDATE()
+    ");
+    $todayStats = $stmt->fetch();
+} catch (Exception $e) {
+    $todayStats = ['total_orders' => 0, 'total_revenue' => 0];
+}
+
+$pageTitle = t('nav_cashier');
+
+include __DIR__ . '/../includes/header.php';
+?>
+
+<div class="page-header">
+    <h1><i class="fas fa-cash-register"></i> <?= te('cashier_dashboard') ?></h1>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <i class="fas fa-receipt"></i>
+        </div>
+        <div>
+            <div class="stat-value"><?= $todayStats['total_orders'] ?? 0 ?></div>
+            <div class="stat-label"><?= te('orders_today') ?></div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">
+            <i class="fas fa-euro-sign"></i>
+        </div>
+        <div>
+            <div class="stat-value"><?= formatCurrency($todayStats['total_revenue'] ?? 0) ?></div>
+            <div class="stat-label"><?= te('revenue_today') ?></div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">
+            <i class="fas fa-hourglass-half"></i>
+        </div>
+        <div>
+            <div class="stat-value"><?= is_array($pendingBills) ? count($pendingBills) : 0 ?></div>
+            <div class="stat-label"><?= te('pending_bills') ?></div>
+        </div>
+    </div>
+</div>
+
+<?php if (!empty($pendingBills)): ?>
+<!-- Pending Bills -->
+<div class="card mb-lg">
+    <div class="card-header">
+        <h2><i class="fas fa-exclamation-circle text-warning"></i> <?= te('bills_awaiting') ?></h2>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th><?= te('table') ?></th>
+                <th><?= te('order_no') ?></th>
+                <th><?= te('guests') ?></th>
+                <th><?= te('waiter') ?></th>
+                <?php if (!empty($tills)): ?><th><?= te('till') ?></th><?php endif; ?>
+                <th><?= te('total') ?></th>
+                <th><?= te('actions') ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($pendingBills as $bill): ?>
+                <tr>
+                    <td>
+                        <strong><?= htmlspecialchars($bill['table_number'] ?? '') ?></strong>
+                        <span class="text-muted">(<?= htmlspecialchars($bill['room_name'] ?? '') ?>)</span>
+                    </td>
+                    <td><?= htmlspecialchars($bill['order_number'] ?? '') ?></td>
+                    <td><?= $bill['number_of_people'] ?? 0 ?></td>
+                    <td><?= htmlspecialchars($bill['waiter_name'] ?? 'Unknown') ?></td>
+                    <?php if (!empty($tills)): ?>
+                    <td>
+                        <?php if (!empty($bill['till_name'])): ?>
+                            <span class="badge badge-info"><i class="fas fa-cash-register"></i> <?= htmlspecialchars($bill['till_name']) ?></span>
+                        <?php else: ?>
+                            <span class="text-muted">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <?php endif; ?>
+                    <td><strong class="text-primary" style="font-size: 1.1rem;"><?= formatCurrency($bill['total'] ?? 0) ?></strong></td>
+                    <td>
+                        <a href="/cashier/payment.php?order=<?= $bill['id'] ?>" class="btn btn-sm btn-success">
+                            <i class="fas fa-money-bill"></i> <?= te('process_payment') ?>
+                        </a>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif; ?>
+
+<!-- All Tables -->
+<?php
+// Table overview by room, as in admin Rooms & Tables: "Occupied" (every
+// table in use, any room, with its room's name) and one view per room.
+$occupancy  = tableOccupancy();              // guests seated per table (chairs red/green)
+$billTables = array_flip(billAlertTables()); // blink: asking for the bill
+$byRoom = [];
+foreach ($tables as $t) {
+    $byRoom[(int) $t['room_id']]['name']     = $t['room_name'];
+    $byRoom[(int) $t['room_id']]['tables'][] = $t;
+}
+$inUse = array_values(array_filter($tables, fn($t) => $t['order_id'] || isset(tablesToLay()[$t['id']])));
+
+$scrollerKey   = 'cashier-rooms';
+$scrollerRooms = [['id' => 'occupied', 'name' => t('rooms_occupied_view'), 'icon' => 'fa-utensils',
+                   'count' => count(array_filter($inUse, fn($t) => $t['order_id'])), 'count_class' => 'busy']];
+foreach ($byRoom as $rid => $r) {
+    $free = count(array_filter($r['tables'], fn($t) => !$t['order_id']));
+    $scrollerRooms[] = ['id' => $rid, 'name' => $r['name'], 'count' => $free, 'count_class' => 'free',
+                        'title' => t('rooms_free_of', ['free' => $free, 'all' => count($r['tables'])])];
+}
+?>
+<div class="card">
+    <div class="card-header">
+        <h2><?= te('table_overview') ?></h2>
+    </div>
+    <div class="card-body">
+        <?php include __DIR__ . '/../includes/room_scroller.php'; ?>
+        <?php foreach (array_merge([['id' => 'occupied', 'tables' => $inUse]], array_map(fn($rid, $r) => ['id' => $rid, 'tables' => $r['tables']], array_keys($byRoom), $byRoom)) as $panel): ?>
+        <div data-room-panel="<?= htmlspecialchars((string) $panel['id']) ?>">
+        <?php if (!$panel['tables']): ?>
+            <p class="text-muted text-center" style="padding: 30px;"><?= te('rooms_none_occupied') ?></p>
+        <?php endif; ?>
+        <div class="tables-grid">
+            <?php foreach ($panel['tables'] as $table):
+                $status = $table['order_id'] ? ($table['order_status'] === 'bill_requested' ? 'bill_requested' : 'occupied') : 'free';
+                $guests = $table['order_id'] ? ($occupancy[$table['id']]['guests'] ?? 0) : null;
+            ?>
+                <?php $toLay = $status === 'free' && isset(tablesToLay()[$table['id']]); ?>
+                <div class="table-card table-visual <?= $status ?><?= isset($billTables[$table['id']]) ? ' bill-alert' : '' ?><?= $toLay ? ' needs-reset' : '' ?>" data-table-id="<?= (int) $table['id'] ?>"
+                     <?php if ($table['order_id']): ?>
+                     onclick="window.location.href='/cashier/payment.php?order=<?= $table['order_id'] ?>'"
+                     <?php endif; ?>
+                     style="<?= $table['order_id'] ? '' : 'cursor: default;' ?>">
+                    <?php if ($panel['id'] === 'occupied'): ?><div class="table-room"><i class="fas fa-door-open"></i> <?= htmlspecialchars($table['room_name']) ?></div><?php endif; ?>
+                    <span class="tv-billicon"><i class="fas fa-receipt"></i> <?= te('tv_bill') ?></span>
+                    <?= $toLay ? tableLayBadge((int) $table['id']) : '' ?>
+                    <?= renderTableVisual((string) $table['table_number'], (int) ($table['capacity'] ?? 4), $guests, (string) $table['status']) ?>
+                    <?= $toLay ? tableLaidButton((int) $table['id']) : '' ?>
+                    <div class="tv-guests <?= tableFill((int) ($table['capacity'] ?? 4), $guests) ?>">
+                        <i class="fas fa-users"></i> <?= (int) ($guests ?? 0) ?>/<?= (int) ($table['capacity'] ?? 4) ?>
+                    </div>
+                    <div class="table-status">
+                        <?php if ($status === 'free'): ?>
+                            <?= te('available') ?>
+                        <?php elseif ($status === 'occupied'): ?>
+                            <?= te('occupied') ?>
+                        <?php elseif ($status === 'bill_requested'): ?>
+                            <i class="fas fa-bell"></i> <?= te('bill_requested') ?>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($table['order_id'] && isset($table['total'])): ?>
+                        <div style="margin-top: 8px; font-weight: 700; color: var(--primary);">
+                            <?= formatCurrency($table['total']) ?>
+                        </div>
+                        <?php if (!empty($table['table_label'])): ?>
+                            <div class="table-joined"><i class="fas fa-link"></i> <?= htmlspecialchars($table['table_label']) ?></div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+
+<?= tableLayWatch() ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>
