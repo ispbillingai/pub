@@ -17,7 +17,8 @@
  * Every screen JOINs a table, room and waiter, so, as with Glovo, the orders
  * hang off a hidden room "Clienti online" (active = 0), a table "ONLINE" that
  * is never occupied and a disabled system user. Once sent, the order shows in
- * the cashier's "bills to collect" with the customer's name.
+ * the cashier's "bills to collect" with the customer's name. No notification
+ * goes to waiters or cashiers: "ready" goes to the customer (onlineNotifyReady).
  */
 
 require_once __DIR__ . '/functions.php';
@@ -329,11 +330,36 @@ function onlineSendCart(array $customer, array $cart): array
     }
     calculateOrderTotals((int) $order['id']);
     sendPendingToKitchen((int) $order['id']);
-    // Paid at the till on collection: it shows (and the cashiers are told) at once.
-    markOrderBillRequested((int) $order['id'], null, true);
+    // Paid at the till on collection: it shows among the bills to collect at
+    // once. No alert to the staff: every notification goes to the customer.
+    $pdo->prepare("UPDATE orders SET status = 'bill_requested' WHERE id = ?")->execute([(int) $order['id']]);
     onlineLogAccess((int) $customer['id'], 'order', (int) $order['id']);
     logActivity('online_order_sent', 'orders', (int) $order['id'], ['dishes' => $n]);
     return ['ok' => $n];
+}
+
+/**
+ * The kitchen marked dishes ready (notifyDishReady): once everything on the
+ * order is ready, the customer gets "your order is ready" on WhatsApp — once,
+ * and again only if they added dishes after that message. Their page shows it too.
+ */
+function onlineNotifyReady(array $order): void
+{
+    if (!guestWhatsappEnabled() || empty($order['customer_phone'])) return;
+    $pdo = getDBConnection();
+    $st  = $pdo->prepare("SELECT COUNT(*) AS n, SUM(status IN ('ready', 'served')) AS done, MAX(created_at) AS last_added
+                          FROM order_items WHERE order_id = ? AND status <> 'cancelled'");
+    $st->execute([(int) $order['id']]);
+    $it = $st->fetch();
+    if (!(int) $it['n'] || (int) $it['done'] < (int) $it['n']) return;   // still cooking
+    $st = $pdo->prepare("SELECT 1 FROM whatsapp_outbox WHERE order_id = ? AND kind = 'online_ready' AND created_at >= ? LIMIT 1");
+    $st->execute([(int) $order['id'], $it['last_added']]);
+    if ($st->fetchColumn()) return;                                       // already told
+    queueGuestWhatsapp((int) $order['id'], null, 'online_ready', $order['customer_phone'],
+        tIn(guestLang($order['customer_country'] ?? 'IT'), 'online_ready_text', [
+            'name' => strtok((string) $order['customer_name'], ' ') ?: '', 'restaurant' => restaurantName(),
+            'order' => $order['order_number'], 'total' => formatCurrency($order['total']),
+        ]));
 }
 
 /** What the customer sees: their order's dishes and how each is doing, the total. */

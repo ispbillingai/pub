@@ -1298,4 +1298,7 @@ return [
     'online_enable' => 'Enable customer',
     'online_disable_confirm' => 'Disable this customer? They will no longer be able to sign in or order (their data is kept).',
     'online_enable_confirm' => 'Enable this customer again?',
+
+    // ---- Online customers: order ready ----
+    'online_ready_text' => 'Hi {name}, your order *{order}* from *{restaurant}* is ready! 🎉'."\n".''."\n".'Come to the counter to collect it: you pay {total} at the till.',
 ];

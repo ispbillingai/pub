@@ -1298,4 +1298,7 @@ return [
     'online_enable' => 'Riattiva cliente',
     'online_disable_confirm' => 'Disattivare questo cliente? Non potrà più accedere né ordinare (i dati restano).',
     'online_enable_confirm' => 'Riattivare questo cliente?',
+
+    // ---- Online customers: order ready ----
+    'online_ready_text' => 'Ciao {name}, il tuo ordine *{order}* da *{restaurant}* è pronto! 🎉'."\n".''."\n".'Passa al banco a ritirarlo: paghi {total} alla cassa.',
 ];

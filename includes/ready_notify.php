@@ -194,6 +194,12 @@ function notifyDishReady(int $orderId, ?string $what, ?int $seat = null, ?int $o
 {
     $order = getOrderById($orderId);
     if (!$order) return 0;
+    // Online customers' orders: only the customer is told (WhatsApp + their page), never the staff.
+    if (($order['channel'] ?? 'dine_in') === 'online') {
+        require_once __DIR__ . '/online_order.php';
+        onlineNotifyReady($order);
+        return 0;
+    }
     $info = ['what' => $what, 'what_key' => $whatKey, 'seat' => $seat, 'table' => $order['table_number'], 'room' => $order['room_name'], 'order_of' => null];
     // A guest's order nobody has taken yet: the pop-up offers "I'll take it".
     [$guestOrder, $guestWaiter] = guestOrderWaiter($order);
