@@ -193,7 +193,7 @@ $rsInfo = restaurantInfo();
 $rsAddr = restaurantAddressLine();
 if ($rsAddr || !empty($rsInfo['phone'])): ?>
     <div class="contacts">
-        <?php if ($rsAddr): ?><div class="c-line"><a href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($brand . ', ' . $rsAddr) ?>" target="_blank" rel="noopener"><i class="fas fa-location-dot"></i><?= htmlspecialchars($rsAddr) ?></a></div><?php endif; ?>
+        <?php if ($rsAddr): ?><div class="c-line"><a href="<?= htmlspecialchars(restaurantMapsUrl()) ?>" target="_blank" rel="noopener"><i class="fas fa-location-dot"></i><?= htmlspecialchars($rsAddr) ?></a></div><?php endif; ?>
         <?php if (!empty($rsInfo['phone'])): ?><div class="c-line"><a href="tel:<?= htmlspecialchars(preg_replace('/[^\d+]/', '', $rsInfo['phone'])) ?>"><i class="fas fa-phone"></i><?= htmlspecialchars($rsInfo['phone']) ?></a></div><?php endif; ?>
     </div>
 <?php endif;

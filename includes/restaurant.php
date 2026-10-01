@@ -34,6 +34,15 @@ function restaurantAddressLine(): string
     return implode(', ', array_filter([$street, $city]));
 }
 
+/** Google Maps for the restaurant's address (name + address), or '' when no address was entered. */
+function restaurantMapsUrl(): string
+{
+    $addr = restaurantAddressLine();
+    if ($addr === '') return '';
+    $name = trim((string) (restaurantInfo()['name'] ?? ''));
+    return 'https://www.google.com/maps/search/?api=1&query=' . urlencode(($name !== '' ? $name . ', ' : '') . $addr);
+}
+
 /** The social links that were filled in: [['url', 'label', 'icon']]. */
 function restaurantSocialLinks(): array
 {

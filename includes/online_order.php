@@ -33,6 +33,7 @@ require_once __DIR__ . '/table_requests.php';
 require_once __DIR__ . '/kitchen_ticket.php';
 require_once __DIR__ . '/consent.php';
 require_once __DIR__ . '/self_order.php';
+require_once __DIR__ . '/restaurant.php';
 
 const ONLINE_CHANNEL       = 'online';
 const ONLINE_COOKIE        = 'online_customer';
@@ -359,13 +360,19 @@ function onlineNotifyReady(array $order): void
     $st = $pdo->prepare("SELECT 1 FROM whatsapp_outbox WHERE order_id = ? AND kind = 'online_ready' AND created_at >= ? LIMIT 1");
     $st->execute([(int) $order['id'], $it['last_added']]);
     if ($st->fetchColumn()) return;                                       // already told
-    // With the QR to show at the till (as an image, when the server can draw it).
+    // With the QR to show at the till (as an image, when the server can draw it)
+    // and where to collect it: the address in Settings, with its Google Maps link.
     $token = onlinePayToken($order);
-    queueGuestWhatsapp((int) $order['id'], null, 'online_ready', $order['customer_phone'],
-        tIn(guestLang($order['customer_country'] ?? 'IT'), 'online_ready_text', [
-            'name' => strtok((string) $order['customer_name'], ' ') ?: '', 'restaurant' => restaurantName(),
-            'order' => $order['order_number'], 'total' => formatCurrency($order['total']),
-        ]), onlineQrPngAvailable() ? onlineQrImageUrl($token) : null);
+    $lang  = guestLang($order['customer_country'] ?? 'IT');
+    $body  = tIn($lang, 'online_ready_text', [
+        'name' => strtok((string) $order['customer_name'], ' ') ?: '', 'restaurant' => restaurantName(),
+        'order' => $order['order_number'], 'total' => formatCurrency($order['total']),
+    ]);
+    if (($addr = restaurantAddressLine()) !== '') {
+        $body .= "\n\n" . tIn($lang, 'online_ready_location', ['address' => $addr, 'maps' => restaurantMapsUrl()]);
+    }
+    queueGuestWhatsapp((int) $order['id'], null, 'online_ready', $order['customer_phone'], $body,
+        onlineQrPngAvailable() ? onlineQrImageUrl($token) : null);
 }
 
 /**

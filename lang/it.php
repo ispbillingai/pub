@@ -1338,4 +1338,7 @@ return [
     'online_thanks_title' => 'Messaggio dopo il pagamento',
     'online_thanks_intro' => 'Appena l\'ordine online viene pagato in cassa, il cliente riceve su WhatsApp la conferma del pagamento con questo ringraziamento (in italiano o in inglese secondo il prefisso del cellulare). Lascia vuoto per usare il testo predefinito.',
     'online_thanks_placeholders' => '{nome} = nome del cliente · {totale} = importo pagato · {ordine} = numero ordine · {ristorante} = nome del locale',
+
+    // ---- Online orders: where to collect ----
+    'online_ready_location' => '📍 Dove ritirarlo: {address}'."\n".'{maps}',
 ];

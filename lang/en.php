@@ -1338,4 +1338,7 @@ return [
     'online_thanks_title' => 'Message after payment',
     'online_thanks_intro' => 'As soon as the online order is paid at the till, the customer gets the payment confirmation with this thank-you on WhatsApp (Italian or English by their mobile\'s prefix). Leave empty for the default text.',
     'online_thanks_placeholders' => '{name} = customer\'s name · {total} = amount paid · {order} = order number · {restaurant} = venue name',
+
+    // ---- Online orders: where to collect ----
+    'online_ready_location' => '📍 Where to collect it: {address}'."\n".'{maps}',
 ];
