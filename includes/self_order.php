@@ -202,6 +202,21 @@ function selfOrderCanOrder(?array $order): bool
 function selfOrderSend(array $order, array $cart): array
 {
     if (!selfOrderCanOrder($order)) return ['error' => 'self_err_off'];
+    $n = addGuestCartItems((int) $order['id'], $cart);
+    if (!$n) return ['error' => 'self_err_empty'];
+    calculateOrderTotals((int) $order['id']);
+    sendPendingToKitchen((int) $order['id']);   // no alert to the waiters: only "table free" once paid
+    logActivity('self_order_sent', 'orders', (int) $order['id'], ['dishes' => $n]);
+    return ['ok' => $n];
+}
+
+/**
+ * A guest's cart onto an order as pending dishes (table page and online
+ * customers): [['id', 'qty', 'note', 'add' => [ingredient ids], 'remove' => [...]]].
+ * Prices come from the menu, never from the phone. Returns how many dishes.
+ */
+function addGuestCartItems(int $orderId, array $cart): int
+{
     $pdo  = getDBConnection();
     $menu  = $pdo->prepare("SELECT mi.id, mi.base_price, mc.allow_composition FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1");
     $comps = $pdo->prepare("SELECT * FROM menu_item_components WHERE menu_item_id = ?");
@@ -234,14 +249,10 @@ function selfOrderSend(array $order, array $cart): array
                 if ($c && !$c['is_default']) { $mods[] = [$c['component_name'], 'added', (float) $c['extra_price']]; $unit += (float) $c['extra_price']; }
             }
         }
-        $add->execute([(int) $order['id'], (int) $item['id'], $qty, $unit, $unit * $qty, $note !== '' ? $note : null]);
+        $add->execute([$orderId, (int) $item['id'], $qty, $unit, $unit * $qty, $note !== '' ? $note : null]);
         $itemId = (int) $pdo->lastInsertId();
         foreach ($mods as [$name, $action, $extra]) $mod->execute([$itemId, $name, $action, $extra]);
         $n += $qty;
     }
-    if (!$n) return ['error' => 'self_err_empty'];
-    calculateOrderTotals((int) $order['id']);
-    sendPendingToKitchen((int) $order['id']);   // no alert to the waiters: only "table free" once paid
-    logActivity('self_order_sent', 'orders', (int) $order['id'], ['dishes' => $n]);
-    return ['ok' => $n];
+    return $n;
 }
