@@ -1301,4 +1301,9 @@ return [
 
     // ---- Online customers: order ready ----
     'online_ready_text' => 'Hi {name}, your order *{order}* from *{restaurant}* is ready! 🎉'."\n".''."\n".'Come to the counter to collect it: you pay {total} at the till.',
+
+    // ---- Kitchen: online orders ready all together ----
+    'kitchen_order_ready' => 'Order ready',
+    'kitchen_online_hint' => 'Online order: marked ready all together, the customer gets a single notice.',
+    'kitchen_online_whole' => 'Online orders are marked ready all together: use "Order ready".',
 ];

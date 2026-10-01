@@ -17,6 +17,23 @@ if (!isLoggedIn()) {
 $pdo = getDBConnection();
 $user = getCurrentUser();
 
+/**
+ * Online customers' orders are marked ready all together ("Order ready",
+ * mark_all_ready), so the customer gets one notice for the whole order:
+ * refuse marking single dishes or courses of them ready.
+ */
+function refuseOnlinePartialReady(PDO $pdo, array $orderItemIds): void
+{
+    $ids = array_values(array_filter(array_map('intval', $orderItemIds)));
+    if (!$ids) return;
+    $in   = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.id IN ($in) AND o.channel = 'online' LIMIT 1");
+    $stmt->execute($ids);
+    if ($stmt->fetchColumn()) {
+        jsonResponse(['success' => false, 'message' => t('kitchen_online_whole')]);
+    }
+}
+
 // Handle POST requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
@@ -35,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($status, $validStatuses)) {
                 jsonResponse(['success' => false, 'message' => 'Invalid status']);
             }
+            if ($status === 'ready') refuseOnlinePartialReady($pdo, [$orderItemId]);
             
             // Update order item status
             $updateFields = ['status' => $status];
@@ -117,6 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (empty($ids)) {
                 jsonResponse(['success' => false, 'message' => 'order_item_ids required']);
             }
+            refuseOnlinePartialReady($pdo, $ids);
             $in = implode(',', array_fill(0, count($ids), '?'));
 
             $stmt = $pdo->prepare(

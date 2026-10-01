@@ -22,6 +22,8 @@ $stmt = $pdo->query("
         oi.created_at,
         o.order_number,
         o.number_of_people,
+        o.channel,
+        o.notes AS order_notes,
         COALESCE(o.table_label, t.table_number) AS table_number,
         r.name as room_name,
         mi.name as item_name,
@@ -58,6 +60,9 @@ foreach ($items as $item) {
             'table_number' => $item['table_number'],
             'room_name' => $item['room_name'],
             'waiter_name' => $item['waiter_name'],
+            // Online customers: one "Order ready" for the whole order (one notice to the customer).
+            'online' => ($item['channel'] ?? 'dine_in') === 'online',
+            'order_notes' => (string) ($item['order_notes'] ?? ''),
             'first_item_time' => $item['sent_to_kitchen_at'] ?? $item['created_at'],
             'items' => [],
             'courses' => [],
@@ -174,6 +179,31 @@ include __DIR__ . '/../includes/header.php';
 .course-group .ticket-item:last-child {
     border-bottom: none;
 }
+
+/* Online customers' orders: intolerances on top, one "Order ready" for everything */
+.online-notes {
+    background: #fef2f2;
+    color: #b91c1c;
+    font-weight: 700;
+    border-radius: var(--radius-md, 10px);
+    padding: 8px 12px;
+    margin-bottom: 10px;
+}
+
+.online-ready {
+    width: 100%;
+    justify-content: center;
+    padding: 14px;
+    font-size: 1.05rem;
+    margin-top: 4px;
+}
+
+.online-hint {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 6px;
+}
 </style>
 
 <div class="kitchen-header">
@@ -219,7 +249,7 @@ include __DIR__ . '/../includes/header.php';
                 <div class="ticket-header">
                     <div>
                         <div class="table-info">
-                            <i class="fas fa-chair"></i> <?= htmlspecialchars($group['table_number']) ?>
+                            <i class="fas <?= $group['online'] ? 'fa-globe' : 'fa-chair' ?>"></i> <?= htmlspecialchars($group['table_number']) ?>
                             <span style="font-weight: 400; font-size: 0.85rem; margin-left: 8px;">
                                 <?= htmlspecialchars($group['room_name']) ?>
                             </span>
@@ -233,6 +263,9 @@ include __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 
+                <?php if ($group['online'] && $group['order_notes'] !== ''): ?>
+                    <div class="online-notes"><i class="fas fa-triangle-exclamation"></i> <?= htmlspecialchars($group['order_notes']) ?></div>
+                <?php endif; ?>
                 <div class="ticket-items">
                     <?php foreach ($group['courses'] as $course): ?>
                         <?php
@@ -244,7 +277,7 @@ include __DIR__ . '/../includes/header.php';
                         <div class="course-group">
                             <div class="course-header">
                                 <span class="course-name"><i class="fas fa-utensils"></i> <?= htmlspecialchars($course['name']) ?></span>
-                                <?php if (!empty($coursePendingIds)): ?>
+                                <?php if (!empty($coursePendingIds) && !$group['online']): ?>
                                     <button class="btn btn-sm btn-success" onclick='markCourseReady(<?= htmlspecialchars(json_encode($coursePendingIds), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($course['name']), ENT_QUOTES) ?>)'>
                                         <i class="fas fa-check"></i> <?= te('course_ready') ?>
                                     </button>
@@ -282,9 +315,11 @@ include __DIR__ . '/../includes/header.php';
                                                 <i class="fas fa-play"></i> <?= te('start') ?>
                                             </button>
                                         <?php endif; ?>
+                                        <?php if (!$group['online']): ?>
                                         <button class="btn btn-sm btn-success" onclick="markReady(<?= $item['order_item_id'] ?>)">
                                             <i class="fas fa-check"></i> <?= te('ready') ?>
                                         </button>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -292,6 +327,12 @@ include __DIR__ . '/../includes/header.php';
                     <?php endforeach; ?>
                 </div>
 
+                <?php if ($group['online']): ?>
+                    <button class="btn btn-success online-ready" onclick="markAllReady(<?= (int) $group['order_id'] ?>)">
+                        <i class="fas fa-bell-concierge"></i> <?= te('kitchen_order_ready') ?>
+                    </button>
+                    <div class="online-hint"><?= te('kitchen_online_hint') ?></div>
+                <?php endif; ?>
             </div>
         <?php endforeach; ?>
     </div>

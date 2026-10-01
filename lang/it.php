@@ -1301,4 +1301,9 @@ return [
 
     // ---- Online customers: order ready ----
     'online_ready_text' => 'Ciao {name}, il tuo ordine *{order}* da *{restaurant}* è pronto! 🎉'."\n".''."\n".'Passa al banco a ritirarlo: paghi {total} alla cassa.',
+
+    // ---- Kitchen: online orders ready all together ----
+    'kitchen_order_ready' => 'Ordine pronto',
+    'kitchen_online_hint' => 'Ordine online: si segna pronto tutto insieme, il cliente riceve un unico avviso.',
+    'kitchen_online_whole' => 'Gli ordini online si segnano pronti tutti insieme: usa "Ordine pronto".',
 ];
