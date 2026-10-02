@@ -114,16 +114,4 @@ return [
         'receipt_base' => 'https://your-domain.example/cashier/receipt.php',
     ],
 
-    // ---- MikroTik router (device up/down monitoring) ------------------
-    // The admin "Devices" page shows live up/down status of the shop devices.
-    // Those devices sit on the shop LAN behind the MikroTik; this server reaches
-    // the router over WireGuard and asks it (via the RouterOS API) to ping them.
-    // bin/poll-devices.php runs this on a cron; see includes/device_monitor.php.
-    'router' => [
-        'host'       => '192.168.200.15',  // MikroTik address over WireGuard
-        'port'       => 8728,              // RouterOS API (plain). 8729 = API-SSL
-        'user'       => 'admin',
-        'pass'       => 'CHANGE_ME',
-        'ping_count' => 2,                 // pings per device per check
-    ],
 ];

@@ -7,7 +7,7 @@ Work continues here.
 ## What the app is
 PHP + MariaDB restaurant POS ("ristorante"): admin, cashier, waiter, kitchen, guest ordering
 (QR menu), fiscal printing via the Epson RT printer, card payments (Epson RT protocol 17 / Dojo),
-Glovo orders, device monitor (MikroTik), "Clienti online" (one QR for a shop with no tables:
+Glovo orders, "Clienti online" (one QR for a shop with no tables:
 sign-up with WhatsApp code, then ordering; `online.php`, `includes/online_order.php`, Admin > Clienti online). This repo (pub) is live at https://pub.upgradesrls.com;
 the original (`order` repo) is still live at https://ristorante.upgradesrls.com.
 
@@ -30,8 +30,8 @@ public. The full copies (with passwords) are in Claude's local memory for this f
 The PUB server was set up on 2026-10-01: Apache 2.4 + PHP 8.3 + MariaDB 10.11 (default collation
 `utf8mb4_unicode_ci`), DB `pub` / user `pub`, vhost `/etc/apache2/sites-available/pub.conf`,
 Let's Encrypt certificate via certbot (auto-renews), 2 GB swap. The DB started as a copy of the live
-ristorante DB (menu, rooms, tables, staff users, settings). The device poller cron is **not**
-installed because the shop LAN (MikroTik/WireGuard) is only reachable from the ristorante server.
+ristorante DB (menu, rooms, tables, staff users, settings). The device monitor (Dispositivi /
+Aree di rete) was removed from this repo on 2026-10-02 (it is still in the ristorante app).
 `qrencode` (apt) is installed: it draws the online orders' pay QR as a PNG for WhatsApp
 (`online-qr.php`); without it the "order ready" message goes without the image.
 Do not deploy this repo to `/var/www/html/ristorante`, which still pulls from `ispbillingai/order`.

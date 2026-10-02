@@ -158,8 +158,6 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
             <a href="/admin/sales-stats.php" class="<?= $currentPage === 'sales-stats' ? 'active' : '' ?>"><i class="fas fa-chart-pie"></i> <?= te('ss_title') ?></a>
             <a href="/admin/campaigns.php" class="<?= $currentPage === 'campaigns' ? 'active' : '' ?>"><i class="fas fa-bullhorn"></i> <?= te('camp_title') ?></a>
             <a href="/admin/printers.php" class="<?= $currentPage === 'printers' ? 'active' : '' ?>"><i class="fas fa-print"></i> <?= te('printers') ?></a>
-            <a href="/admin/devices.php" class="<?= $currentPage === 'devices' ? 'active' : '' ?>"><i class="fas fa-network-wired"></i> <?= te('devices_title') ?></a>
-            <a href="/admin/network_areas.php" class="<?= $currentPage === 'network_areas' ? 'active' : '' ?>"><i class="fas fa-diagram-project"></i> <?= te('network_areas') ?></a>
             <a href="/admin/stations.php" class="<?= $currentPage === 'stations' ? 'active' : '' ?>"><i class="fas fa-route"></i> <?= te('work_points') ?></a>
             <a href="/admin/tills.php" class="<?= $currentPage === 'tills' ? 'active' : '' ?>"><i class="fas fa-cash-register"></i> <?= te('tills') ?></a>
             <a href="/admin/glovo.php" class="<?= $currentPage === 'glovo' ? 'active' : '' ?>"><i class="fas fa-motorcycle"></i> Glovo</a>
