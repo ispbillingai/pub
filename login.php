@@ -72,7 +72,7 @@ function redirectToRole($role) {
         case 'kitchen':
             header('Location: /kitchen/index.php');
             break;
-        case TILL_OPERATOR_ROLE:
+        case 'till':   // Operatore Ordini Cassa (TILL_OPERATOR_ROLE; functions.php isn't loaded here)
             header('Location: /cashier/online.php');
             break;
         default:
