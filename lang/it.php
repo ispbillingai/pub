@@ -1430,4 +1430,7 @@ return [
 
     // ---- Till keypad: big amounts ----
     'till_big_amount_confirm' => 'Confermi l\'importo di {amount}? Supera i 50 €.',
+
+    // ---- User group: Ordini Cassa only ----
+    'role_till' => 'Operatore Ordini Cassa',
 ];

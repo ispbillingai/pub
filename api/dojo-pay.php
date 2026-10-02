@@ -24,7 +24,7 @@ require_once __DIR__ . '/../includes/order_payment.php';
 header('Content-Type: application/json');
 
 $u = isLoggedIn() ? getCurrentUser() : null;
-if (!$u || !in_array($u['role'], ['admin', 'cashier'], true)) {
+if (!$u || !in_array($u['role'], ['admin', 'cashier', 'till'], true)) {
     http_response_code(401);
     echo json_encode(['ok' => false, 'error' => 'unauthorized']);
     exit;
@@ -32,6 +32,7 @@ if (!$u || !in_array($u['role'], ['admin', 'cashier'], true)) {
 
 $input   = json_decode(file_get_contents('php://input'), true) ?: [];
 $orderId = (int) ($input['order_id'] ?? 0);
+if (!userMayUseOrder($orderId)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'forbidden']); exit; }
 $action  = (string) ($input['action'] ?? 'start');
 $order   = getOrderById($orderId);
 if (!$order) { echo json_encode(['ok' => false, 'error' => 'order_not_found']); exit; }

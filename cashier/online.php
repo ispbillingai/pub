@@ -22,7 +22,7 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/online_order.php';
 require_once __DIR__ . '/../includes/till.php';
-requireRole(['admin', 'cashier']);
+requireRole(['admin', 'cashier', TILL_OPERATOR_ROLE]);
 
 $pdo = getDBConnection();
 
@@ -136,7 +136,7 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="page-header">
     <h1><i class="fas fa-globe"></i> <?= te('cash_online_title') ?></h1>
-    <a href="/cashier/index.php" class="btn btn-outline"><i class="fas fa-cash-register"></i> <?= te('nav_cashier') ?></a>
+    <?php if (hasRole(['admin', 'cashier'])): ?><a href="/cashier/index.php" class="btn btn-outline"><i class="fas fa-cash-register"></i> <?= te('nav_cashier') ?></a><?php endif; ?>
 </div>
 
 <!-- The customer's QR: scanner (types the link + Enter) or camera -->

@@ -19,6 +19,21 @@ i18n_init();
 require_once __DIR__ . '/devices.php';
 
 /**
+ * The "Operatore Ordini Cassa" group (role 'till'): only Ordini Cassa and its
+ * orders (counter sales, online orders), never the Cassa of the tables.
+ */
+const TILL_OPERATOR_ROLE = 'till';
+
+/** May the current user work on this order? Everyone but the till operator; them only on Ordini Cassa orders. */
+function userMayUseOrder($orderId) {
+    $user = getCurrentUser();
+    if (($user['role'] ?? '') !== TILL_OPERATOR_ROLE) return true;
+    $stmt = getDBConnection()->prepare("SELECT channel FROM orders WHERE id = ?");
+    $stmt->execute([(int) $orderId]);
+    return in_array($stmt->fetchColumn(), ['counter', 'online'], true);
+}
+
+/**
  * Check if user is logged in
  */
 function isLoggedIn() {

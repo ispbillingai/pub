@@ -269,6 +269,7 @@ include __DIR__ . '/../includes/header.php';
                         <option value="waiter"><?= te('role_waiter') ?></option>
                         <option value="cashier"><?= te('role_cashier') ?></option>
                         <option value="kitchen"><?= te('role_kitchen') ?></option>
+                        <option value="till"><?= te('role_till') ?></option>
                         <option value="admin"><?= te('role_admin') ?></option>
                     </select>
                 </div>

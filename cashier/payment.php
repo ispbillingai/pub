@@ -16,11 +16,13 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/devices.php';
 require_once __DIR__ . '/../includes/till.php';
-requireRole(['admin', 'cashier']);
+requireRole(['admin', 'cashier', TILL_OPERATOR_ROLE]);
 
 $embed   = !empty($_GET['embed']);
 $orderId = $_GET['order'] ?? null;
 $order   = $orderId ? getOrderById($orderId) : null;
+// The Ordini Cassa operator pays only Ordini Cassa orders.
+if ($order && !userMayUseOrder((int) $order['id'])) { header('Location: /cashier/online.php'); exit; }
 if (!$order || $order['status'] === 'paid') {
     if ($embed) {   // nothing (left) to pay: close the window in Ordini Cassa
         echo '<!DOCTYPE html><script>parent.postMessage({ tillPay: "done" }, location.origin);</script>';

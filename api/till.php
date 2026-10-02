@@ -16,7 +16,7 @@ require_once __DIR__ . '/../includes/till.php';
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 
-if (!isLoggedIn() || !hasRole(['admin', 'cashier'])) {
+if (!isLoggedIn() || !hasRole(['admin', 'cashier', TILL_OPERATOR_ROLE])) {
     jsonResponse(['success' => false, 'message' => 'Unauthorized'], 401);
 }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

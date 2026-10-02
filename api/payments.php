@@ -21,6 +21,10 @@ $user = getCurrentUser();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     $action = $input['action'] ?? '';
+    // The Ordini Cassa operator only pays Ordini Cassa orders.
+    if (($user['role'] ?? '') === TILL_OPERATOR_ROLE && (empty($input['order_id']) || !userMayUseOrder((int) $input['order_id']))) {
+        jsonResponse(['success' => false, 'message' => 'Forbidden'], 403);
+    }
     
     switch ($action) {
         case 'apply_discount':

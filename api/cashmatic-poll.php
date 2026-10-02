@@ -10,7 +10,7 @@ require_once __DIR__ . '/../includes/CashmaticClient.php';
 header('Content-Type: application/json');
 
 $u = isLoggedIn() ? getCurrentUser() : null;
-if (!$u || !in_array($u['role'], ['admin', 'cashier'], true)) {
+if (!$u || !in_array($u['role'], ['admin', 'cashier', 'till'], true)) {
     http_response_code(401);
     echo json_encode(['ok' => false, 'error' => 'unauthorized']);
     exit;

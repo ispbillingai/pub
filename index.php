@@ -26,6 +26,9 @@ switch ($user['role']) {
     case 'kitchen':
         header('Location: /kitchen/index.php');
         break;
+    case TILL_OPERATOR_ROLE:
+        header('Location: /cashier/online.php');
+        break;
     default:
         header('Location: /login.php');
 }

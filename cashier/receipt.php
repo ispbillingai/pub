@@ -5,7 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
-requireRole(['admin', 'cashier']);
+requireRole(['admin', 'cashier', TILL_OPERATOR_ROLE]);
 
 $orderId = $_GET['order'] ?? null;
 if (!$orderId) {
@@ -13,7 +13,7 @@ if (!$orderId) {
 }
 
 $order = getOrderById($orderId);
-if (!$order) {
+if (!$order || !userMayUseOrder((int) $order['id'])) {
     exit('Order not found');
 }
 
