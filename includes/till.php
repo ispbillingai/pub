@@ -13,6 +13,9 @@
  * code at the till next time brings them back (Admin > Clienti cassa). The
  * code is also a QR (till-qr.php) the scanner reads, sent to the customer on
  * WhatsApp when they are registered with a phone (tillCustomerWelcome).
+ * A paid counter sale sends that customer the receipt with their QR
+ * (tillSendReceipt), unless they are ticked "no receipt". Customers can be
+ * deleted: their details go, from their sales too (amounts and dishes stay).
  */
 
 require_once __DIR__ . '/functions.php';
@@ -241,6 +244,54 @@ function tillCustomerKeep(array $order, array $d): ?array
     $tc = tillCustomerById((int) $tc['id']);
     tillCustomerWelcome($tc);   // first time with a phone: their code and QR on WhatsApp
     return $tc;
+}
+
+/**
+ * The counter sale was paid: its customer (Clienti cassa, with a phone, not
+ * ticked "no receipt") gets the receipt on WhatsApp with their QR. Once per
+ * sale. Returns whether it was queued.
+ */
+function tillSendReceipt(array $order): bool
+{
+    if (empty($order['till_customer_id']) || $order['status'] !== 'paid' || !guestWhatsappEnabled()) return false;
+    $tc = tillCustomerById((int) $order['till_customer_id']);
+    if (!$tc || !$tc['active'] || $tc['no_receipt'] || empty($tc['phone'])) return false;
+    $pdo = getDBConnection();
+    $st  = $pdo->prepare("SELECT 1 FROM whatsapp_outbox WHERE kind = 'till_receipt' AND order_id = ? LIMIT 1");
+    $st->execute([(int) $order['id']]);
+    if ($st->fetchColumn()) return false;
+    $lang  = guestLang($tc['country']);
+    $items = [];
+    foreach (getOrderItems((int) $order['id']) as $it) {
+        if ($it['status'] !== 'cancelled') $items[] = [$it['quantity'], $it['item_name'], $it['total_price']];
+    }
+    $first = trim((string) $tc['first_name']) ?: tIn($lang, 'thanks_no_name');
+    $body  = tIn($lang, 'till_receipt_hello', ['name' => $first]) . "\n\n" . renderGuestBill([
+        'order_number' => $order['order_number'], 'items' => $items, 'people' => 0, 'cover_per' => 0,
+        'subtotal' => (float) $order['subtotal'], 'discount' => (float) $order['discount_amount'], 'total' => (float) $order['total'],
+        'title' => tIn($lang, 'till_receipt_title'),
+        'where' => tIn($lang, 'till_receipt_where', ['order' => $order['order_number']]),
+        'extra' => ['', tIn($lang, 'till_receipt_code', ['code' => $tc['code']])],
+        'note'  => tIn($lang, 'till_receipt_note'),
+    ], $lang);
+    queueGuestWhatsapp((int) $order['id'], null, 'till_receipt', $tc['phone'], $body, onlineQrPngAvailable() ? tillCustomerQrUrl($tc) : null);
+    logActivity('till_receipt_sent', 'orders', (int) $order['id']);
+    return true;
+}
+
+/**
+ * Delete a Clienti cassa customer: their record goes, and their details are
+ * taken off their sales (amounts and dishes stay, for the takings).
+ */
+function tillCustomerDelete(int $id): bool
+{
+    $pdo = getDBConnection();
+    if (!tillCustomerById($id)) return false;
+    $pdo->prepare("UPDATE orders SET till_customer_id = NULL, customer_name = NULL, customer_address = NULL, customer_street_number = NULL,
+                   customer_phone = NULL, customer_country = NULL WHERE till_customer_id = ?")->execute([$id]);
+    $pdo->prepare("DELETE FROM till_customers WHERE id = ?")->execute([$id]);
+    logActivity('till_customer_deleted', 'till_customers', $id);
+    return true;
 }
 
 /** The secret token of the customer's QR image (made on first use). */

@@ -139,7 +139,8 @@ function resendGuestAccess(array $order): int
  * The bill as WhatsApp text: header, then a monospaced block with the lines
  * exactly as on the cashier's bill (dishes, cover, subtotal, discount, total).
  * $bill: table, order_number, items [[qty, name, total]], people, cover_per,
- *        subtotal, discount, total, seat (optional).
+ *        subtotal, discount, total, seat (optional); optional overrides for a
+ *        paid till receipt: title, where, extra (lines under the total), note.
  */
 function renderGuestBill(array $bill, string $lang): string
 {
@@ -170,20 +171,21 @@ function renderGuestBill(array $bill, string $lang): string
     }
     $rows = array_merge($rows, $line(tIn($lang, 'wa_bill_total'), $money($bill['total'])));
 
-    $where = tIn($lang, 'wa_bill_table') . ' ' . $bill['table']
+    $where = $bill['where'] ?? (tIn($lang, 'wa_bill_table') . ' ' . $bill['table']
            . (!empty($bill['seat']) ? ' · ' . tIn($lang, 'seat') . ' ' . $bill['seat'] : '')
-           . ' · ' . tIn($lang, 'wa_bill_order') . ' ' . $bill['order_number'];
-    return implode("\n", [
+           . ' · ' . tIn($lang, 'wa_bill_order') . ' ' . $bill['order_number']);
+    return implode("\n", array_merge([
         '*' . restaurantName() . '*',
-        tIn($lang, 'wa_bill_title'),
+        $bill['title'] ?? tIn($lang, 'wa_bill_title'),
         $where,
         date('d/m/Y H:i'),
         '',
         "```\n" . implode("\n", $rows) . "\n```",
         '*' . tIn($lang, 'wa_bill_total') . ': ' . $money($bill['total']) . '*',
+    ], $bill['extra'] ?? [], [
         '',
-        '_' . tIn($lang, 'wa_bill_note') . '_',
-    ]);
+        '_' . ($bill['note'] ?? tIn($lang, 'wa_bill_note')) . '_',
+    ]));
 }
 
 /** The whole bill of an order (the table's, or a seat bill already split off). */

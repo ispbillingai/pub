@@ -1415,4 +1415,16 @@ return [
     'till_cust_qr_sent' => 'Codice e QR inviati su WhatsApp.',
     'till_cust_qr_not_sent' => 'Non inviato: serve il telefono del cliente e WhatsApp attivo.',
     'till_cust_qr_download' => 'Scarica il QR',
+
+    // ---- Till receipt on WhatsApp, deleting customers ----
+    'till_receipt_hello' => 'Ciao {name}, grazie per il tuo acquisto! Ecco il tuo scontrino.',
+    'till_receipt_title' => '🧾 Il tuo scontrino',
+    'till_receipt_where' => 'Ordine cassa {order}',
+    'till_receipt_code' => '🪪 Il tuo codice cliente: *{code}* (il QR qui sotto: mostralo alla cassa la prossima volta)',
+    'till_receipt_note' => 'Copia non fiscale. Grazie e a presto!',
+    'till_cust_no_receipt' => 'No scontrino WA',
+    'till_cust_no_receipt_hint' => 'Spunta se il cliente non vuole ricevere lo scontrino su WhatsApp',
+    'cust_delete' => 'Elimina cliente',
+    'cust_delete_confirm' => 'Eliminare definitivamente {name}? I suoi dati vengono cancellati anche dai suoi ordini (importi e prodotti restano). Non si può annullare.',
+    'cust_deleted' => 'Cliente eliminato.',
 ];

@@ -94,6 +94,23 @@ function onlineCustomerByMobile(string $mobile): ?array
     return $stmt->fetch() ?: null;
 }
 
+/**
+ * Delete an online customer: their record and access log go, and their details
+ * are taken off their orders (amounts and dishes stay, for the takings). A
+ * phone still signed in is signed out on its next request.
+ */
+function onlineCustomerDelete(int $id): bool
+{
+    $pdo = getDBConnection();
+    if (!onlineCustomerById($id)) return false;
+    $pdo->prepare("UPDATE orders SET online_customer_id = NULL, customer_name = NULL, customer_phone = NULL, customer_country = NULL,
+                   customer_address = NULL, customer_street_number = NULL, table_label = 'ONLINE' WHERE online_customer_id = ?")->execute([$id]);
+    $pdo->prepare("DELETE FROM online_customer_access WHERE customer_id = ?")->execute([$id]);
+    $pdo->prepare("DELETE FROM online_customers WHERE id = ?")->execute([$id]);
+    logActivity('online_customer_deleted', 'online_customers', $id);
+    return true;
+}
+
 /** Sign-up, login, order: with the IP it came from. */
 function onlineLogAccess(int $customerId, string $event, ?int $orderId = null): void
 {

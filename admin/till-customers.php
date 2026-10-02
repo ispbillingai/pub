@@ -3,7 +3,8 @@
  * Admin — Clienti cassa: the customers of counter sales whose details were
  * taken in the payment page's "Dati cliente" box (Ordini Cassa), each with
  * their own code (C0001…) to type at the till next time. Details can be
- * corrected here; customers are disabled, never deleted (their sales stay).
+ * corrected here; a customer can be disabled, or deleted (their details are
+ * then taken off their sales too). "No receipt" stops the WhatsApp receipt.
  * Each code is also a QR (to print, or to send again on WhatsApp).
  */
 
@@ -32,9 +33,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($a === 'toggle') {
         $pdo->prepare("UPDATE till_customers SET active = 1 - active WHERE id = ?")->execute([$id]);
         $ok = true;
+    } elseif ($a === 'no_receipt') {
+        $pdo->prepare("UPDATE till_customers SET no_receipt = ? WHERE id = ?")->execute([!empty($_POST['no_receipt']) ? 1 : 0, $id]);
+        $ok = true;
+    } elseif ($a === 'delete') {
+        $ok = tillCustomerDelete($id);
     }
     if ($ok) logActivity('till_customer_' . $a, 'till_customers', $id);
-    $flag = $ok ? ($a === 'send_qr' ? 'sent' : 'saved') : ($a === 'send_qr' ? 'notsent' : 'error');
+    $flag = $ok ? ($a === 'send_qr' ? 'sent' : ($a === 'delete' ? 'deleted' : 'saved')) : ($a === 'send_qr' ? 'notsent' : 'error');
     header('Location: /admin/till-customers.php?' . http_build_query(array_filter(['q' => $_POST['q'] ?? '', $flag => 1])) . '#c-' . $id);
     exit;
 }
@@ -65,11 +71,11 @@ if (($_GET['export'] ?? '') === 'csv') {
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // Excel: UTF-8
     fputcsv($out, [t('till_cust_code'), t('self_name'), t('self_surname'), t('online_address'), t('online_street_number'), t('cust_phone'),
-                   t('till_cust_sales'), t('total'), t('till_cust_last_sale'), t('online_col_registered'), t('online_col_active')], ';');
+                   t('till_cust_sales'), t('total'), t('till_cust_last_sale'), t('online_col_registered'), t('online_col_active'), t('till_cust_no_receipt')], ';');
     foreach ($rows as $r) {
         fputcsv($out, [$r['code'], $r['first_name'], $r['last_name'], $r['address'], $r['street_number'], $r['phone'], $r['sales'],
                        number_format((float) $r['spent'], 2, ',', ''), $r['last_sale'] ? date('d/m/Y H:i', strtotime($r['last_sale'])) : '',
-                       date('d/m/Y H:i', strtotime($r['created_at'])), $r['active'] ? t('yes') : t('no')], ';');
+                       date('d/m/Y H:i', strtotime($r['created_at'])), $r['active'] ? t('yes') : t('no'), $r['no_receipt'] ? t('yes') : t('no')], ';');
     }
     exit;
 }
@@ -94,6 +100,8 @@ include __DIR__ . '/../includes/header.php';
 
 <?php if (isset($_GET['saved'])): ?>
     <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-check-circle"></i> <?= te('msg_settings_saved') ?></div>
+<?php elseif (isset($_GET['deleted'])): ?>
+    <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-trash"></i> <?= te('cust_deleted') ?></div>
 <?php elseif (isset($_GET['sent'])): ?>
     <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; border-radius: 8px;"><i class="fab fa-whatsapp"></i> <?= te('till_cust_qr_sent') ?></div>
 <?php elseif (isset($_GET['notsent'])): ?>
@@ -124,6 +132,7 @@ include __DIR__ . '/../includes/header.php';
                 <th><?= te('cust_phone') ?></th>
                 <th style="text-align:right;"><?= te('till_cust_sales') ?></th>
                 <th><?= te('till_cust_last_sale') ?></th>
+                <th title="<?= te('till_cust_no_receipt_hint') ?>"><?= te('till_cust_no_receipt') ?></th>
                 <th></th>
             </tr>
         </thead>
@@ -138,6 +147,12 @@ include __DIR__ . '/../includes/header.php';
                 <td class="flag-font" style="white-space:nowrap;"><?= $r['phone'] ? countryFlag($r['country'] ?: 'IT') . ' ' . htmlspecialchars($r['phone']) : '—' ?></td>
                 <td style="text-align:right;white-space:nowrap;"><?= (int) $r['sales'] ?><?php if ((float) $r['spent'] > 0): ?> <span class="text-muted">· <?= formatCurrency($r['spent']) ?></span><?php endif; ?></td>
                 <td class="text-muted" style="white-space:nowrap;"><?= $r['last_sale'] ? date('d/m/Y H:i', strtotime($r['last_sale'])) : '—' ?></td>
+                <td style="text-align:center;">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="no_receipt"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>">
+                        <input type="checkbox" name="no_receipt" value="1" <?= $r['no_receipt'] ? 'checked' : '' ?> onchange="this.form.submit()" style="width:20px;height:20px;cursor:pointer;" title="<?= te('till_cust_no_receipt_hint') ?>">
+                    </form>
+                </td>
                 <td style="white-space:nowrap;">
                     <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('<?= $fid ?>').hidden = !document.getElementById('<?= $fid ?>').hidden" title="<?= te('edit') ?>"><i class="fas fa-pen"></i></button>
                     <?php if ($r['phone'] && $r['active']): ?>
@@ -150,10 +165,14 @@ include __DIR__ . '/../includes/header.php';
                         <input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>">
                         <button class="btn btn-sm <?= $r['active'] ? 'btn-outline' : 'btn-success' ?>" title="<?= te($r['active'] ? 'online_disable' : 'online_enable') ?>"><i class="fas <?= $r['active'] ? 'fa-user-slash' : 'fa-user-check' ?>"></i></button>
                     </form>
+                    <form method="POST" style="display:inline;" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('cust_delete_confirm', ['name' => trim($r['first_name'] . ' ' . $r['last_name']) ?: $r['code']]))) ?>)">
+                        <input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>">
+                        <button class="btn btn-sm btn-danger" title="<?= te('cust_delete') ?>"><i class="fas fa-trash"></i></button>
+                    </form>
                 </td>
             </tr>
             <tr id="<?= $fid ?>" hidden>
-                <td colspan="8">
+                <td colspan="9">
                     <form method="POST" class="tc-edit">
                         <input type="hidden" name="action" value="update"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>">
                         <input name="first_name" class="form-control" maxlength="60" value="<?= htmlspecialchars((string) $r['first_name']) ?>" placeholder="<?= te('self_name') ?>">
@@ -170,7 +189,7 @@ include __DIR__ . '/../includes/header.php';
             </tr>
         <?php endforeach; ?>
         <?php if (!$rows): ?>
-            <tr><td colspan="8" class="text-center text-muted" style="padding:40px;"><?= te('till_customers_none') ?></td></tr>
+            <tr><td colspan="9" class="text-center text-muted" style="padding:40px;"><?= te('till_customers_none') ?></td></tr>
         <?php endif; ?>
         </tbody>
     </table>

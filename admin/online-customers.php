@@ -5,7 +5,8 @@
  * customers who signed up there with everything they gave (address, mobile,
  * landline, intolerances, marketing consent) and the IP they signed up from;
  * ?id= shows one customer's accesses (sign-up, logins, orders) with their IP.
- * Customers are never deleted, only disabled (they can't sign in or order).
+ * Customers can be disabled (they can't sign in or order) or deleted (their
+ * details are then taken off their orders too).
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -24,6 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         logActivity('online_order_settings_saved', 'settings', null, ['enabled' => !empty($_POST['enabled'])]);
         header('Location: /admin/online-customers.php?success=saved');
+        exit;
+    }
+    if ($action === 'delete') {
+        $done = onlineCustomerDelete((int) ($_POST['id'] ?? 0));
+        header('Location: /admin/online-customers.php?' . http_build_query(array_filter(['q' => $_POST['q'] ?? '', $done ? 'deleted' : 'x' => 1])));
         exit;
     }
     if ($action === 'set_active') {
@@ -119,6 +125,9 @@ include __DIR__ . '/../includes/header.php';
     <a class="btn btn-outline" href="?<?= htmlspecialchars(http_build_query(array_filter(['q' => $q, 'export' => 'csv']))) ?>"><i class="fas fa-file-csv"></i> <?= te('export_csv') ?></a>
 </div>
 
+<?php if (isset($_GET['deleted'])): ?>
+    <div class="alert alert-success mb-lg no-print" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 16px; border-radius: 8px;"><i class="fas fa-trash"></i> <?= te('cust_deleted') ?></div>
+<?php endif; ?>
 <?php if (($_GET['success'] ?? '') === 'saved'): ?>
     <div class="alert alert-success mb-lg no-print" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 16px; border-radius: 8px;"><i class="fas fa-check-circle"></i> <?= te('msg_settings_saved') ?></div>
 <?php endif; ?>
@@ -246,6 +255,12 @@ include __DIR__ . '/../includes/header.php';
                             <input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>">
                             <button class="btn btn-sm <?= $r['active'] ? 'btn-outline' : 'btn-success' ?>" title="<?= te($r['active'] ? 'online_disable' : 'online_enable') ?>">
                                 <i class="fas <?= $r['active'] ? 'fa-user-slash' : 'fa-user-check' ?>"></i></button>
+                        </form>
+                        <form method="POST" style="display:inline;" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('cust_delete_confirm', ['name' => $r['first_name'] . ' ' . $r['last_name']]))) ?>)">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
+                            <input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>">
+                            <button class="btn btn-sm btn-danger" title="<?= te('cust_delete') ?>"><i class="fas fa-trash"></i></button>
                         </form>
                     </td>
                 </tr>

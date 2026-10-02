@@ -49,6 +49,11 @@ function thankGuestsForPaidOrder(int $orderId): int
             require_once __DIR__ . '/online_order.php';
             return onlineThankPaid($order);
         }
+        // Counter sale with a Clienti cassa customer: the receipt with their QR.
+        if ($order['channel'] === 'counter') {
+            require_once __DIR__ . '/till.php';
+            return tillSendReceipt($order) ? 1 : 0;
+        }
         if (!thanksSettings()['enabled'] || $order['channel'] !== 'dine_in') return 0;
 
         $rootId = (int) ($order['parent_order_id'] ?: $order['id']);

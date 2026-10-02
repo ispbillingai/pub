@@ -1415,4 +1415,16 @@ return [
     'till_cust_qr_sent' => 'Code and QR sent on WhatsApp.',
     'till_cust_qr_not_sent' => 'Not sent: the customer\'s phone and WhatsApp are needed.',
     'till_cust_qr_download' => 'Download the QR',
+
+    // ---- Till receipt on WhatsApp, deleting customers ----
+    'till_receipt_hello' => 'Hi {name}, thank you for your purchase! Here is your receipt.',
+    'till_receipt_title' => '🧾 Your receipt',
+    'till_receipt_where' => 'Till order {order}',
+    'till_receipt_code' => '🪪 Your customer code: *{code}* (the QR below: show it at the till next time)',
+    'till_receipt_note' => 'Non-fiscal copy. Thank you and see you soon!',
+    'till_cust_no_receipt' => 'No WA receipt',
+    'till_cust_no_receipt_hint' => 'Tick if the customer does not want the receipt on WhatsApp',
+    'cust_delete' => 'Delete customer',
+    'cust_delete_confirm' => 'Delete {name} for good? Their details are erased from their orders too (amounts and dishes stay). This cannot be undone.',
+    'cust_deleted' => 'Customer deleted.',
 ];
