@@ -1,8 +1,10 @@
 <?php
 /**
- * Admin — Customers: every guest who left their details with an order (the
- * table's guest and the guests with their own number on a seat), with the day
- * they came, where they come from, and the order of that day as PDF.
+ * Admin — Clienti tavoli: every guest who left their details with a table
+ * order (the table's guest and the guests with their own number on a seat;
+ * online customers and counter sales have their own lists, Clienti online and
+ * Clienti cassa), with the day they came, where they come from, and the order
+ * of that day as PDF.
  * Filters: search (name / phone / city) and period. CSV export of the list.
  */
 
@@ -66,7 +68,7 @@ $sql = "
         FROM orders o
         JOIN tables_restaurant t ON t.id = o.table_id
         JOIN rooms r ON r.id = o.room_id
-        WHERE o.parent_order_id IS NULL AND o.status <> 'cancelled'
+        WHERE o.parent_order_id IS NULL AND o.status <> 'cancelled' AND COALESCE(o.channel, 'dine_in') = 'dine_in'
           AND (o.customer_name IS NOT NULL OR o.customer_phone IS NOT NULL OR o.customer_city IS NOT NULL)
         UNION ALL
         SELECT o.id, sg.seat, sg.customer_name, NULL, sg.customer_phone, sg.customer_country,
@@ -74,7 +76,7 @@ $sql = "
                COALESCE(o.table_label, t.table_number), r.name,
                COALESCE((SELECT ch.total FROM orders ch WHERE ch.parent_order_id = o.id AND ch.seat = sg.seat AND ch.status <> 'cancelled' ORDER BY ch.id DESC LIMIT 1), 0)
         FROM order_seat_guests sg
-        JOIN orders o ON o.id = sg.order_id AND o.status <> 'cancelled'
+        JOIN orders o ON o.id = sg.order_id AND o.status <> 'cancelled' AND COALESCE(o.channel, 'dine_in') = 'dine_in'
         JOIN tables_restaurant t ON t.id = o.table_id
         JOIN rooms r ON r.id = o.room_id
         WHERE sg.customer_phone IS NOT NULL
@@ -104,7 +106,7 @@ if ($consent !== '') {
 // CSV export of what is on screen.
 if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="clienti_' . date('Y-m-d') . '.csv"');
+    header('Content-Disposition: attachment; filename="clienti_tavoli_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // Excel: UTF-8
     fputcsv($out, [t('cust_arrival'), t('cust_name'), t('cust_phone'), t('cust_city'), t('table'), t('seat'), t('total'), t('cust_visits'), t('consent_col')], ';');

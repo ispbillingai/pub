@@ -407,7 +407,7 @@ return [
     'wa_bill_updated'       => '🔄 *Bill updated*: a discount has been applied. Here is your new bill.',
     'wa_bill_resent_note'   => 'The guest had asked for the bill on WhatsApp: the updated bill has been sent to them.',
     // Customers + dish statistics + order PDF
-    'customers_title'       => 'Customers',
+    'customers_title'       => 'Table customers',
     'customers_search'      => 'Search name, phone or city',
     'customers_count'       => '{visits} visits · {contacts} different contacts',
     'customers_order_pdf'   => 'Order',

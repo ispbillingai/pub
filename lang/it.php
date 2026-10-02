@@ -407,7 +407,7 @@ return [
     'wa_bill_updated'       => '🔄 *Conto aggiornato*: è stato applicato uno sconto. Ecco il nuovo conto.',
     'wa_bill_resent_note'   => 'Il cliente aveva chiesto il conto su WhatsApp: gli è stato inviato il conto aggiornato.',
     // Clienti + statistiche portate + PDF ordine
-    'customers_title'       => 'Clienti',
+    'customers_title'       => 'Clienti tavoli',
     'customers_search'      => 'Cerca nome, telefono o città',
     'customers_count'       => '{visits} visite · {contacts} contatti diversi',
     'customers_order_pdf'   => 'Ordine',
