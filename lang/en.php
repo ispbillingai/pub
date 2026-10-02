@@ -1312,13 +1312,13 @@ return [
     'online_pay_qr_text' => 'Show it at the till when you collect: the cashier scans it and takes payment for your order.',
     'cash_online_title' => 'Till orders',
     'cash_online_banner' => '{n} online orders to collect: open the panel',
-    'cash_online_scan_title' => 'Scan the customer\'s QR',
-    'cash_online_scan_hint' => 'The customer shows the QR (on their page or in the "order ready" WhatsApp): read it with the scanner or the camera and their order\'s payment opens.',
-    'cash_online_scan_ph' => 'QR scanner: scan the customer\'s code',
+    'cash_online_scan_title' => 'Scan a QR',
+    'cash_online_scan_hint' => 'Read with the scanner (or the camera) the customer\'s QR to open their order\'s payment, or a Till menu product\'s code to add it to the ticket.',
+    'cash_online_scan_ph' => 'QR scanner: customer or product',
     'cash_online_scan_go' => 'Open',
     'cash_online_camera' => 'Camera',
     'cash_online_camera_err' => 'Camera not available: use the scanner or open the order from the list.',
-    'cash_online_scan_unknown' => 'QR not recognised: it matches no online order.',
+    'cash_online_scan_unknown' => 'Code not recognised: neither an online order QR nor the code of a (visible) Till menu product.',
     'cash_online_scan_paid' => 'Order {order} of {name} is already paid.',
     'cash_online_scan_cancelled' => 'Order {order} was cancelled.',
     'cash_online_open' => 'To collect',
@@ -1373,4 +1373,10 @@ return [
     'till_menu_item_ph' => 'New product',
     'till_menu_none' => 'No categories: create one above, then add the products.',
     'till_menu_photo_change' => 'Change the photo',
+
+    // ---- Menu cassa: product QR / barcode ----
+    'till_menu_code' => 'The product\'s QR / barcode: read it with the scanner and at the till the product goes on the ticket by itself',
+    'till_menu_code_ph' => 'Code (scan the QR)',
+    'till_menu_code_taken' => 'This code is already used by "{name}": each code can go on one product only.',
+    'till_scanned' => 'Added: {name}',
 ];

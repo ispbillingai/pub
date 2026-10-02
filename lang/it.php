@@ -1312,13 +1312,13 @@ return [
     'online_pay_qr_text' => 'Mostralo alla cassa quando ritiri: il cassiere lo inquadra e incassa il tuo ordine.',
     'cash_online_title' => 'Ordini Cassa',
     'cash_online_banner' => '{n} ordini online da incassare: apri il pannello',
-    'cash_online_scan_title' => 'Scansiona il QR del cliente',
-    'cash_online_scan_hint' => 'Il cliente mostra il QR (nella sua pagina o nel WhatsApp "ordine pronto"): leggilo con il lettore o con la fotocamera e si apre il pagamento del suo ordine.',
-    'cash_online_scan_ph' => 'Lettore QR: inquadra il codice del cliente',
+    'cash_online_scan_title' => 'Scansiona un QR',
+    'cash_online_scan_hint' => 'Leggi con il lettore (o la fotocamera) il QR del cliente per aprire il pagamento del suo ordine, oppure il codice di un prodotto del Menu cassa per aggiungerlo allo scontrino.',
+    'cash_online_scan_ph' => 'Lettore QR: cliente o prodotto',
     'cash_online_scan_go' => 'Apri',
     'cash_online_camera' => 'Fotocamera',
     'cash_online_camera_err' => 'Fotocamera non disponibile: usa il lettore o apri l\'ordine dalla lista.',
-    'cash_online_scan_unknown' => 'QR non riconosciuto: non corrisponde a nessun ordine online.',
+    'cash_online_scan_unknown' => 'Codice non riconosciuto: non è il QR di un ordine online né il codice di un prodotto (visibile) del Menu cassa.',
     'cash_online_scan_paid' => 'L\'ordine {order} di {name} è già stato pagato.',
     'cash_online_scan_cancelled' => 'L\'ordine {order} è stato annullato.',
     'cash_online_open' => 'Da incassare',
@@ -1373,4 +1373,10 @@ return [
     'till_menu_item_ph' => 'Nuovo prodotto',
     'till_menu_none' => 'Nessuna categoria: creane una qui sopra, poi aggiungi i prodotti.',
     'till_menu_photo_change' => 'Cambia la foto',
+
+    // ---- Menu cassa: product QR / barcode ----
+    'till_menu_code' => 'Codice del QR / codice a barre del prodotto: leggilo con il lettore e in cassa il prodotto si aggiunge da solo allo scontrino',
+    'till_menu_code_ph' => 'Codice (leggi il QR)',
+    'till_menu_code_taken' => 'Questo codice è già usato dal prodotto "{name}": ogni codice può andare su un solo prodotto.',
+    'till_scanned' => 'Aggiunto: {name}',
 ];

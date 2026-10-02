@@ -1,7 +1,8 @@
 <?php
 /**
  * Admin — Menu cassa: products only the till sees (buttons, with their
- * photo, in Ordini Cassa). Categories here are marked till_only, so the guests' menus, the
+ * photo, in Ordini Cassa). A product can carry the code of its own QR /
+ * barcode: scanned at the till, it goes straight on the ticket. Categories here are marked till_only, so the guests' menus, the
  * PDF, online ordering, the waiters and the normal Menu admin never show them.
  * Products and categories are switched off, not deleted (sold ones stay in
  * the orders' history).
@@ -28,6 +29,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id  = (int) ($_POST['id'] ?? 0);
     $name = mb_substr(trim((string) ($_POST['name'] ?? '')), 0, 150);
     $ok  = true;
+    // The product's QR / barcode: one product per code.
+    $code  = tillBarcode((string) ($_POST['barcode'] ?? ''));
+    $taken = in_array($a, ['add_item', 'update_item'], true) ? tillBarcodeTakenBy($code, $a === 'update_item' ? $id : 0) : null;
+    if ($taken !== null) {
+        header('Location: /admin/till-menu.php?code_taken=' . rawurlencode($taken) . (!empty($_POST['cat']) ? '#cat-' . (int) $_POST['cat'] : ''));
+        exit;
+    }
     if ($a === 'add_category' && $name !== '') {
         $sort = (int) $pdo->query("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_categories WHERE till_only = 1")->fetchColumn();
         $pdo->prepare("INSERT INTO menu_categories (name, sort_order, allow_composition, color, active, till_only) VALUES (?, ?, 0, ?, 1, 1)")
@@ -44,13 +52,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($ok = (bool) $st->fetchColumn()) {
             $sort = $pdo->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_items WHERE category_id = ?");
             $sort->execute([$cat]);
-            $pdo->prepare("INSERT INTO menu_items (category_id, name, base_price, sort_order, image_url, active) VALUES (?, ?, ?, ?, ?, 1)")
-                ->execute([$cat, $name, $price, (int) $sort->fetchColumn(), saveMenuImage('image')]);
+            $pdo->prepare("INSERT INTO menu_items (category_id, name, base_price, sort_order, image_url, barcode, active) VALUES (?, ?, ?, ?, ?, ?, 1)")
+                ->execute([$cat, $name, $price, (int) $sort->fetchColumn(), saveMenuImage('image'), $code !== '' ? $code : null]);
         }
     } elseif ($a === 'update_item' && $name !== '' && ($price = tillPrice((string) ($_POST['price'] ?? ''))) !== null) {
         $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
-                       SET mi.name = ?, mi.base_price = ?, mi.sort_order = ? WHERE mi.id = ? AND mc.till_only = 1 AND mc.id <> ?")
-            ->execute([$name, $price, (int) ($_POST['sort_order'] ?? 0), $id, $freeCat]);
+                       SET mi.name = ?, mi.base_price = ?, mi.sort_order = ?, mi.barcode = ? WHERE mi.id = ? AND mc.till_only = 1 AND mc.id <> ?")
+            ->execute([$name, $price, (int) ($_POST['sort_order'] ?? 0), $code !== '' ? $code : null, $id, $freeCat]);
         // A new photo replaces the old one (none chosen = keep it).
         if ($img = saveMenuImage('image')) {
             $pdo->prepare("UPDATE menu_items SET image_url = ? WHERE id = ?")->execute([$img, $id]);
@@ -78,9 +86,12 @@ $pageTitle = t('till_menu_title');
 include __DIR__ . '/../includes/header.php';
 ?>
 <style>
-.tm-row { display: grid; grid-template-columns: 56px minmax(160px, 1fr) 110px 80px minmax(150px, 220px) auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--border-color, #e5e7eb); }
+.tm-row { display: grid; grid-template-columns: 56px minmax(160px, 1fr) 100px minmax(120px, 170px) 70px minmax(150px, 210px) auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--border-color, #e5e7eb); }
 .tm-thumb { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; background: #f3f4f6; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
 .tm-file { font-size: .8rem; }
+.tm-code { position: relative; }
+.tm-code i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); pointer-events: none; }
+.tm-code input { padding-left: 30px; font-family: monospace; }
 .tm-row.off { opacity: .5; }
 .tm-row input { width: 100%; }
 .tm-cat-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -97,6 +108,8 @@ include __DIR__ . '/../includes/header.php';
 
 <?php if (isset($_GET['saved'])): ?>
     <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-check-circle"></i> <?= te('msg_settings_saved') ?></div>
+<?php elseif (isset($_GET['code_taken'])): ?>
+    <div class="alert alert-danger mb-lg" style="background: rgba(220,38,38,.08); color: var(--danger); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-triangle-exclamation"></i> <?= te('till_menu_code_taken', ['name' => (string) $_GET['code_taken']]) ?></div>
 <?php elseif (isset($_GET['error'])): ?>
     <div class="alert alert-danger mb-lg" style="background: rgba(220,38,38,.08); color: var(--danger); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-triangle-exclamation"></i> <?= te('till_menu_error') ?></div>
 <?php endif; ?>
@@ -142,6 +155,7 @@ include __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
                 <input type="text" name="name" form="<?= $fid ?>" class="form-control" value="<?= htmlspecialchars($it['name']) ?>" maxlength="150" required>
                 <input type="text" name="price" form="<?= $fid ?>" class="form-control" value="<?= number_format((float) $it['base_price'], 2, ',', '') ?>" inputmode="decimal" required title="<?= te('price') ?>">
+                <span class="tm-code"><i class="fas fa-barcode"></i><input type="text" name="barcode" form="<?= $fid ?>" class="form-control" value="<?= htmlspecialchars((string) $it['barcode']) ?>" maxlength="64" placeholder="<?= te('till_menu_code_ph') ?>" title="<?= te('till_menu_code') ?>" autocomplete="off"></span>
                 <input type="number" name="sort_order" form="<?= $fid ?>" class="form-control" value="<?= (int) $it['sort_order'] ?>" title="<?= te('till_menu_order') ?>">
                 <input type="file" name="image" form="<?= $fid ?>" class="tm-file" accept="image/jpeg,image/png,image/webp,image/gif" title="<?= te(empty($it['image_url']) ? 'photo' : 'till_menu_photo_change') ?>">
                 <span class="d-flex gap-sm">
@@ -169,6 +183,7 @@ include __DIR__ . '/../includes/header.php';
             <span class="tm-thumb"><i class="fas fa-plus"></i></span>
             <input type="text" name="name" class="form-control" maxlength="150" placeholder="<?= te('till_menu_item_ph') ?>" required>
             <input type="text" name="price" class="form-control" placeholder="0,00" inputmode="decimal" required>
+            <span class="tm-code"><i class="fas fa-barcode"></i><input type="text" name="barcode" class="form-control new-code" maxlength="64" placeholder="<?= te('till_menu_code_ph') ?>" title="<?= te('till_menu_code') ?>" autocomplete="off"></span>
             <span></span>
             <input type="file" name="image" class="tm-file" accept="image/jpeg,image/png,image/webp,image/gif" title="<?= te('photo_optional') ?>">
             <button class="btn btn-sm btn-primary"><i class="fas fa-plus"></i> <?= te('add') ?></button>
@@ -180,5 +195,15 @@ include __DIR__ . '/../includes/header.php';
 <?php if (!$cats): ?>
     <div class="card" style="padding:40px;text-align:center;"><p class="text-muted"><?= te('till_menu_none') ?></p></div>
 <?php endif; ?>
+
+<script>
+// A scanner types the code and presses Enter: on a new product that would send
+// the form half-filled, so Enter there moves on to the first empty field.
+document.querySelectorAll('.new-code').forEach(inp => inp.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const form = inp.form, empty = [...form.querySelectorAll('input[required]')].find(f => !f.value.trim());
+    if (empty) { e.preventDefault(); empty.focus(); }
+}));
+</script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

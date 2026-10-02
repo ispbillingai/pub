@@ -135,7 +135,7 @@ include __DIR__ . '/../includes/header.php';
     <?php if ($scanError): ?>
         <div class="alert alert-danger" style="background:rgba(220,38,38,.08);color:var(--danger);padding:10px 14px;border-radius:8px;margin-bottom:10px;"><i class="fas fa-triangle-exclamation"></i> <?= htmlspecialchars($scanError) ?></div>
     <?php endif; ?>
-    <form method="GET" class="scan-box" autocomplete="off">
+    <form method="GET" class="scan-box" autocomplete="off" onsubmit="return scanSubmit(event)">
         <input type="text" name="scan" id="scanInput" class="form-control" placeholder="<?= te('cash_online_scan_ph') ?>" autofocus>
         <button class="btn btn-primary"><i class="fas fa-arrow-right"></i> <?= te('cash_online_scan_go') ?></button>
         <button type="button" class="btn btn-outline" id="camBtn" onclick="toggleCamera()"><i class="fas fa-camera"></i> <?= te('cash_online_camera') ?></button>
@@ -276,6 +276,8 @@ async function toggleCamera() {
     box.innerHTML = '<div id="camView"></div>';
     cam = new Html5Qrcode('camView');
     cam.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, text => {
+        // A product code: on the ticket, and the camera keeps reading the next one.
+        if (scanProduct(text)) return;
         cam.stop().catch(() => {});
         location.href = '/cashier/online.php?scan=' + encodeURIComponent(text);
     }).catch(() => { box.innerHTML = '<p class="text-muted">' + <?= json_encode(t('cash_online_camera_err')) ?> + '</p>'; cam = null; });
@@ -285,6 +287,7 @@ const TILL_MENU = <?= json_encode($tillMenu, JSON_UNESCAPED_UNICODE) ?>;
 const TL = <?= json_encode([
     'pay' => t('till_pay'), 'empty' => t('till_ticket_empty'), 'free' => t('till_free_line'), 'none' => t('till_no_products'),
     'failed' => t('toast_update_failed'), 'cancel_q' => t('till_cancel_confirm'), 'currency' => formatCurrency(0),
+    'scanned' => t('till_scanned'),
 ], JSON_UNESCAPED_UNICODE) ?>;
 const $id = id => document.getElementById(id);
 const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -302,6 +305,23 @@ function renderTillMenu() {
     $id('tillProducts').innerHTML = c ? c.items.map(it =>
         `<button type="button" class="${it.image ? 'has-img' : ''}" style="--pc:${escH(c.color || '')}" onclick="tAddProduct(${it.id})">${it.image ? `<img src="${escH(it.image)}" alt="" loading="lazy">` : ''}<span>${escH(it.name)}</span><small>${escH(it.price)}</small></button>`).join('')
         : `<div class="till-empty">${escH(TL.none)}</div>`;
+}
+// The scanner (or camera) read a Menu cassa product's code: it goes on the ticket.
+let lastScan = { code: '', at: 0 };
+function scanProduct(text) {
+    const code = String(text || '').trim();
+    const it = code && TILL_MENU.flatMap(c => c.items).find(i => i.barcode && i.barcode === code);
+    if (!it) return false;
+    if (code === lastScan.code && Date.now() - lastScan.at < 1500) return true;   // the camera sees it twice
+    lastScan = { code, at: Date.now() };
+    tAddProduct(it.id);
+    showToast(TL.scanned.replace('{name}', it.name), 'success', 1500);
+    return true;
+}
+function scanSubmit(e) {
+    const inp = document.getElementById('scanInput');
+    if (scanProduct(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
+    return true;                         // a customer's QR: the server opens its payment
 }
 function tAddProduct(id) {
     const it = TILL_MENU.flatMap(c => c.items).find(i => i.id === id);

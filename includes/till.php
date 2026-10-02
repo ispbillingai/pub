@@ -49,11 +49,11 @@ function tillFreeCategoryId(): int
     return (int) $stmt->fetchColumn();
 }
 
-/** The till's buttons: [['id', 'name', 'color', 'items' => [['id', 'name', 'price', 'amount', 'image']]]]. */
+/** The till's buttons: [['id', 'name', 'color', 'items' => [['id', 'name', 'price', 'amount', 'image', 'barcode']]]]. */
 function tillMenu(): array
 {
     $rows = getDBConnection()->query("
-        SELECT mc.id AS category_id, mc.name AS category, mc.color, mi.id, mi.name, mi.base_price, mi.image_url
+        SELECT mc.id AS category_id, mc.name AS category, mc.color, mi.id, mi.name, mi.base_price, mi.image_url, mi.barcode
         FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
         WHERE mc.till_only = 1 AND mc.active = 1 AND mi.active = 1
         ORDER BY mc.sort_order, mc.name, mi.sort_order, mi.name
@@ -63,7 +63,7 @@ function tillMenu(): array
         $cid = (int) $r['category_id'];
         $menu[$cid] ??= ['id' => $cid, 'name' => $r['category'], 'color' => $r['color'] ?: null, 'items' => []];
         $menu[$cid]['items'][] = ['id' => (int) $r['id'], 'name' => $r['name'], 'price' => formatCurrency($r['base_price']), 'amount' => (float) $r['base_price'],
-                                     'image' => $r['image_url'] ?: null];
+                                     'image' => $r['image_url'] ?: null, 'barcode' => $r['barcode'] ?: null];
     }
     return array_values($menu);
 }
@@ -118,6 +118,21 @@ function tillCheckout(array $lines, ?int $targetOrderId, int $userId): array
     calculateOrderTotals($orderId);
     logActivity($targetOrderId ? 'till_added_to_online_order' : 'till_counter_sale', 'orders', $orderId, ['lines' => count($book)]);
     return ['ok' => $orderId];
+}
+
+/** A product's code as typed or scanned: trimmed, '' = none. */
+function tillBarcode(string $code): string
+{
+    return mb_substr(trim(preg_replace('/[\x00-\x1F]+/', '', $code)), 0, 64);
+}
+
+/** Another product already using this code (its name), or null. */
+function tillBarcodeTakenBy(string $code, int $exceptItemId = 0): ?string
+{
+    if ($code === '') return null;
+    $stmt = getDBConnection()->prepare("SELECT name FROM menu_items WHERE barcode = ? AND id <> ? LIMIT 1");
+    $stmt->execute([$code, $exceptItemId]);
+    return $stmt->fetchColumn() ?: null;
 }
 
 /** Counter sales booked but not paid yet (the payment was left half-way). */
