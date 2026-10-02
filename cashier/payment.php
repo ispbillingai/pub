@@ -7,10 +7,15 @@
  * ?embed=1: shown in Ordini Cassa's payment window (cashier/online.php): no
  * top bar; Back / Cancel / Done close the window (postMessage to the panel)
  * instead of leaving the page, so the whole payment ends in Ordini Cassa.
+ *
+ * Orders paid from Ordini Cassa (counter sales, online orders) show as
+ * "Ordine cassa", have no cover line, and a "Customer" box on top takes the
+ * customer's name, surname, address, house number and phone.
  */
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/devices.php';
+require_once __DIR__ . '/../includes/till.php';
 requireRole(['admin', 'cashier']);
 
 $embed   = !empty($_GET['embed']);
@@ -30,6 +35,9 @@ $backUrl = in_array($order['channel'] ?? 'dine_in', ['online', 'counter'], true)
 calculateOrderTotals($orderId);
 $order = getOrderById($orderId); // refresh after recalc
 $orderItems = getOrderItems($orderId);
+// Paid from Ordini Cassa: "Ordine cassa", no cover, the customer's details box.
+$tillOrder = isTillOrder($order);
+$tillCust  = $tillOrder ? tillOrderCustomer($order) : null;
 
 // Seats of this table billed separately and still waiting to be paid.
 $pdoPay = getDBConnection();
@@ -157,11 +165,48 @@ include __DIR__ . '/../includes/header.php';
 <div class="payment-layout two-col-layout" style="display:grid;grid-template-columns:1fr 420px;gap:24px;">
     <!-- Bill + discount -->
     <div>
+        <?php if ($tillOrder): ?>
+        <!-- Ordini Cassa: the customer's details -->
+        <details class="card mb-lg till-cust" <?= $tillCust['first_name'] === '' && $tillCust['phone'] === '' ? 'open' : '' ?>>
+            <summary class="card-header" style="cursor:pointer;">
+                <h2><i class="fas fa-user"></i> <?= te('till_cust_title') ?></h2>
+                <span class="text-muted" id="tcSummary"><?= htmlspecialchars(trim($tillCust['first_name'] . ' ' . $tillCust['last_name']) ?: t('till_cust_none')) ?></span>
+            </summary>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label"><?= te('self_name') ?></label><input id="tcFirst" class="form-control" maxlength="60" value="<?= htmlspecialchars($tillCust['first_name']) ?>"></div>
+                    <div class="form-group"><label class="form-label"><?= te('self_surname') ?></label><input id="tcLast" class="form-control" maxlength="60" value="<?= htmlspecialchars($tillCust['last_name']) ?>"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex:3;"><label class="form-label"><?= te('online_address') ?></label><input id="tcAddress" class="form-control" maxlength="150" value="<?= htmlspecialchars($tillCust['address']) ?>"></div>
+                    <div class="form-group" style="flex:1;"><label class="form-label"><?= te('online_street_number') ?></label><input id="tcNumber" class="form-control" maxlength="15" value="<?= htmlspecialchars($tillCust['street_number']) ?>"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><?= te('cust_phone') ?></label>
+                    <div class="d-flex gap-sm">
+                        <select id="tcCountry" class="form-control" style="max-width:130px;" aria-label="<?= te('cust_prefix') ?>">
+                            <?php foreach (phoneCountryOptions() as $pc): ?><option value="<?= $pc['iso'] ?>" <?= $pc['iso'] === $tillCust['country'] ? 'selected' : '' ?>><?= $pc['flag'] ?> <?= $pc['dial'] ?></option><?php endforeach; ?>
+                        </select>
+                        <input id="tcPhone" type="tel" class="form-control" maxlength="20" value="<?= htmlspecialchars($tillCust['phone']) ?>" placeholder="333 123 4567" onchange="tcLookup()">
+                    </div>
+                    <small class="text-muted"><?= te('till_cust_lookup_hint') ?></small>
+                </div>
+                <div class="d-flex gap-sm align-center">
+                    <button type="button" class="btn btn-primary" onclick="tcSave(this)"><i class="fas fa-save"></i> <?= te('till_cust_save') ?></button>
+                    <span id="tcMsg"></span>
+                </div>
+            </div>
+        </details>
+        <?php endif; ?>
         <div class="card mb-lg">
             <div class="card-header">
-                <h2><?= te('order_no') ?><?= htmlspecialchars($order['order_number']) ?></h2>
+                <h2><?= te($tillOrder ? 'till_order_no' : 'order_no') ?><?= htmlspecialchars($order['order_number']) ?></h2>
                 <div class="d-flex gap-sm align-center">
+                    <?php if ($tillOrder): ?>
+                    <span class="badge badge-info"><i class="fas <?= $order['channel'] === 'online' ? 'fa-globe' : 'fa-cash-register' ?>"></i> <?= te($order['channel'] === 'online' ? 'till_badge_online' : 'till_badge_counter') ?></span>
+                    <?php else: ?>
                     <span class="badge badge-info"><?= te('table') ?> <?= htmlspecialchars($order['table_number']) ?> • <?= htmlspecialchars($order['room_name']) ?></span>
+                    <?php endif; ?>
                     <?php if ($till): ?>
                         <span class="badge badge-warning"><i class="fas fa-cash-register"></i> <?= htmlspecialchars($till['name']) ?></span>
                     <?php endif; ?>
@@ -184,10 +229,12 @@ include __DIR__ . '/../includes/header.php';
                         <strong><?= formatCurrency($item['total_price']) ?></strong>
                     </div>
                 <?php endforeach; ?>
+                <?php if (!$tillOrder): ?>
                 <div class="dev-row">
                     <div><?= te('cover_charge') ?> (<?= (int) $order['number_of_people'] ?>)</div>
                     <strong><?= formatCurrency($order['number_of_people'] * $order['cover_charge_per_person']) ?></strong>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -639,6 +686,35 @@ async function applyCouponAction() {
     } catch (e) { msg.textContent = e.message; }
 }
 $('couponCode') && $('couponCode').addEventListener('keydown', e => { if (e.key === 'Enter') applyCouponAction(); });
+
+<?php if ($tillOrder): ?>
+/* ---- Ordini Cassa: the customer's details ---- */
+const TC = <?= json_encode(['saved' => t('till_cust_saved'), 'known' => t('till_cust_known'), 'failed' => t('js_failed')], JSON_UNESCAPED_UNICODE) ?>;
+const tcVal = id => $(id).value.trim();
+async function tcSave(btn) {
+    btn.disabled = true;
+    const msg = $('tcMsg'); msg.className = ''; msg.textContent = '';
+    try {
+        const r = await post('/api/till.php', { action: 'customer', order_id: CFG.order_id, first_name: tcVal('tcFirst'), last_name: tcVal('tcLast'),
+            address: tcVal('tcAddress'), street_number: tcVal('tcNumber'), country: $('tcCountry').value, phone: tcVal('tcPhone') });
+        msg.className = r.success ? 'dev-ok' : 'dev-err';
+        msg.textContent = r.success ? TC.saved : (r.message || TC.failed);
+        if (r.success) $('tcSummary').textContent = (tcVal('tcFirst') + ' ' + tcVal('tcLast')).trim();
+    } catch (e) { msg.className = 'dev-err'; msg.textContent = e.message; }
+    btn.disabled = false;
+}
+// A phone we already know: fill in what is still empty.
+async function tcLookup() {
+    if (!tcVal('tcPhone')) return;
+    try {
+        const r = await post('/api/till.php', { action: 'lookup', country: $('tcCountry').value, phone: tcVal('tcPhone') });
+        if (!r.success || !r.customer) return;
+        const map = { tcFirst: 'first_name', tcLast: 'last_name', tcAddress: 'address', tcNumber: 'street_number' };
+        Object.entries(map).forEach(([id, k]) => { if (!tcVal(id) && r.customer[k]) $(id).value = r.customer[k]; });
+        $('tcMsg').className = 'dev-ok'; $('tcMsg').textContent = TC.known;
+    } catch (e) {}
+}
+<?php endif; ?>
 
 try {
     if (sessionStorage.getItem('wa_resent_' + CFG.order_id)) {

@@ -120,6 +120,71 @@ function tillCheckout(array $lines, ?int $targetOrderId, int $userId): array
     return ['ok' => $orderId];
 }
 
+/** Orders paid from Ordini Cassa: counter sales and online customers' orders. */
+function isTillOrder(?array $order): bool
+{
+    return $order && in_array($order['channel'] ?? '', [TILL_CHANNEL, ONLINE_CHANNEL], true);
+}
+
+/**
+ * The customer's details as the payment page's "Customer" box shows them:
+ * ['first_name', 'last_name', 'address', 'street_number', 'country', 'phone' (national)].
+ * An online order not edited at the till yet starts from the customer's sign-up.
+ */
+function tillOrderCustomer(array $order): array
+{
+    $name = trim((string) ($order['customer_name'] ?? ''));
+    $c = [
+        'first_name' => (string) strtok($name, ' '), 'last_name' => trim((string) substr($name, strlen((string) strtok($name, ' ')))),
+        'address' => (string) ($order['customer_address'] ?? ''), 'street_number' => (string) ($order['customer_street_number'] ?? ''),
+        'country' => (string) ($order['customer_country'] ?: 'IT'), 'phone' => '',
+    ];
+    if (!empty($order['online_customer_id']) && $c['address'] === '' && ($oc = onlineCustomerById((int) $order['online_customer_id']))) {
+        $c = ['first_name' => $oc['first_name'], 'last_name' => $oc['last_name'], 'address' => $oc['address'],
+              'street_number' => $oc['street_number'], 'country' => $oc['mobile_country'] ?: 'IT', 'phone' => ''];
+        $order['customer_phone'] = $oc['mobile'];
+    }
+    if (!empty($order['customer_phone'])) $c['phone'] = nationalPhone($c['country'], $order['customer_phone']);
+    return $c;
+}
+
+/** Save the details typed at the till on the order. Returns ['ok' => true] or ['error' => lang key]. */
+function tillSaveCustomer(int $orderId, array $in): array
+{
+    $order = getOrderById($orderId);
+    if (!isTillOrder($order) || in_array($order['status'], ['paid', 'cancelled'], true)) return ['error' => 'till_err_target'];
+    $f       = fn($k, $max) => mb_substr(trim((string) ($in[$k] ?? '')), 0, $max);
+    $name    = trim($f('first_name', 60) . ' ' . $f('last_name', 60));
+    $country = strtoupper($f('country', 2)) ?: 'IT';
+    $phone   = null;
+    if ($f('phone', 20) !== '' && !($phone = internationalPhone($country, $f('phone', 20)))) return ['error' => 'cust_bad_phone'];
+    getDBConnection()->prepare("
+        UPDATE orders SET customer_name = ?, customer_address = ?, customer_street_number = ?, customer_country = ?, customer_phone = ? WHERE id = ?
+    ")->execute([$name !== '' ? $name : null, $f('address', 150) ?: null, $f('street_number', 15) ?: null, $phone ? $country : null, $phone, $orderId]);
+    logActivity('till_customer_saved', 'orders', $orderId);
+    return ['ok' => true];
+}
+
+/**
+ * Someone we already know by this phone (an online customer, or the latest
+ * order that took their details at the till), to fill in the box; or null.
+ */
+function tillCustomerLookup(string $country, string $phone): ?array
+{
+    $e164 = internationalPhone(strtoupper($country) ?: 'IT', $phone);
+    if (!$e164) return null;
+    if ($oc = onlineCustomerByMobile($e164)) {
+        return ['first_name' => $oc['first_name'], 'last_name' => $oc['last_name'], 'address' => $oc['address'], 'street_number' => $oc['street_number']];
+    }
+    $stmt = getDBConnection()->prepare("SELECT customer_name, customer_address, customer_street_number FROM orders
+                                        WHERE customer_phone = ? AND customer_name IS NOT NULL ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$e164]);
+    if (!$o = $stmt->fetch()) return null;
+    $first = (string) strtok((string) $o['customer_name'], ' ');
+    return ['first_name' => $first, 'last_name' => trim(substr((string) $o['customer_name'], strlen($first))),
+            'address' => (string) $o['customer_address'], 'street_number' => (string) $o['customer_street_number']];
+}
+
 /** A product's code as typed or scanned: trimmed, '' = none. */
 function tillBarcode(string $code): string
 {

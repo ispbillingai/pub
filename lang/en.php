@@ -1379,4 +1379,15 @@ return [
     'till_menu_code_ph' => 'Code (scan the QR)',
     'till_menu_code_taken' => 'This code is already used by "{name}": each code can go on one product only.',
     'till_scanned' => 'Added: {name}',
+
+    // ---- Payment page: Ordini Cassa orders ----
+    'till_order_no' => 'Till order no. ',
+    'till_badge_counter' => 'Counter sale',
+    'till_badge_online' => 'Online order',
+    'till_cust_title' => 'Customer details',
+    'till_cust_none' => 'no details yet',
+    'till_cust_save' => 'Save details',
+    'till_cust_saved' => 'Details saved.',
+    'till_cust_known' => 'Known customer: details filled in, check and save.',
+    'till_cust_lookup_hint' => 'If the number is already known, the other fields fill in by themselves.',
 ];

@@ -1379,4 +1379,15 @@ return [
     'till_menu_code_ph' => 'Codice (leggi il QR)',
     'till_menu_code_taken' => 'Questo codice è già usato dal prodotto "{name}": ogni codice può andare su un solo prodotto.',
     'till_scanned' => 'Aggiunto: {name}',
+
+    // ---- Payment page: Ordini Cassa orders ----
+    'till_order_no' => 'Ordine cassa N.',
+    'till_badge_counter' => 'Vendita al banco',
+    'till_badge_online' => 'Ordine online',
+    'till_cust_title' => 'Dati cliente',
+    'till_cust_none' => 'nessun dato inserito',
+    'till_cust_save' => 'Salva i dati',
+    'till_cust_saved' => 'Dati salvati.',
+    'till_cust_known' => 'Cliente già conosciuto: dati completati, controlla e salva.',
+    'till_cust_lookup_hint' => 'Se il numero è già conosciuto, gli altri campi si compilano da soli.',
 ];
