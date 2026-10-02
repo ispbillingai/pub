@@ -1457,4 +1457,11 @@ return [
     'ss_m_mpesa' => 'M-Pesa',
     'ss_m_other' => 'Altro',
     'ss_m_test' => 'Pagamento virtuale (test)',
+
+    // ---- Sales statistics: tables ----
+    'ss_tab_tables' => 'Vendite ai tavoli',
+    'ss_covers' => 'Coperti',
+    'ss_per_cover' => 'Incasso per coperto',
+    'ss_avg_stay' => 'Permanenza media al tavolo',
+    'ss_by_guest' => 'Tavoli che hanno ordinato dal QR',
 ];

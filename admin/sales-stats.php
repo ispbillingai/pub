@@ -1,13 +1,15 @@
 <?php
 /**
- * Admin — Statistiche vendite, two separate views:
- *   ?ch=counter  sales at the till (Ordini Cassa counter sales)
+ * Admin — Statistiche vendite, three separate views:
+ *   (default)    sales at the till (Ordini Cassa counter sales)
  *   ?ch=online   online customers' orders
+ *   ?ch=tables   table orders (a table split into seat bills counts each paid bill)
  * Paid orders of the period (by payment day): takings, number of sales,
  * average ticket, items, discounts; takings per day; when the orders come in
  * (hour of the day); payment methods; best-selling products; best customers.
  * Plus, per channel: customers known / free amounts (till), unique / new
- * customers and cancelled orders (online). CSV of the days.
+ * customers and cancelled orders (online); covers, takings per cover,
+ * average stay and guests' own QR orders (tables). CSV of the days.
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -15,7 +17,10 @@ require_once __DIR__ . '/../includes/till.php';
 requireRole(['admin']);
 
 $pdo     = getDBConnection();
-$ch      = ($_GET['ch'] ?? '') === 'online' ? ONLINE_CHANNEL : TILL_CHANNEL;
+$tabs    = ['counter' => TILL_CHANNEL, 'online' => ONLINE_CHANNEL, 'tables' => 'dine_in'];
+$tab     = isset($tabs[$_GET['ch'] ?? '']) ? $_GET['ch'] : 'counter';
+$ch      = $tabs[$tab];
+$tabArg  = $tab === 'counter' ? '' : $tab;   // ?ch= in links
 $preset  = $_GET['p'] ?? '30';
 $from    = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from'] ?? '') ? $_GET['from'] : '';
 $to      = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['to'] ?? '') ? $_GET['to'] : '';
@@ -28,11 +33,14 @@ if ($from === '' && $to === '') {
 }
 
 // Paid orders of this channel in the period (by the day they were paid).
-$w = ["o.channel = ?", "o.status = 'paid'"];
+// $where leaves out a table's order emptied into seat bills (nothing paid on
+// it: each seat bill is the sale); $whereAll keeps it (covers, stay).
+$w = ["COALESCE(o.channel, 'dine_in') = ?", "o.status = 'paid'"];
 $p = [$ch];
 if ($from !== '') { $w[] = "DATE(o.closed_at) >= ?"; $p[] = $from; }
 if ($to !== '')   { $w[] = "DATE(o.closed_at) <= ?"; $p[] = $to; }
-$where = implode(' AND ', $w);
+$whereAll = implode(' AND ', $w);
+$where    = $whereAll . ' AND o.total > 0';
 $q = function (string $sql, array $extra = []) use ($pdo, $p) {
     $st = $pdo->prepare($sql);
     $st->execute(array_merge($p, $extra));
@@ -47,9 +55,13 @@ $items = (int) $q("SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi JOIN
 $daily = $q("SELECT DATE(o.closed_at) AS d, COUNT(*) AS n, SUM(o.total) AS revenue FROM orders o WHERE $where
              GROUP BY DATE(o.closed_at) ORDER BY d DESC")->fetchAll();
 
-// When the orders come in: hour they were placed.
+// When the orders come in: hour they were placed (a table: when it was opened,
+// also for its seat bills).
+$hourOf = $tab === 'tables'
+    ? "HOUR(COALESCE((SELECT po.opened_at FROM orders po WHERE po.id = o.parent_order_id), o.opened_at, o.created_at))"
+    : "HOUR(o.created_at)";
 $hours = array_fill(0, 24, ['n' => 0, 'revenue' => 0.0]);
-foreach ($q("SELECT HOUR(o.created_at) AS h, COUNT(*) AS n, SUM(o.total) AS revenue FROM orders o WHERE $where GROUP BY HOUR(o.created_at)") as $r) {
+foreach ($q("SELECT $hourOf AS h, COUNT(*) AS n, SUM(o.total) AS revenue FROM orders o WHERE $where GROUP BY h") as $r) {
     $hours[(int) $r['h']] = ['n' => (int) $r['n'], 'revenue' => (float) $r['revenue']];
 }
 
@@ -63,7 +75,7 @@ $products = $q("SELECT mi.name, SUM(oi.quantity) AS qty, SUM(oi.total_price) AS 
                 WHERE $where AND oi.status <> 'cancelled' GROUP BY mi.id, mi.name ORDER BY qty DESC, revenue DESC LIMIT 15")->fetchAll();
 
 // Best customers and the channel's own figures.
-if ($ch === TILL_CHANNEL) {
+if ($tab === 'counter') {
     $customers = $q("SELECT c.code, TRIM(CONCAT_WS(' ', c.first_name, c.last_name)) AS name, COUNT(*) AS n, SUM(o.total) AS revenue
                      FROM orders o JOIN till_customers c ON c.id = o.till_customer_id WHERE $where
                      GROUP BY c.id ORDER BY revenue DESC LIMIT 10")->fetchAll();
@@ -73,6 +85,22 @@ if ($ch === TILL_CHANNEL) {
     $extra = [
         [number_format($withCust, 0, ',', '.') . ($k['n'] ? ' <small>(' . round($withCust / $k['n'] * 100) . '%)</small>' : ''), t('ss_with_customer')],
         [formatCurrency($freeAmt), t('ss_free_amounts')],
+    ];
+} elseif ($tab === 'tables') {
+    // Guests who left their phone with the table's order.
+    $customers = $q("SELECT MAX(o.customer_name) AS name, o.customer_phone AS code, COUNT(*) AS n, SUM(o.total) AS revenue
+                     FROM orders o WHERE $where AND o.customer_phone IS NOT NULL
+                     GROUP BY o.customer_phone ORDER BY revenue DESC LIMIT 10")->fetchAll();
+    $t = $q("SELECT COALESCE(SUM(o.number_of_people), 0) AS covers, COUNT(*) AS tables_served,
+                    AVG(NULLIF(TIMESTAMPDIFF(MINUTE, o.opened_at, o.closed_at), 0)) AS stay,
+                    SUM(o.created_by_guest = 1) AS by_guest
+             FROM orders o WHERE $whereAll AND o.parent_order_id IS NULL")->fetch();
+    $covers = (int) $t['covers'];
+    $extra = [
+        [number_format($covers, 0, ',', '.'), t('ss_covers')],
+        [$covers ? formatCurrency($k['revenue'] / $covers) : '—', t('ss_per_cover')],
+        [$t['stay'] !== null ? (int) round($t['stay']) . ' min' : '—', t('ss_avg_stay')],
+        [number_format((int) $t['by_guest'], 0, ',', '.') . ($t['tables_served'] ? ' <small>(' . round($t['by_guest'] / $t['tables_served'] * 100) . '%)</small>' : ''), t('ss_by_guest')],
     ];
 } else {
     $customers = $q("SELECT TRIM(CONCAT_WS(' ', c.first_name, c.last_name)) AS name, c.mobile AS code, COUNT(*) AS n, SUM(o.total) AS revenue
@@ -100,7 +128,7 @@ if ($ch === TILL_CHANNEL) {
 
 if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="vendite_' . ($ch === TILL_CHANNEL ? 'cassa' : 'online') . '_' . ($from ?: 'inizio') . '_' . ($to ?: date('Y-m-d')) . '.csv"');
+    header('Content-Disposition: attachment; filename="vendite_' . ['counter' => 'cassa', 'online' => 'online', 'tables' => 'tavoli'][$tab] . '_' . ($from ?: 'inizio') . '_' . ($to ?: date('Y-m-d')) . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
     fputcsv($out, [t('date'), t('ss_sales'), t('ss_revenue')], ';');
@@ -115,7 +143,7 @@ $maxMeth  = $methods ? max(array_map(fn($m) => (float) $m['revenue'], $methods))
 $maxProd  = $products ? max(array_map(fn($r) => (int) $r['qty'], $products)) : 0;
 $pageTitle = t('ss_title');
 include __DIR__ . '/../includes/header.php';
-$qs = fn(array $extra) => '?' . http_build_query(array_filter(['ch' => $ch === ONLINE_CHANNEL ? 'online' : '', 'p' => $preset === 'custom' ? '' : $preset,
+$qs = fn(array $extra) => '?' . http_build_query(array_filter(['ch' => $tabArg, 'p' => $preset === 'custom' ? '' : $preset,
         'from' => $preset === 'custom' ? $from : '', 'to' => $preset === 'custom' ? $to : ''] + $extra, fn($v) => $v !== ''));
 ?>
 <style>
@@ -150,10 +178,11 @@ $qs = fn(array $extra) => '?' . http_build_query(array_filter(['ch' => $ch === O
     <a class="btn btn-outline" href="<?= htmlspecialchars($qs(['export' => 'csv'])) ?>"><i class="fas fa-file-csv"></i> <?= te('export_csv') ?></a>
 </div>
 
-<!-- Two separate statistics -->
+<!-- Separate statistics: till, online, tables -->
 <div class="ss-tabs">
-    <a href="<?= htmlspecialchars('?' . http_build_query(array_filter(['p' => $preset === 'custom' ? '' : $preset, 'from' => $preset === 'custom' ? $from : '', 'to' => $preset === 'custom' ? $to : '']))) ?>" class="<?= $ch === TILL_CHANNEL ? 'on' : '' ?>"><i class="fas fa-cash-register"></i> <?= te('ss_tab_counter') ?></a>
-    <a href="<?= htmlspecialchars('?' . http_build_query(array_filter(['ch' => 'online', 'p' => $preset === 'custom' ? '' : $preset, 'from' => $preset === 'custom' ? $from : '', 'to' => $preset === 'custom' ? $to : '']))) ?>" class="<?= $ch === ONLINE_CHANNEL ? 'on' : '' ?>"><i class="fas fa-globe"></i> <?= te('ss_tab_online') ?></a>
+    <?php foreach (['counter' => ['fa-cash-register', 'ss_tab_counter'], 'online' => ['fa-globe', 'ss_tab_online'], 'tables' => ['fa-chair', 'ss_tab_tables']] as $tk => [$ti, $tl]): ?>
+        <a href="<?= htmlspecialchars('?' . http_build_query(array_filter(['ch' => $tk === 'counter' ? '' : $tk, 'p' => $preset === 'custom' ? '' : $preset, 'from' => $preset === 'custom' ? $from : '', 'to' => $preset === 'custom' ? $to : '']))) ?>" class="<?= $tab === $tk ? 'on' : '' ?>"><i class="fas <?= $ti ?>"></i> <?= te($tl) ?></a>
+    <?php endforeach; ?>
 </div>
 
 <!-- Filters, one row -->
@@ -161,11 +190,11 @@ $qs = fn(array $extra) => '?' . http_build_query(array_filter(['ch' => $ch === O
     <div class="d-flex gap-md align-center" style="flex-wrap:wrap;">
         <div class="presets">
             <?php foreach (['today' => t('stats_today'), '7' => t('stats_7d'), '30' => t('stats_30d'), '90' => t('stats_90d'), '365' => t('stats_year'), 'all' => t('stats_all')] as $pk => $pl): ?>
-                <a href="<?= htmlspecialchars('?' . http_build_query(array_filter(['ch' => $ch === ONLINE_CHANNEL ? 'online' : '', 'p' => $pk]))) ?>" class="<?= $preset === (string) $pk ? 'on' : '' ?>"><?= htmlspecialchars($pl) ?></a>
+                <a href="<?= htmlspecialchars('?' . http_build_query(array_filter(['ch' => $tabArg, 'p' => $pk]))) ?>" class="<?= $preset === (string) $pk ? 'on' : '' ?>"><?= htmlspecialchars($pl) ?></a>
             <?php endforeach; ?>
         </div>
         <form method="GET" class="d-flex gap-sm align-center" style="flex-wrap:wrap;">
-            <?php if ($ch === ONLINE_CHANNEL): ?><input type="hidden" name="ch" value="online"><?php endif; ?>
+            <?php if ($tabArg !== ''): ?><input type="hidden" name="ch" value="<?= $tabArg ?>"><?php endif; ?>
             <input type="date" name="from" class="form-control" style="max-width:160px;" value="<?= htmlspecialchars($from) ?>">
             <span class="text-muted">→</span>
             <input type="date" name="to" class="form-control" style="max-width:160px;" value="<?= htmlspecialchars($to) ?>">
@@ -266,7 +295,7 @@ $qs = fn(array $extra) => '?' . http_build_query(array_filter(['ch' => $ch === O
     <div class="card">
         <div class="card-header"><h2><i class="fas fa-users"></i> <?= te('ss_customers') ?></h2></div>
         <table class="data-table rank">
-            <thead><tr><th><?= te('cust_name') ?></th><th><?= te($ch === TILL_CHANNEL ? 'till_cust_code' : 'cust_phone') ?></th><th class="num"><?= te('ss_sales') ?></th><th class="num"><?= te('ss_revenue') ?></th></tr></thead>
+            <thead><tr><th><?= te('cust_name') ?></th><th><?= te($tab === 'counter' ? 'till_cust_code' : 'cust_phone') ?></th><th class="num"><?= te('ss_sales') ?></th><th class="num"><?= te('ss_revenue') ?></th></tr></thead>
             <tbody>
             <?php foreach ($customers as $c): ?>
                 <tr>

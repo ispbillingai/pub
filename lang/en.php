@@ -1457,4 +1457,11 @@ return [
     'ss_m_mpesa' => 'M-Pesa',
     'ss_m_other' => 'Other',
     'ss_m_test' => 'Virtual payment (test)',
+
+    // ---- Sales statistics: tables ----
+    'ss_tab_tables' => 'Table sales',
+    'ss_covers' => 'Covers',
+    'ss_per_cover' => 'Takings per cover',
+    'ss_avg_stay' => 'Average time at the table',
+    'ss_by_guest' => 'Tables that ordered from the QR',
 ];
