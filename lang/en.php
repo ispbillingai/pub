@@ -1464,4 +1464,7 @@ return [
     'ss_per_cover' => 'Takings per cover',
     'ss_avg_stay' => 'Average time at the table',
     'ss_by_guest' => 'Tables that ordered from the QR',
+
+    // ---- Till keypad: big amounts ----
+    'till_big_amount_confirm' => 'Confirm the amount of {amount}? It is over €50.',
 ];

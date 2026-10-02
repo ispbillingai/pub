@@ -303,7 +303,7 @@ const TILL_MENU = <?= json_encode($tillMenu, JSON_UNESCAPED_UNICODE) ?>;
 const TL = <?= json_encode([
     'pay' => t('till_pay'), 'empty' => t('till_ticket_empty'), 'free' => t('till_free_line'), 'none' => t('till_no_products'),
     'failed' => t('toast_update_failed'), 'cancel_q' => t('till_cancel_confirm'), 'currency' => formatCurrency(0),
-    'scanned' => t('till_scanned'), 'cust_set' => t('till_cust_scanned'),
+    'scanned' => t('till_scanned'), 'cust_set' => t('till_cust_scanned'), 'big_amount' => t('till_big_amount_confirm'),
 ], JSON_UNESCAPED_UNICODE) ?>;
 const $id = id => document.getElementById(id);
 const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -375,8 +375,11 @@ function kpShow() { $id('kpDisplay').textContent = money(kpCents / 100); }
 function kpPress(k) { const v = Number(String(kpCents) + k); if (v <= 999999) kpCents = v; kpShow(); }
 function kpBack() { kpCents = Math.floor(kpCents / 10); kpShow(); }
 function kpClear() { kpCents = 0; kpShow(); }
+// Over 50 € a typed amount must be confirmed (a slip of the finger: 500 instead of 5,00).
+const KP_CONFIRM_OVER = 5000;   // cents
 function kpAdd() {
     if (!kpCents) return;
+    if (kpCents > KP_CONFIRM_OVER && !confirm(TL.big_amount.replace('{amount}', money(kpCents / 100)))) return;
     ticket.push({ amount: kpCents / 100 });
     kpCents = 0; kpShow(); saveTicket(); renderTicket();
 }

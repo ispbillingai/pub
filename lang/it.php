@@ -1464,4 +1464,7 @@ return [
     'ss_per_cover' => 'Incasso per coperto',
     'ss_avg_stay' => 'Permanenza media al tavolo',
     'ss_by_guest' => 'Tavoli che hanno ordinato dal QR',
+
+    // ---- Till keypad: big amounts ----
+    'till_big_amount_confirm' => 'Confermi l\'importo di {amount}? Supera i 50 €.',
 ];
