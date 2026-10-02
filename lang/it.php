@@ -1406,4 +1406,13 @@ return [
     'till_cust_sales' => 'Acquisti',
     'till_cust_last_sale' => 'Ultimo acquisto',
     'till_cust_disable_confirm' => 'Disattivare questo cliente? Il suo codice non funzionerà più in cassa (i dati e gli acquisti restano).',
+
+    // ---- Clienti cassa: QR ----
+    'till_welcome_text' => 'Ciao {name}! 👋 Benvenuto tra i clienti di *{restaurant}*.'."\n".''."\n".'Il tuo codice cliente è *{code}*: la prossima volta mostra alla cassa il QR qui sotto (o dicci il codice) e richiamiamo subito i tuoi dati.',
+    'till_cust_scanned' => 'Cliente {name} ({code}) associato allo scontrino.',
+    'till_cust_qr_send' => 'Invia di nuovo codice e QR su WhatsApp',
+    'till_cust_qr_send_confirm' => 'Inviare al cliente il suo codice e il QR su WhatsApp?',
+    'till_cust_qr_sent' => 'Codice e QR inviati su WhatsApp.',
+    'till_cust_qr_not_sent' => 'Non inviato: serve il telefono del cliente e WhatsApp attivo.',
+    'till_cust_qr_download' => 'Scarica il QR',
 ];

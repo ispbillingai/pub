@@ -2,7 +2,8 @@
 /**
  * Till API — the ticket of Ordini Cassa (includes/till.php).
  *
- * POST {action: 'checkout', lines: [{id, qty} | {amount}], target_order_id?} → {order_id}: then the payment page
+ * POST {action: 'checkout', lines: [{id, qty} | {amount}], target_order_id?, customer_code?} → {order_id}: then the payment page
+ * POST {action: 'find_customer', code}                                      → a Clienti cassa customer scanned at Ordini Cassa ({code, name})
  * POST {action: 'cancel', order_id}                                         → drop an unpaid counter sale
  * POST {action: 'customer', order_id, first_name, last_name, address, street_number, country, phone} → the customer's details on the order
  * POST {action: 'lookup', country, phone}                                   → someone already known by that phone, to fill the box
@@ -27,9 +28,14 @@ $action = (string) ($input['action'] ?? '');
 
 if ($action === 'checkout') {
     $res = tillCheckout((array) ($input['lines'] ?? []), !empty($input['target_order_id']) ? (int) $input['target_order_id'] : null,
-                        (int) getCurrentUser()['id']);
+                        (int) getCurrentUser()['id'], isset($input['customer_code']) ? (string) $input['customer_code'] : null);
     if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
     jsonResponse(['success' => true, 'order_id' => $res['ok']]);
+}
+if ($action === 'find_customer') {
+    $tc = tillCustomerByCode((string) ($input['code'] ?? ''));
+    if (!$tc) jsonResponse(['success' => false, 'message' => t('till_cust_code_unknown')]);
+    jsonResponse(['success' => true, 'code' => $tc['code'], 'name' => trim($tc['first_name'] . ' ' . $tc['last_name']) ?: $tc['code']]);
 }
 if ($action === 'customer') {
     $res = tillSaveCustomer((int) ($input['order_id'] ?? 0), $input);

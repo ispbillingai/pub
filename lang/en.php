@@ -1406,4 +1406,13 @@ return [
     'till_cust_sales' => 'Purchases',
     'till_cust_last_sale' => 'Last purchase',
     'till_cust_disable_confirm' => 'Disable this customer? Their code will no longer work at the till (details and purchases are kept).',
+
+    // ---- Clienti cassa: QR ----
+    'till_welcome_text' => 'Hi {name}! 👋 Welcome among the customers of *{restaurant}*.'."\n".''."\n".'Your customer code is *{code}*: next time show the QR below at the till (or tell us the code) and we bring up your details at once.',
+    'till_cust_scanned' => 'Customer {name} ({code}) put on the ticket.',
+    'till_cust_qr_send' => 'Send code and QR on WhatsApp again',
+    'till_cust_qr_send_confirm' => 'Send the customer their code and QR on WhatsApp?',
+    'till_cust_qr_sent' => 'Code and QR sent on WhatsApp.',
+    'till_cust_qr_not_sent' => 'Not sent: the customer\'s phone and WhatsApp are needed.',
+    'till_cust_qr_download' => 'Download the QR',
 ];

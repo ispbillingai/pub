@@ -4,6 +4,7 @@
  * taken in the payment page's "Dati cliente" box (Ordini Cassa), each with
  * their own code (C0001…) to type at the till next time. Details can be
  * corrected here; customers are disabled, never deleted (their sales stay).
+ * Each code is also a QR (to print, or to send again on WhatsApp).
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -26,12 +27,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            $phone, $phone ? $country : null, $id]);
             $ok = true;
         }
+    } elseif ($a === 'send_qr') {
+        $ok = tillCustomerWelcome(tillCustomerById($id), true);
     } elseif ($a === 'toggle') {
         $pdo->prepare("UPDATE till_customers SET active = 1 - active WHERE id = ?")->execute([$id]);
         $ok = true;
     }
     if ($ok) logActivity('till_customer_' . $a, 'till_customers', $id);
-    header('Location: /admin/till-customers.php?' . http_build_query(array_filter(['q' => $_POST['q'] ?? '', $ok ? 'saved' : 'error' => 1])) . '#c-' . $id);
+    $flag = $ok ? ($a === 'send_qr' ? 'sent' : 'saved') : ($a === 'send_qr' ? 'notsent' : 'error');
+    header('Location: /admin/till-customers.php?' . http_build_query(array_filter(['q' => $_POST['q'] ?? '', $flag => 1])) . '#c-' . $id);
     exit;
 }
 
@@ -79,6 +83,7 @@ include __DIR__ . '/../includes/header.php';
 .tc-row input, .tc-row select { min-width: 0; }
 .tc-edit { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; padding: 10px 0 4px; }
 .tc-off { opacity: .55; }
+.tc-qr { width: 54px; height: 54px; image-rendering: pixelated; border: 1px solid var(--border-color); border-radius: 6px; background: #fff; }
 </style>
 
 <div class="page-header">
@@ -89,6 +94,10 @@ include __DIR__ . '/../includes/header.php';
 
 <?php if (isset($_GET['saved'])): ?>
     <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-check-circle"></i> <?= te('msg_settings_saved') ?></div>
+<?php elseif (isset($_GET['sent'])): ?>
+    <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; border-radius: 8px;"><i class="fab fa-whatsapp"></i> <?= te('till_cust_qr_sent') ?></div>
+<?php elseif (isset($_GET['notsent'])): ?>
+    <div class="alert alert-danger mb-lg" style="background: rgba(220,38,38,.08); color: var(--danger); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-triangle-exclamation"></i> <?= te('till_cust_qr_not_sent') ?></div>
 <?php elseif (isset($_GET['error'])): ?>
     <div class="alert alert-danger mb-lg" style="background: rgba(220,38,38,.08); color: var(--danger); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-triangle-exclamation"></i> <?= te('cust_bad_phone') ?></div>
 <?php endif; ?>
@@ -109,6 +118,7 @@ include __DIR__ . '/../includes/header.php';
         <thead>
             <tr>
                 <th><?= te('till_cust_code') ?></th>
+                <th>QR</th>
                 <th><?= te('cust_name') ?></th>
                 <th><?= te('online_address') ?></th>
                 <th><?= te('cust_phone') ?></th>
@@ -122,6 +132,7 @@ include __DIR__ . '/../includes/header.php';
             <tr id="c-<?= (int) $r['id'] ?>" class="<?= $r['active'] ? '' : 'tc-off' ?>">
                 <td><span class="tc-code"><?= htmlspecialchars((string) $r['code']) ?></span>
                     <?php if (!$r['active']): ?><br><span class="badge badge-danger"><?= te('online_disabled') ?></span><?php endif; ?></td>
+                <td><a href="<?= htmlspecialchars(tillCustomerQrUrl($r, true)) ?>" title="<?= te('till_cust_qr_download') ?>"><img class="tc-qr" src="<?= htmlspecialchars(tillCustomerQrUrl($r)) ?>" alt="QR <?= htmlspecialchars((string) $r['code']) ?>" loading="lazy"></a></td>
                 <td><strong><?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name']) ?: '—') ?></strong></td>
                 <td><?= htmlspecialchars(trim(($r['address'] ?? '') . ($r['street_number'] ? ', ' . $r['street_number'] : '')) ?: '—') ?></td>
                 <td class="flag-font" style="white-space:nowrap;"><?= $r['phone'] ? countryFlag($r['country'] ?: 'IT') . ' ' . htmlspecialchars($r['phone']) : '—' ?></td>
@@ -129,6 +140,12 @@ include __DIR__ . '/../includes/header.php';
                 <td class="text-muted" style="white-space:nowrap;"><?= $r['last_sale'] ? date('d/m/Y H:i', strtotime($r['last_sale'])) : '—' ?></td>
                 <td style="white-space:nowrap;">
                     <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('<?= $fid ?>').hidden = !document.getElementById('<?= $fid ?>').hidden" title="<?= te('edit') ?>"><i class="fas fa-pen"></i></button>
+                    <?php if ($r['phone'] && $r['active']): ?>
+                    <form method="POST" style="display:inline;" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('till_cust_qr_send_confirm'))) ?>)">
+                        <input type="hidden" name="action" value="send_qr"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>">
+                        <button class="btn btn-sm btn-outline" title="<?= te('till_cust_qr_send') ?>"><i class="fab fa-whatsapp" style="color:#25d366;"></i></button>
+                    </form>
+                    <?php endif; ?>
                     <form method="POST" style="display:inline;" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t($r['active'] ? 'till_cust_disable_confirm' : 'online_enable_confirm'))) ?>)">
                         <input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>">
                         <button class="btn btn-sm <?= $r['active'] ? 'btn-outline' : 'btn-success' ?>" title="<?= te($r['active'] ? 'online_disable' : 'online_enable') ?>"><i class="fas <?= $r['active'] ? 'fa-user-slash' : 'fa-user-check' ?>"></i></button>
@@ -136,7 +153,7 @@ include __DIR__ . '/../includes/header.php';
                 </td>
             </tr>
             <tr id="<?= $fid ?>" hidden>
-                <td colspan="7">
+                <td colspan="8">
                     <form method="POST" class="tc-edit">
                         <input type="hidden" name="action" value="update"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>">
                         <input name="first_name" class="form-control" maxlength="60" value="<?= htmlspecialchars((string) $r['first_name']) ?>" placeholder="<?= te('self_name') ?>">
@@ -153,7 +170,7 @@ include __DIR__ . '/../includes/header.php';
             </tr>
         <?php endforeach; ?>
         <?php if (!$rows): ?>
-            <tr><td colspan="7" class="text-center text-muted" style="padding:40px;"><?= te('till_customers_none') ?></td></tr>
+            <tr><td colspan="8" class="text-center text-muted" style="padding:40px;"><?= te('till_customers_none') ?></td></tr>
         <?php endif; ?>
         </tbody>
     </table>

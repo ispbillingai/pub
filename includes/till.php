@@ -10,7 +10,9 @@
  *
  * "Clienti cassa": a counter sale's customer details (the payment page's box)
  * are kept in till_customers with a code of their own (C0001…); typing the
- * code at the till next time brings them back (Admin > Clienti cassa).
+ * code at the till next time brings them back (Admin > Clienti cassa). The
+ * code is also a QR (till-qr.php) the scanner reads, sent to the customer on
+ * WhatsApp when they are registered with a phone (tillCustomerWelcome).
  */
 
 require_once __DIR__ . '/functions.php';
@@ -75,10 +77,14 @@ function tillMenu(): array
 /**
  * Book the ticket: [['id' => till product, 'qty' => n] | ['amount' => euros]].
  * $targetOrderId: an online customer's open order to add it to, or null for a
- * new counter sale. Returns ['ok' => order id] or ['error' => lang key].
+ * new counter sale; $customerCode: the Clienti cassa customer scanned for it.
+ * Returns ['ok' => order id] or ['error' => lang key].
  */
-function tillCheckout(array $lines, ?int $targetOrderId, int $userId): array
+function tillCheckout(array $lines, ?int $targetOrderId, int $userId, ?string $customerCode = null): array
 {
+    if (!$targetOrderId && $customerCode !== null && $customerCode !== '' && !tillCustomerByCode($customerCode)) {
+        return ['error' => 'till_cust_code_unknown'];
+    }
     $pdo  = getDBConnection();
     $prod = $pdo->prepare("SELECT mi.id, mi.base_price FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
                            WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1 AND mc.till_only = 1");
@@ -121,6 +127,8 @@ function tillCheckout(array $lines, ?int $targetOrderId, int $userId): array
     }
     calculateOrderTotals($orderId);
     logActivity($targetOrderId ? 'till_added_to_online_order' : 'till_counter_sale', 'orders', $orderId, ['lines' => count($book)]);
+    // The customer scanned at Ordini Cassa: the sale starts with their details.
+    if (!$targetOrderId && $customerCode !== null && $customerCode !== '') tillAttachCustomer($orderId, $customerCode);
     return ['ok' => $orderId];
 }
 
@@ -230,7 +238,54 @@ function tillCustomerKeep(array $order, array $d): ?array
         logActivity('till_customer_created', 'till_customers', $id);
     }
     $pdo->prepare("UPDATE orders SET till_customer_id = ? WHERE id = ?")->execute([(int) $tc['id'], (int) $order['id']]);
-    return tillCustomerById((int) $tc['id']);
+    $tc = tillCustomerById((int) $tc['id']);
+    tillCustomerWelcome($tc);   // first time with a phone: their code and QR on WhatsApp
+    return $tc;
+}
+
+/** The secret token of the customer's QR image (made on first use). */
+function tillCustomerQrToken(array $tc): string
+{
+    if (!empty($tc['qr_token'])) return (string) $tc['qr_token'];
+    $token = bin2hex(random_bytes(12));
+    getDBConnection()->prepare("UPDATE till_customers SET qr_token = ? WHERE id = ? AND qr_token IS NULL")->execute([$token, (int) $tc['id']]);
+    return (string) (tillCustomerById((int) $tc['id'])['qr_token'] ?? $token);
+}
+
+function tillCustomerByQrToken(string $token): ?array
+{
+    if (!preg_match('/^[a-f0-9]{24}$/', $token)) return null;
+    $stmt = getDBConnection()->prepare("SELECT * FROM till_customers WHERE qr_token = ?");
+    $stmt->execute([$token]);
+    return $stmt->fetch() ?: null;
+}
+
+/** The customer's QR as an image link (for WhatsApp and the admin page). */
+function tillCustomerQrUrl(array $tc, bool $download = false): string
+{
+    require_once __DIR__ . '/menu_pdf.php';
+    return publicUrl('till-qr.php?t=' . tillCustomerQrToken($tc) . ($download ? '&dl=1' : ''));
+}
+
+/**
+ * "Welcome, your customer code is C0007" with its QR, on WhatsApp: once per
+ * customer (when first saved with a phone), or again on request ($force,
+ * Admin > Clienti cassa). Returns whether a message was queued.
+ */
+function tillCustomerWelcome(?array $tc, bool $force = false): bool
+{
+    if (!$tc || empty($tc['phone']) || !$tc['active'] || !guestWhatsappEnabled()) return false;
+    if (!$force) {
+        $st = getDBConnection()->prepare("SELECT 1 FROM whatsapp_outbox WHERE kind = 'till_welcome' AND phone = ? AND body LIKE ? LIMIT 1");
+        $st->execute([$tc['phone'], '%' . $tc['code'] . '%']);
+        if ($st->fetchColumn()) return false;            // already sent
+    }
+    $first = trim((string) $tc['first_name']) ?: tIn(guestLang($tc['country']), 'thanks_no_name');
+    queueGuestWhatsapp(null, null, 'till_welcome', $tc['phone'], tIn(guestLang($tc['country']), 'till_welcome_text', [
+        'name' => $first, 'restaurant' => restaurantName(), 'code' => $tc['code'],
+    ]), onlineQrPngAvailable() ? tillCustomerQrUrl($tc) : null);
+    logActivity('till_customer_welcome_sent', 'till_customers', (int) $tc['id']);
+    return true;
 }
 
 /**

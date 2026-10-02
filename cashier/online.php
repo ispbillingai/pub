@@ -125,6 +125,9 @@ include __DIR__ . '/../includes/header.php';
 .t-total { display: flex; justify-content: space-between; font-size: 1.4rem; font-weight: 800; margin: 8px 0; }
 .till-ticket select { width: 100%; margin-bottom: 8px; }
 .t-pay { width: 100%; padding: 14px; font-size: 1.1rem; }
+.t-cust { display: flex; align-items: center; gap: 8px; background: #ecfdf5; color: #047857; font-weight: 700; border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.t-cust span { flex: 1; }
+.t-cust button { border: 0; background: none; color: inherit; cursor: pointer; font-weight: 700; }
 /* The payment window over the panel */
 .pay-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 2vh 2vw; }
 .pay-overlay[hidden] { display: none; }
@@ -171,6 +174,8 @@ include __DIR__ . '/../includes/header.php';
             </div>
         </div>
         <div class="till-ticket">
+            <div class="t-cust" id="tCust" hidden><i class="fas fa-id-card"></i> <span id="tCustName"></span>
+                <button type="button" onclick="tSetCustomer(null)" aria-label="<?= te('close') ?>">✕</button></div>
             <div class="t-lines" id="tLines"></div>
             <div class="t-total"><span><?= te('total') ?></span><span id="tTotal"></span></div>
             <select id="tTarget" class="form-control" aria-label="<?= te('till_target') ?>">
@@ -298,7 +303,7 @@ const TILL_MENU = <?= json_encode($tillMenu, JSON_UNESCAPED_UNICODE) ?>;
 const TL = <?= json_encode([
     'pay' => t('till_pay'), 'empty' => t('till_ticket_empty'), 'free' => t('till_free_line'), 'none' => t('till_no_products'),
     'failed' => t('toast_update_failed'), 'cancel_q' => t('till_cancel_confirm'), 'currency' => formatCurrency(0),
-    'scanned' => t('till_scanned'),
+    'scanned' => t('till_scanned'), 'cust_set' => t('till_cust_scanned'),
 ], JSON_UNESCAPED_UNICODE) ?>;
 const $id = id => document.getElementById(id);
 const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -334,7 +339,29 @@ function scanProduct(text, fromCamera = false) {
 function scanSubmit(e) {
     const inp = document.getElementById('scanInput');
     if (scanProduct(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
+    if (scanTillCustomer(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
     return true;                         // a customer's QR: the server opens its payment
+}
+// A Clienti cassa customer's QR (C0007): the ticket's sale will start with their details.
+function scanTillCustomer(text) {
+    const code = String(text || '').trim();
+    if (!/^C\d{4,}$/i.test(code)) return false;
+    fetch('/api/till.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'find_customer', code }) })
+        .then(r => r.json()).then(r => {
+            if (!r.success) { showToast(r.message || TL.failed, 'error'); return; }
+            tSetCustomer({ code: r.code, name: r.name });
+            showToast(TL.cust_set.replace('{name}', r.name).replace('{code}', r.code), 'success', 2000);
+        }).catch(() => showToast(TL.failed, 'error'));
+    return true;
+}
+const CUST_KEY = 'till-ticket-customer';
+let ticketCustomer = null;
+try { ticketCustomer = JSON.parse(localStorage.getItem(CUST_KEY) || 'null'); } catch (e) {}
+function tSetCustomer(c) {
+    ticketCustomer = c;
+    try { c ? localStorage.setItem(CUST_KEY, JSON.stringify(c)) : localStorage.removeItem(CUST_KEY); } catch (e) {}
+    $id('tCust').hidden = !c;
+    if (c) $id('tCustName').textContent = c.name + ' · ' + c.code;
 }
 function tAddProduct(id) {
     const it = TILL_MENU.flatMap(c => c.items).find(i => i.id === id);
@@ -380,9 +407,10 @@ async function tCheckout() {
     try {
         const lines = ticket.map(l => l.amount !== undefined ? { amount: l.amount } : { id: l.id, qty: l.qty });
         const r = await (await fetch('/api/till.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'checkout', lines, target_order_id: $id('tTarget').value || null }) })).json();
+            body: JSON.stringify({ action: 'checkout', lines, target_order_id: $id('tTarget').value || null,
+                                   customer_code: !$id('tTarget').value && ticketCustomer ? ticketCustomer.code : null }) })).json();
         if (!r.success) { showToast(r.message || TL.failed, 'error'); $id('tPay').disabled = false; return; }
-        tClear();
+        tClear(); tSetCustomer(null);
         openPay(r.order_id);
     } catch (e) { showToast(TL.failed, 'error'); $id('tPay').disabled = false; }
 }
@@ -391,7 +419,7 @@ async function tCancelSale(orderId) {
     await fetch('/api/till.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', order_id: orderId }) });
     location.reload();
 }
-renderTillMenu(); renderTicket(); kpShow();
+renderTillMenu(); renderTicket(); kpShow(); tSetCustomer(ticketCustomer);
 
 /* ---- Paying, without leaving Ordini Cassa: payment.php?embed=1 in a window.
  * It tells us when it is paid / closed (postMessage); then the panel reloads. ---- */
@@ -416,7 +444,7 @@ window.addEventListener('message', e => {
 // Keep the scan box ready for the scanner, and the list fresh (not while scanning
 // or while a ticket / an amount is being made).
 document.addEventListener('click', e => { if (!e.target.closest('input, button, a, select, #camBox')) document.getElementById('scanInput').focus(); });
-setInterval(() => { if (!cam && !document.getElementById('scanInput').value && !ticket.length && !kpCents && $id('payOverlay').hidden) location.reload(); }, 20000);
+setInterval(() => { if (!cam && !document.getElementById('scanInput').value && !ticket.length && !kpCents && !ticketCustomer && $id('payOverlay').hidden) location.reload(); }, 20000);
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
