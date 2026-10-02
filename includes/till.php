@@ -9,7 +9,7 @@
  * they never go to the kitchen (status 'served' at once).
  *
  * "Clienti cassa": a counter sale's customer details (the payment page's box)
- * are kept in till_customers with a code of their own (C0001…); typing the
+ * are kept in till_customers with a random code of their own (C482913…); typing the
  * code at the till next time brings them back (Admin > Clienti cassa). The
  * code is also a QR (till-qr.php) the scanner reads, sent to the customer on
  * WhatsApp when they are registered with a phone (tillCustomerWelcome).
@@ -199,18 +199,28 @@ function tillCustomerById(int $id): ?array
     return $stmt->fetch() ?: null;
 }
 
-/** C0001, C0002… from the customer's id. */
-function tillCustomerCode(int $id): string
+/** A new random customer code, C + 6 digits (C482913), not used by anyone yet. */
+function tillNewCustomerCode(): string
 {
-    return 'C' . str_pad((string) $id, 4, '0', STR_PAD_LEFT);
+    $st = getDBConnection()->prepare("SELECT 1 FROM till_customers WHERE code = ?");
+    do {
+        $code = 'C' . random_int(100000, 999999);
+        $st->execute([$code]);
+    } while ($st->fetchColumn());
+    return $code;
 }
 
-/** The active customer whose code was typed ("C0007", "c7", "7", "0007"), or null. */
+/**
+ * The active customer whose code was typed or scanned ("C482913", "c482913",
+ * or just the digits "482913"), or null. Codes given before they were random
+ * (C0001…) still work, typed in full.
+ */
 function tillCustomerByCode(string $typed): ?array
 {
-    if (!preg_match('/^\s*C?\s*0*(\d{1,9})\s*$/i', $typed, $m)) return null;
-    $c = tillCustomerById((int) $m[1]);
-    return $c && $c['active'] ? $c : null;
+    if (!preg_match('/^\s*C?\s*(\d{4,9})\s*$/i', $typed, $m)) return null;
+    $stmt = getDBConnection()->prepare("SELECT * FROM till_customers WHERE code = ? AND active = 1");
+    $stmt->execute(['C' . $m[1]]);
+    return $stmt->fetch() ?: null;
 }
 
 /**
@@ -233,10 +243,9 @@ function tillCustomerKeep(array $order, array $d): ?array
         $pdo->prepare("UPDATE till_customers SET first_name = ?, last_name = ?, address = ?, street_number = ?, phone = ?, country = ? WHERE id = ?")
             ->execute([...$vals, (int) $tc['id']]);
     } else {
-        $pdo->prepare("INSERT INTO till_customers (first_name, last_name, address, street_number, phone, country) VALUES (?, ?, ?, ?, ?, ?)")
-            ->execute($vals);
+        $pdo->prepare("INSERT INTO till_customers (code, first_name, last_name, address, street_number, phone, country) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            ->execute([tillNewCustomerCode(), ...$vals]);
         $id = (int) $pdo->lastInsertId();
-        $pdo->prepare("UPDATE till_customers SET code = ? WHERE id = ?")->execute([tillCustomerCode($id), $id]);
         $tc = ['id' => $id];
         logActivity('till_customer_created', 'till_customers', $id);
     }
@@ -319,7 +328,7 @@ function tillCustomerQrUrl(array $tc, bool $download = false): string
 }
 
 /**
- * "Welcome, your customer code is C0007" with its QR, on WhatsApp: once per
+ * "Welcome, your customer code is C482913" with its QR, on WhatsApp: once per
  * customer (when first saved with a phone), or again on request ($force,
  * Admin > Clienti cassa). Returns whether a message was queued.
  */

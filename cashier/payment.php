@@ -181,7 +181,7 @@ include __DIR__ . '/../includes/header.php';
                 <div class="form-group" style="border-bottom:1px dashed var(--border-color);padding-bottom:12px;">
                     <label class="form-label"><i class="fas fa-id-card"></i> <?= te('till_cust_code') ?></label>
                     <div class="d-flex gap-sm">
-                        <input id="tcRecall" class="form-control" maxlength="12" placeholder="C0001" style="max-width:160px;text-transform:uppercase;font-family:monospace;" autocomplete="off">
+                        <input id="tcRecall" class="form-control" maxlength="12" placeholder="C123456" style="max-width:160px;text-transform:uppercase;font-family:monospace;" autocomplete="off">
                         <button type="button" class="btn btn-success" onclick="tcRecall(this)"><i class="fas fa-magnifying-glass"></i> <?= te('till_cust_recall') ?></button>
                     </div>
                     <small class="text-muted"><?= te('till_cust_code_hint') ?></small>

@@ -2,7 +2,7 @@
 /**
  * Admin — Clienti cassa: the customers of counter sales whose details were
  * taken in the payment page's "Dati cliente" box (Ordini Cassa), each with
- * their own code (C0001…) to type at the till next time. Details can be
+ * their own random code (C482913…) to type at the till next time. Details can be
  * corrected here; a customer can be disabled, or deleted (their details are
  * then taken off their sales too). "No receipt" stops the WhatsApp receipt.
  * Each code is also a QR (to print, or to send again on WhatsApp).

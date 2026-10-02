@@ -1399,7 +1399,7 @@ return [
     'till_customers_none' => 'No till customers yet: they are added by saving the customer details in a Till orders payment.',
     'till_cust_code' => 'Customer code',
     'till_cust_recall' => 'Recall',
-    'till_cust_code_hint' => 'Type the customer\'s code (e.g. C0007, or just 7) to bring their details back. New customers get their code when you save their details.',
+    'till_cust_code_hint' => 'Type or scan the customer\'s code (e.g. C482913, the C can be left out) to bring their details back. New customers get their code when you save their details.',
     'till_cust_code_unknown' => 'No active till customer with this code.',
     'till_cust_recalled' => 'Customer {code} recalled: details put on the sale.',
     'till_cust_saved_code' => 'Details saved. Customer code: {code}',

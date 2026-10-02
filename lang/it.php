@@ -1399,7 +1399,7 @@ return [
     'till_customers_none' => 'Nessun cliente cassa ancora: si aggiungono salvando i dati cliente in un pagamento di Ordini Cassa.',
     'till_cust_code' => 'Codice cliente',
     'till_cust_recall' => 'Richiama',
-    'till_cust_code_hint' => 'Scrivi il codice del cliente (es. C0007, o solo 7) per richiamare i suoi dati. I clienti nuovi ricevono il codice quando salvi i loro dati.',
+    'till_cust_code_hint' => 'Scrivi o leggi con il lettore il codice del cliente (es. C482913, anche senza la C) per richiamare i suoi dati. I clienti nuovi ricevono il codice quando salvi i loro dati.',
     'till_cust_code_unknown' => 'Nessun cliente cassa attivo con questo codice.',
     'till_cust_recalled' => 'Cliente {code} richiamato: dati inseriti nella vendita.',
     'till_cust_saved_code' => 'Dati salvati. Codice cliente: {code}',
