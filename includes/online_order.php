@@ -34,6 +34,7 @@ require_once __DIR__ . '/kitchen_ticket.php';
 require_once __DIR__ . '/consent.php';
 require_once __DIR__ . '/self_order.php';
 require_once __DIR__ . '/restaurant.php';
+require_once __DIR__ . '/system_place.php';
 
 const ONLINE_CHANNEL       = 'online';
 const ONLINE_COOKIE        = 'online_customer';
@@ -70,45 +71,13 @@ function onlineClientIp(): ?string
 }
 
 /**
- * Hidden room / table / user every online order hangs off. Created on first
- * use and remembered in settings.online_system (like glovoSystemIds()).
+ * Hidden room / table / user every online order hangs off (system_place.php).
  *
  * @return array{room_id:int, table_id:int, user_id:int}
  */
 function onlineSystemIds(): array
 {
-    $pdo = getDBConnection();
-    $ids = getSetting('online_system', []);
-    if (is_array($ids) && !empty($ids['room_id']) && !empty($ids['table_id']) && !empty($ids['user_id'])) {
-        $ok = $pdo->prepare("SELECT
-                (SELECT COUNT(*) FROM rooms WHERE id = ?) +
-                (SELECT COUNT(*) FROM tables_restaurant WHERE id = ?) +
-                (SELECT COUNT(*) FROM users WHERE id = ?)");
-        $ok->execute([$ids['room_id'], $ids['table_id'], $ids['user_id']]);
-        if ((int) $ok->fetchColumn() === 3) {
-            return array_map('intval', $ids);
-        }
-    }
-
-    $workspaceId = (int) ($pdo->query("SELECT id FROM workspaces ORDER BY id LIMIT 1")->fetchColumn() ?: 1);
-    $pdo->prepare("INSERT INTO rooms (workspace_id, name, sort_order, active) VALUES (?, 'Clienti online', 998, 0)")
-        ->execute([$workspaceId]);
-    $roomId = (int) $pdo->lastInsertId();
-
-    $pdo->prepare("INSERT INTO tables_restaurant (room_id, table_number, capacity, status) VALUES (?, 'ONLINE', 0, 'free')")
-        ->execute([$roomId]);
-    $tableId = (int) $pdo->lastInsertId();
-
-    $userId = (int) ($pdo->query("SELECT id FROM users WHERE username = 'cliente_online' LIMIT 1")->fetchColumn() ?: 0);
-    if (!$userId) {
-        $pdo->prepare("INSERT INTO users (username, password, full_name, role, active) VALUES ('cliente_online', ?, 'Cliente online', 'waiter', 0)")
-            ->execute([password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT)]);
-        $userId = (int) $pdo->lastInsertId();
-    }
-
-    $ids = ['room_id' => $roomId, 'table_id' => $tableId, 'user_id' => $userId];
-    setSetting('online_system', $ids);
-    return $ids;
+    return systemOrderPlace('online_system', 'Clienti online', 998, 'ONLINE', ['cliente_online', 'Cliente online']);
 }
 
 function onlineCustomerById(int $id): ?array

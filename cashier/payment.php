@@ -14,8 +14,8 @@ if (!$orderId) { header('Location: /cashier/index.php'); exit; }
 
 $order = getOrderById($orderId);
 if (!$order || $order['status'] === 'paid') { header('Location: /cashier/index.php'); exit; }
-// Online customers' orders come from (and go back to) Cassa > Ordini online.
-$backUrl = ($order['channel'] ?? 'dine_in') === 'online' ? '/cashier/online.php' : '/cashier/index.php';
+// Online customers' orders and counter sales come from (and go back to) Cassa > Ordini online.
+$backUrl = in_array($order['channel'] ?? 'dine_in', ['online', 'counter'], true) ? '/cashier/online.php' : '/cashier/index.php';
 
 calculateOrderTotals($orderId);
 $order = getOrderById($orderId); // refresh after recalc

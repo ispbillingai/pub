@@ -1,0 +1,142 @@
+<?php
+/**
+ * The till's own sales (Cassa > Ordini online): the "Menu cassa" products
+ * (categories marked till_only, Admin > Menu cassa, seen nowhere else) as
+ * buttons, plus free amounts typed on the keypad. The ticket either becomes a
+ * counter sale (channel 'counter', on a hidden "BANCO" table, the cashier as
+ * its waiter) or goes on an online customer's open bill; then the usual
+ * payment page takes the money. These lines are handed over at the counter:
+ * they never go to the kitchen (status 'served' at once).
+ */
+
+require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/settings.php';
+require_once __DIR__ . '/system_place.php';
+require_once __DIR__ . '/online_order.php';
+
+const TILL_CHANNEL    = 'counter';
+const TILL_MAX_AMOUNT = 9999.99;
+
+/** The hidden room / table counter sales hang off. */
+function tillSystemIds(): array
+{
+    return systemOrderPlace('till_system', 'Banco', 997, 'BANCO');
+}
+
+/**
+ * The hidden "Varie" item the keypad's free amounts are booked on (its price
+ * is the amount typed). It sits in a disabled till-only category, so it shows
+ * on no menu, not even the till's buttons.
+ */
+function tillFreeItemId(): int
+{
+    $pdo = getDBConnection();
+    $id  = (int) getSetting('till_free_item', 0);
+    if ($id && $pdo->query("SELECT COUNT(*) FROM menu_items WHERE id = " . $id)->fetchColumn()) return $id;
+    $pdo->exec("INSERT INTO menu_categories (name, sort_order, allow_composition, active, till_only) VALUES ('Cassa (importi liberi)', 999, 0, 0, 1)");
+    $catId = (int) $pdo->lastInsertId();
+    $pdo->prepare("INSERT INTO menu_items (category_id, name, base_price, active) VALUES (?, 'Varie', 0, 0)")->execute([$catId]);
+    $id = (int) $pdo->lastInsertId();
+    setSetting('till_free_item', $id);
+    return $id;
+}
+
+/** The category of the free amounts (to keep it out of Admin > Menu cassa). */
+function tillFreeCategoryId(): int
+{
+    $stmt = getDBConnection()->prepare("SELECT category_id FROM menu_items WHERE id = ?");
+    $stmt->execute([tillFreeItemId()]);
+    return (int) $stmt->fetchColumn();
+}
+
+/** The till's buttons: [['id', 'name', 'color', 'items' => [['id', 'name', 'price', 'amount']]]]. */
+function tillMenu(): array
+{
+    $rows = getDBConnection()->query("
+        SELECT mc.id AS category_id, mc.name AS category, mc.color, mi.id, mi.name, mi.base_price
+        FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
+        WHERE mc.till_only = 1 AND mc.active = 1 AND mi.active = 1
+        ORDER BY mc.sort_order, mc.name, mi.sort_order, mi.name
+    ")->fetchAll();
+    $menu = [];
+    foreach ($rows as $r) {
+        $cid = (int) $r['category_id'];
+        $menu[$cid] ??= ['id' => $cid, 'name' => $r['category'], 'color' => $r['color'] ?: null, 'items' => []];
+        $menu[$cid]['items'][] = ['id' => (int) $r['id'], 'name' => $r['name'], 'price' => formatCurrency($r['base_price']), 'amount' => (float) $r['base_price']];
+    }
+    return array_values($menu);
+}
+
+/**
+ * Book the ticket: [['id' => till product, 'qty' => n] | ['amount' => euros]].
+ * $targetOrderId: an online customer's open order to add it to, or null for a
+ * new counter sale. Returns ['ok' => order id] or ['error' => lang key].
+ */
+function tillCheckout(array $lines, ?int $targetOrderId, int $userId): array
+{
+    $pdo  = getDBConnection();
+    $prod = $pdo->prepare("SELECT mi.id, mi.base_price FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
+                           WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1 AND mc.till_only = 1");
+    $book = [];                                         // [menu item id, qty, unit price]
+    foreach (array_slice($lines, 0, 100) as $l) {
+        if (isset($l['amount'])) {
+            $amount = round((float) $l['amount'], 2);
+            if ($amount <= 0 || $amount > TILL_MAX_AMOUNT) return ['error' => 'till_err_amount'];
+            $book[] = [tillFreeItemId(), 1, $amount];
+            continue;
+        }
+        $qty = (int) ($l['qty'] ?? 0);
+        if ($qty < 1) continue;
+        $prod->execute([(int) ($l['id'] ?? 0)]);
+        if (!$p = $prod->fetch()) return ['error' => 'till_err_product'];
+        $book[] = [(int) $p['id'], min($qty, 99), (float) $p['base_price']];
+    }
+    if (!$book) return ['error' => 'till_err_empty'];
+
+    if ($targetOrderId) {
+        $order = getOrderById($targetOrderId);
+        if (!$order || ($order['channel'] ?? '') !== ONLINE_CHANNEL || in_array($order['status'], ['paid', 'cancelled'], true)) {
+            return ['error' => 'till_err_target'];
+        }
+        $orderId = (int) $order['id'];
+    } else {
+        $sys = tillSystemIds();
+        $pdo->prepare("
+            INSERT INTO orders (order_number, table_id, table_label, room_id, waiter_id, number_of_people, cover_charge_per_person, status, channel)
+            VALUES (?, ?, 'BANCO', ?, ?, 0, 0, 'bill_requested', ?)
+        ")->execute([generateOrderNumber(), $sys['table_id'], $sys['room_id'], $userId, TILL_CHANNEL]);
+        $orderId = (int) $pdo->lastInsertId();
+    }
+
+    // Handed over at the counter: served at once, never on the kitchen display or a slip.
+    $add = $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, status, served_at)
+                          VALUES (?, NULL, ?, ?, ?, ?, 'served', NOW())");
+    foreach ($book as [$itemId, $qty, $unit]) {
+        $add->execute([$orderId, $itemId, $qty, $unit, $unit * $qty]);
+    }
+    calculateOrderTotals($orderId);
+    logActivity($targetOrderId ? 'till_added_to_online_order' : 'till_counter_sale', 'orders', $orderId, ['lines' => count($book)]);
+    return ['ok' => $orderId];
+}
+
+/** Counter sales booked but not paid yet (the payment was left half-way). */
+function tillOpenSales(): array
+{
+    $stmt = getDBConnection()->prepare("
+        SELECT o.id, o.order_number, o.total, o.created_at, u.full_name AS cashier
+        FROM orders o JOIN users u ON u.id = o.waiter_id
+        WHERE o.channel = ? AND o.status NOT IN ('paid', 'cancelled') ORDER BY o.id
+    ");
+    $stmt->execute([TILL_CHANNEL]);
+    return $stmt->fetchAll();
+}
+
+/** Drop a counter sale nobody paid. */
+function tillCancelSale(int $orderId): bool
+{
+    $stmt = getDBConnection()->prepare("UPDATE orders SET status = 'cancelled', closed_at = NOW()
+                                        WHERE id = ? AND channel = ? AND status NOT IN ('paid', 'cancelled')");
+    $stmt->execute([$orderId, TILL_CHANNEL]);
+    if ($stmt->rowCount()) logActivity('till_counter_sale_cancelled', 'orders', $orderId);
+    return $stmt->rowCount() > 0;
+}

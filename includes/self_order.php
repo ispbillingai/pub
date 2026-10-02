@@ -218,7 +218,7 @@ function selfOrderSend(array $order, array $cart): array
 function addGuestCartItems(int $orderId, array $cart): int
 {
     $pdo  = getDBConnection();
-    $menu  = $pdo->prepare("SELECT mi.id, mi.base_price, mc.allow_composition FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1");
+    $menu  = $pdo->prepare("SELECT mi.id, mi.base_price, mc.allow_composition FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1 AND mc.till_only = 0");
     $comps = $pdo->prepare("SELECT * FROM menu_item_components WHERE menu_item_id = ?");
     $add   = $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, notes) VALUES (?, NULL, ?, ?, ?, ?, ?)");
     $mod   = $pdo->prepare("INSERT INTO order_item_modifications (order_item_id, component_name, action, extra_price) VALUES (?, ?, ?, ?)");

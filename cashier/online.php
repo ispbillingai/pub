@@ -9,10 +9,15 @@
  * a barcode scanner types its link into the scan box, or the tablet's camera
  * reads it; ?pay=<token> (also what a phone camera opens) goes straight to
  * that order's payment.
+ *
+ * On top, the till itself (includes/till.php): the Menu cassa products as
+ * buttons and a keypad for free amounts build a ticket, charged as a counter
+ * sale or added to an online customer's bill.
  */
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/online_order.php';
+require_once __DIR__ . '/../includes/till.php';
 requireRole(['admin', 'cashier']);
 
 $pdo = getDBConnection();
@@ -61,6 +66,11 @@ $paid = $pdo->prepare("
 $paid->execute([ONLINE_CHANNEL]);
 $paid = $paid->fetchAll();
 
+// The till: Menu cassa buttons, and counter sales left unpaid.
+$tillMenu  = tillMenu();
+$openSales = tillOpenSales();
+$tillTargets = array_map(fn($o) => ['id' => (int) $o['id'], 'label' => $o['customer_name'] . ' · ' . $o['order_number']], $orders);
+
 $readyCount = count(array_filter($orders, fn($o) => $o['ready']));
 $pageTitle  = t('cash_online_title');
 include __DIR__ . '/../includes/header.php';
@@ -82,6 +92,33 @@ include __DIR__ . '/../includes/header.php';
 .oo-state { font-size: .78rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
 .oo-state.cooking { background: #dbeafe; color: #1e40af; }
 .oo-state.ready { background: #dcfce7; color: #166534; }
+/* The till: product display, keypad, ticket */
+.till { display: grid; grid-template-columns: minmax(0, 1fr) 270px 300px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .till { grid-template-columns: minmax(0, 1fr) 270px; } .till-ticket { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .till { grid-template-columns: 1fr; } }
+.till-cats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.till-cats button { border: 2px solid var(--border-color, #e5e7eb); background: #fff; border-radius: 999px; padding: 6px 14px; font-weight: 700; cursor: pointer; }
+.till-cats button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.till-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.till-products button { min-height: 78px; border: 0; border-radius: 12px; padding: 10px 8px; background: #f3f4f6; border-left: 6px solid var(--pc, var(--primary)); text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; font-weight: 700; }
+.till-products button:active { transform: scale(.97); }
+.till-products button span { font-size: .95rem; line-height: 1.2; }
+.till-products button small { font-size: 1rem; color: var(--primary); }
+.till-empty { color: var(--text-secondary); padding: 20px 4px; }
+.keypad-display { background: #111827; color: #34d399; font-family: var(--font-display, monospace); font-size: 2rem; text-align: right; padding: 12px 14px; border-radius: 10px; margin-bottom: 8px; }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.keypad button { height: 54px; border: 0; border-radius: 10px; background: #f3f4f6; font-size: 1.35rem; font-weight: 700; cursor: pointer; }
+.keypad button:active { background: #e5e7eb; }
+.keypad .k-clear { background: #fee2e2; color: #b91c1c; }
+.keypad .k-add { grid-column: 1 / -1; background: var(--primary); color: #fff; font-size: 1rem; }
+.till-ticket .t-lines { max-height: 300px; overflow-y: auto; margin-bottom: 8px; }
+.t-line { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px dashed var(--border-color, #e5e7eb); }
+.t-line .n { flex: 1; font-weight: 600; font-size: .92rem; }
+.t-line .p { font-weight: 700; white-space: nowrap; }
+.t-line button { width: 28px; height: 28px; border-radius: 50%; border: 0; background: #f3f4f6; font-weight: 700; cursor: pointer; }
+.t-total { display: flex; justify-content: space-between; font-size: 1.4rem; font-weight: 800; margin: 8px 0; }
+.till-ticket select { width: 100%; margin-bottom: 8px; }
+.t-pay { width: 100%; padding: 14px; font-size: 1.1rem; }
 </style>
 
 <div class="page-header">
@@ -103,6 +140,64 @@ include __DIR__ . '/../includes/header.php';
     </form>
     <div id="camBox" hidden></div>
 </div>
+
+<!-- The till: Menu cassa products, keypad for a free amount, the ticket -->
+<div class="card mb-lg" style="padding:16px 18px;">
+    <h2 style="margin:0 0 10px;font-size:1.05rem;"><i class="fas fa-cash-register"></i> <?= te('till_title') ?></h2>
+    <div class="till">
+        <div>
+            <div class="till-cats" id="tillCats"></div>
+            <div class="till-products" id="tillProducts"></div>
+        </div>
+        <div>
+            <div class="keypad-display" id="kpDisplay">0,00</div>
+            <div class="keypad">
+                <?php foreach (['7', '8', '9', '4', '5', '6', '1', '2', '3', '00', '0'] as $k): ?>
+                    <button type="button" onclick="kpPress('<?= $k ?>')"><?= $k ?></button>
+                <?php endforeach; ?>
+                <button type="button" onclick="kpBack()" aria-label="⌫"><i class="fas fa-delete-left"></i></button>
+                <button type="button" class="k-clear" onclick="kpClear()">C</button>
+                <button type="button" class="k-add" style="grid-column: span 2;" onclick="kpAdd()"><i class="fas fa-plus"></i> <?= te('till_add_amount') ?></button>
+            </div>
+        </div>
+        <div class="till-ticket">
+            <div class="t-lines" id="tLines"></div>
+            <div class="t-total"><span><?= te('total') ?></span><span id="tTotal"></span></div>
+            <select id="tTarget" class="form-control" aria-label="<?= te('till_target') ?>">
+                <option value=""><?= te('till_target_counter') ?></option>
+                <?php foreach ($tillTargets as $tt): ?>
+                    <option value="<?= $tt['id'] ?>"><?= te('till_target_online', ['order' => $tt['label']]) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <div class="d-flex gap-sm">
+                <button type="button" class="btn btn-outline" onclick="tClear()" title="<?= te('till_clear') ?>"><i class="fas fa-trash"></i></button>
+                <button type="button" class="btn btn-success t-pay" id="tPay" onclick="tCheckout()"></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php if ($openSales): ?>
+<div class="card mb-lg">
+    <div class="card-header"><h2><i class="fas fa-hourglass-half text-warning"></i> <?= te('till_open_sales') ?></h2></div>
+    <table class="data-table">
+        <tbody>
+        <?php foreach ($openSales as $s): ?>
+            <tr>
+                <td><?= date('H:i', strtotime($s['created_at'])) ?></td>
+                <td><?= htmlspecialchars($s['order_number']) ?></td>
+                <td class="text-muted"><?= htmlspecialchars($s['cashier']) ?></td>
+                <td style="text-align:right;"><strong><?= formatCurrency($s['total']) ?></strong></td>
+                <td style="text-align:right;white-space:nowrap;">
+                    <a class="btn btn-sm btn-success" href="/cashier/payment.php?order=<?= (int) $s['id'] ?>"><i class="fas fa-money-bill"></i> <?= te('cash_online_collect') ?></a>
+                    <button class="btn btn-sm btn-outline" onclick="tCancelSale(<?= (int) $s['id'] ?>)"><i class="fas fa-xmark"></i> <?= te('cancel') ?></button>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif; ?>
 
 <div class="stats-grid mb-lg">
     <div class="stat-card"><div class="stat-icon primary"><i class="fas fa-receipt"></i></div>
@@ -137,7 +232,10 @@ include __DIR__ . '/../includes/header.php';
                 <?php endforeach; ?>
             </div>
             <div class="oo-total"><span><?= formatCurrency($o['total']) ?></span>
-                <a href="/cashier/payment.php?order=<?= (int) $o['id'] ?>" class="btn btn-success"><i class="fas fa-money-bill"></i> <?= te('cash_online_collect') ?></a></div>
+                <span class="d-flex gap-sm">
+                    <button type="button" class="btn btn-outline" onclick="tTargetOrder(<?= (int) $o['id'] ?>)" title="<?= te('till_add_to_this') ?>"><i class="fas fa-cart-plus"></i></button>
+                    <a href="/cashier/payment.php?order=<?= (int) $o['id'] ?>" class="btn btn-success"><i class="fas fa-money-bill"></i> <?= te('cash_online_collect') ?></a>
+                </span></div>
         </div>
     <?php endforeach; ?>
 </div>
@@ -180,9 +278,90 @@ async function toggleCamera() {
         location.href = '/cashier/online.php?scan=' + encodeURIComponent(text);
     }).catch(() => { box.innerHTML = '<p class="text-muted">' + <?= json_encode(t('cash_online_camera_err')) ?> + '</p>'; cam = null; });
 }
-// Keep the scan box ready for the scanner, and the list fresh (not while scanning).
-document.addEventListener('click', e => { if (!e.target.closest('input, button, a, #camBox')) document.getElementById('scanInput').focus(); });
-setInterval(() => { if (!cam && !document.getElementById('scanInput').value) location.reload(); }, 20000);
+/* ---- The till: products, keypad, ticket (kept on this device until charged) ---- */
+const TILL_MENU = <?= json_encode($tillMenu, JSON_UNESCAPED_UNICODE) ?>;
+const TL = <?= json_encode([
+    'pay' => t('till_pay'), 'empty' => t('till_ticket_empty'), 'free' => t('till_free_line'), 'none' => t('till_no_products'),
+    'failed' => t('toast_update_failed'), 'cancel_q' => t('till_cancel_confirm'), 'currency' => formatCurrency(0),
+], JSON_UNESCAPED_UNICODE) ?>;
+const $id = id => document.getElementById(id);
+const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = v => TL.currency.replace(/0[.,]00/, v.toFixed(2).replace('.', TL.currency.includes(',') ? ',' : '.'));
+const TICKET_KEY = 'till-ticket';
+let ticket = [];       // [{id, name, unit, qty}] products, [{amount}] free amounts
+try { ticket = JSON.parse(localStorage.getItem(TICKET_KEY) || '[]') || []; if (!Array.isArray(ticket)) ticket = []; } catch (e) {}
+const saveTicket = () => { try { localStorage.setItem(TICKET_KEY, JSON.stringify(ticket)); } catch (e) {} };
+let tillCat = 0, kpCents = 0;
+
+function renderTillMenu() {
+    $id('tillCats').innerHTML = TILL_MENU.length > 1 ? TILL_MENU.map((c, i) =>
+        `<button type="button" class="${i === tillCat ? 'on' : ''}" onclick="tillCat = ${i}; renderTillMenu()">${escH(c.name)}</button>`).join('') : '';
+    const c = TILL_MENU[tillCat];
+    $id('tillProducts').innerHTML = c ? c.items.map(it =>
+        `<button type="button" style="--pc:${escH(c.color || '')}" onclick="tAddProduct(${it.id})"><span>${escH(it.name)}</span><small>${escH(it.price)}</small></button>`).join('')
+        : `<div class="till-empty">${escH(TL.none)}</div>`;
+}
+function tAddProduct(id) {
+    const it = TILL_MENU.flatMap(c => c.items).find(i => i.id === id);
+    if (!it) return;
+    const same = ticket.find(l => l.id === id);
+    if (same) same.qty = Math.min(99, same.qty + 1); else ticket.push({ id, name: it.name, unit: it.amount, qty: 1 });
+    saveTicket(); renderTicket();
+}
+// Keypad, like a cash register: digits come in as cents (3, 5, 0 → 3,50).
+function kpShow() { $id('kpDisplay').textContent = money(kpCents / 100); }
+function kpPress(k) { const v = Number(String(kpCents) + k); if (v <= 999999) kpCents = v; kpShow(); }
+function kpBack() { kpCents = Math.floor(kpCents / 10); kpShow(); }
+function kpClear() { kpCents = 0; kpShow(); }
+function kpAdd() {
+    if (!kpCents) return;
+    ticket.push({ amount: kpCents / 100 });
+    kpCents = 0; kpShow(); saveTicket(); renderTicket();
+}
+const lineTotal = l => l.amount !== undefined ? l.amount : l.unit * l.qty;
+function tStep(i, d) {
+    const l = ticket[i];
+    if (!l) return;
+    if (l.amount !== undefined || l.qty + d < 1) ticket.splice(i, 1); else l.qty = Math.min(99, l.qty + d);
+    saveTicket(); renderTicket();
+}
+function renderTicket() {
+    $id('tLines').innerHTML = ticket.length ? ticket.map((l, i) => l.amount !== undefined
+        ? `<div class="t-line"><span class="n">${escH(TL.free)}</span><span class="p">${money(l.amount)}</span><button type="button" onclick="tStep(${i}, -1)">✕</button></div>`
+        : `<div class="t-line"><span class="n">${l.qty}× ${escH(l.name)}</span><span class="p">${money(lineTotal(l))}</span>
+               <button type="button" onclick="tStep(${i}, -1)">−</button><button type="button" onclick="tStep(${i}, 1)">+</button></div>`).join('')
+        : `<div class="till-empty">${escH(TL.empty)}</div>`;
+    const tot = ticket.reduce((s, l) => s + lineTotal(l), 0);
+    $id('tTotal').textContent = money(tot);
+    $id('tPay').innerHTML = '<i class="fas fa-money-bill"></i> ' + escH(TL.pay.replace('{total}', money(tot)));
+    $id('tPay').disabled = !ticket.length;
+}
+function tClear() { ticket = []; saveTicket(); renderTicket(); }
+// "+ cart" on an online order: the ticket goes on that customer's bill.
+function tTargetOrder(orderId) { $id('tTarget').value = String(orderId); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function tCheckout() {
+    if (!ticket.length) return;
+    $id('tPay').disabled = true;
+    try {
+        const lines = ticket.map(l => l.amount !== undefined ? { amount: l.amount } : { id: l.id, qty: l.qty });
+        const r = await (await fetch('/api/till.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'checkout', lines, target_order_id: $id('tTarget').value || null }) })).json();
+        if (!r.success) { showToast(r.message || TL.failed, 'error'); $id('tPay').disabled = false; return; }
+        tClear();
+        location.href = '/cashier/payment.php?order=' + r.order_id;
+    } catch (e) { showToast(TL.failed, 'error'); $id('tPay').disabled = false; }
+}
+async function tCancelSale(orderId) {
+    if (!confirm(TL.cancel_q)) return;
+    await fetch('/api/till.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', order_id: orderId }) });
+    location.reload();
+}
+renderTillMenu(); renderTicket(); kpShow();
+
+// Keep the scan box ready for the scanner, and the list fresh (not while scanning
+// or while a ticket / an amount is being made).
+document.addEventListener('click', e => { if (!e.target.closest('input, button, a, select, #camBox')) document.getElementById('scanInput').focus(); });
+setInterval(() => { if (!cam && !document.getElementById('scanInput').value && !ticket.length && !kpCents) location.reload(); }, 20000);
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

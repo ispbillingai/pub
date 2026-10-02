@@ -144,6 +144,7 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
             <a href="/admin/rooms.php" class="<?= $currentPage === 'rooms' ? 'active' : '' ?>"><i class="fas fa-door-open"></i> <?= te('rooms_tables') ?></a>
             <a href="/admin/table-qr.php" class="<?= $currentPage === 'table-qr' ? 'active' : '' ?>"><i class="fas fa-qrcode"></i> <?= te('table_qr_title') ?></a>
             <a href="/admin/menu.php" class="<?= $currentPage === 'menu' ? 'active' : '' ?>"><i class="fas fa-utensils"></i> <?= te('menu_management') ?></a>
+            <a href="/admin/till-menu.php" class="<?= $currentPage === 'till-menu' ? 'active' : '' ?>"><i class="fas fa-cash-register"></i> <?= te('till_menu_title') ?></a>
             <a href="/admin/users.php" class="<?= $currentPage === 'users' ? 'active' : '' ?>"><i class="fas fa-users"></i> <?= te('users') ?></a>
             <a href="/admin/orders.php" class="<?= $currentPage === 'orders' ? 'active' : '' ?>"><i class="fas fa-list"></i> <?= te('orders') ?></a>
             <a href="/admin/reports.php" class="<?= $currentPage === 'reports' ? 'active' : '' ?>"><i class="fas fa-chart-bar"></i> <?= te('reports') ?></a>

@@ -278,7 +278,7 @@ try {
     $restaurant = $stmt->fetch();
 
     // Get all active categories
-    $stmt = $pdo->query("SELECT * FROM menu_categories WHERE active = 1 ORDER BY sort_order");
+    $stmt = $pdo->query("SELECT * FROM menu_categories WHERE active = 1 AND till_only = 0 ORDER BY sort_order");
     $categories = $stmt->fetchAll();
 
     // Get all menu items with categories
@@ -286,7 +286,7 @@ try {
         SELECT mi.*, mc.name as category_name, mc.id as category_id, mc.icon as category_icon
         FROM menu_items mi
         JOIN menu_categories mc ON mi.category_id = mc.id
-        WHERE mi.active = 1 AND mc.active = 1
+        WHERE mi.active = 1 AND mc.active = 1 AND mc.till_only = 0
         ORDER BY mc.sort_order, mi.sort_order, mi.name
     ");
     $allItems = $stmt->fetchAll();
