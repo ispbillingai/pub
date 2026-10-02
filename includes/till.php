@@ -7,6 +7,10 @@
  * its waiter) or goes on an online customer's open bill; then the usual
  * payment page takes the money. These lines are handed over at the counter:
  * they never go to the kitchen (status 'served' at once).
+ *
+ * "Clienti cassa": a counter sale's customer details (the payment page's box)
+ * are kept in till_customers with a code of their own (C0001…); typing the
+ * code at the till next time brings them back (Admin > Clienti cassa).
  */
 
 require_once __DIR__ . '/functions.php';
@@ -128,7 +132,7 @@ function isTillOrder(?array $order): bool
 
 /**
  * The customer's details as the payment page's "Customer" box shows them:
- * ['first_name', 'last_name', 'address', 'street_number', 'country', 'phone' (national)].
+ * ['first_name', 'last_name', 'address', 'street_number', 'country', 'phone' (national), 'code' (Clienti cassa) or ''].
  * An online order not edited at the till yet starts from the customer's sign-up.
  */
 function tillOrderCustomer(array $order): array
@@ -145,10 +149,16 @@ function tillOrderCustomer(array $order): array
         $order['customer_phone'] = $oc['mobile'];
     }
     if (!empty($order['customer_phone'])) $c['phone'] = nationalPhone($c['country'], $order['customer_phone']);
+    $tc = !empty($order['till_customer_id']) ? tillCustomerById((int) $order['till_customer_id']) : null;
+    $c['code'] = $tc['code'] ?? '';
     return $c;
 }
 
-/** Save the details typed at the till on the order. Returns ['ok' => true] or ['error' => lang key]. */
+/**
+ * Save the details typed at the till on the order; a counter sale's customer
+ * is also kept in Clienti cassa (with their code). Returns ['ok' => true,
+ * 'code' => customer code or ''] or ['error' => lang key].
+ */
 function tillSaveCustomer(int $orderId, array $in): array
 {
     $order = getOrderById($orderId);
@@ -162,7 +172,83 @@ function tillSaveCustomer(int $orderId, array $in): array
         UPDATE orders SET customer_name = ?, customer_address = ?, customer_street_number = ?, customer_country = ?, customer_phone = ? WHERE id = ?
     ")->execute([$name !== '' ? $name : null, $f('address', 150) ?: null, $f('street_number', 15) ?: null, $phone ? $country : null, $phone, $orderId]);
     logActivity('till_customer_saved', 'orders', $orderId);
-    return ['ok' => true];
+    $tc = $order['channel'] === TILL_CHANNEL ? tillCustomerKeep(getOrderById($orderId), [
+        'first_name' => $f('first_name', 60), 'last_name' => $f('last_name', 60), 'address' => $f('address', 150),
+        'street_number' => $f('street_number', 15), 'phone' => $phone, 'country' => $phone ? $country : null,
+    ]) : null;
+    return ['ok' => true, 'code' => $tc['code'] ?? ''];
+}
+
+/* ---- Clienti cassa ---- */
+
+function tillCustomerById(int $id): ?array
+{
+    $stmt = getDBConnection()->prepare("SELECT * FROM till_customers WHERE id = ?");
+    $stmt->execute([$id]);
+    return $stmt->fetch() ?: null;
+}
+
+/** C0001, C0002… from the customer's id. */
+function tillCustomerCode(int $id): string
+{
+    return 'C' . str_pad((string) $id, 4, '0', STR_PAD_LEFT);
+}
+
+/** The active customer whose code was typed ("C0007", "c7", "7", "0007"), or null. */
+function tillCustomerByCode(string $typed): ?array
+{
+    if (!preg_match('/^\s*C?\s*0*(\d{1,9})\s*$/i', $typed, $m)) return null;
+    $c = tillCustomerById((int) $m[1]);
+    return $c && $c['active'] ? $c : null;
+}
+
+/**
+ * Keep a counter sale's customer in Clienti cassa: the one already linked to
+ * the order, else the one with this phone, else a new one (with its code).
+ * Nothing is kept for a sale with neither a name nor a phone. Returns the customer or null.
+ */
+function tillCustomerKeep(array $order, array $d): ?array
+{
+    if (trim($d['first_name'] . $d['last_name']) === '' && empty($d['phone'])) return null;
+    $pdo = getDBConnection();
+    $tc  = !empty($order['till_customer_id']) ? tillCustomerById((int) $order['till_customer_id']) : null;
+    if (!$tc && !empty($d['phone'])) {
+        $st = $pdo->prepare("SELECT * FROM till_customers WHERE phone = ? AND active = 1 ORDER BY id LIMIT 1");
+        $st->execute([$d['phone']]);
+        $tc = $st->fetch() ?: null;
+    }
+    $vals = [$d['first_name'] ?: null, $d['last_name'] ?: null, $d['address'] ?: null, $d['street_number'] ?: null, $d['phone'] ?: null, $d['country'] ?: null];
+    if ($tc) {
+        $pdo->prepare("UPDATE till_customers SET first_name = ?, last_name = ?, address = ?, street_number = ?, phone = ?, country = ? WHERE id = ?")
+            ->execute([...$vals, (int) $tc['id']]);
+    } else {
+        $pdo->prepare("INSERT INTO till_customers (first_name, last_name, address, street_number, phone, country) VALUES (?, ?, ?, ?, ?, ?)")
+            ->execute($vals);
+        $id = (int) $pdo->lastInsertId();
+        $pdo->prepare("UPDATE till_customers SET code = ? WHERE id = ?")->execute([tillCustomerCode($id), $id]);
+        $tc = ['id' => $id];
+        logActivity('till_customer_created', 'till_customers', $id);
+    }
+    $pdo->prepare("UPDATE orders SET till_customer_id = ? WHERE id = ?")->execute([(int) $tc['id'], (int) $order['id']]);
+    return tillCustomerById((int) $tc['id']);
+}
+
+/**
+ * The code typed at the till: that customer's details go on the counter sale.
+ * Returns ['ok' => box values incl. code] or ['error' => lang key].
+ */
+function tillAttachCustomer(int $orderId, string $typed): array
+{
+    $order = getOrderById($orderId);
+    if (!$order || $order['channel'] !== TILL_CHANNEL || in_array($order['status'], ['paid', 'cancelled'], true)) return ['error' => 'till_err_target'];
+    if (!$tc = tillCustomerByCode($typed)) return ['error' => 'till_cust_code_unknown'];
+    getDBConnection()->prepare("
+        UPDATE orders SET till_customer_id = ?, customer_name = ?, customer_address = ?, customer_street_number = ?, customer_country = ?, customer_phone = ?
+        WHERE id = ?
+    ")->execute([(int) $tc['id'], trim($tc['first_name'] . ' ' . $tc['last_name']) ?: null, $tc['address'], $tc['street_number'],
+                 $tc['phone'] ? $tc['country'] : null, $tc['phone'], $orderId]);
+    logActivity('till_customer_recalled', 'orders', $orderId, ['code' => $tc['code']]);
+    return ['ok' => tillOrderCustomer(getOrderById($orderId))];
 }
 
 /**
@@ -173,6 +259,12 @@ function tillCustomerLookup(string $country, string $phone): ?array
 {
     $e164 = internationalPhone(strtoupper($country) ?: 'IT', $phone);
     if (!$e164) return null;
+    $st = getDBConnection()->prepare("SELECT * FROM till_customers WHERE phone = ? AND active = 1 ORDER BY id LIMIT 1");
+    $st->execute([$e164]);
+    if ($tc = $st->fetch()) {
+        return ['first_name' => (string) $tc['first_name'], 'last_name' => (string) $tc['last_name'], 'address' => (string) $tc['address'],
+                'street_number' => (string) $tc['street_number'], 'code' => $tc['code']];
+    }
     if ($oc = onlineCustomerByMobile($e164)) {
         return ['first_name' => $oc['first_name'], 'last_name' => $oc['last_name'], 'address' => $oc['address'], 'street_number' => $oc['street_number']];
     }

@@ -1390,4 +1390,20 @@ return [
     'till_cust_saved' => 'Details saved.',
     'till_cust_known' => 'Known customer: details filled in, check and save.',
     'till_cust_lookup_hint' => 'If the number is already known, the other fields fill in by themselves.',
+
+    // ---- Clienti cassa ----
+    'till_customers_title' => 'Till customers',
+    'till_customers_intro' => 'Customers of counter sales whose details you took at the till ("Customer details" box of the payment in Till orders). Each has their own code: when they come back, type the code at the till and their details come back. Customers are not deleted: they are disabled.',
+    'till_customers_search' => 'Search code, name, address or phone',
+    'till_customers_count' => '{n} till customers',
+    'till_customers_none' => 'No till customers yet: they are added by saving the customer details in a Till orders payment.',
+    'till_cust_code' => 'Customer code',
+    'till_cust_recall' => 'Recall',
+    'till_cust_code_hint' => 'Type the customer\'s code (e.g. C0007, or just 7) to bring their details back. New customers get their code when you save their details.',
+    'till_cust_code_unknown' => 'No active till customer with this code.',
+    'till_cust_recalled' => 'Customer {code} recalled: details put on the sale.',
+    'till_cust_saved_code' => 'Details saved. Customer code: {code}',
+    'till_cust_sales' => 'Purchases',
+    'till_cust_last_sale' => 'Last purchase',
+    'till_cust_disable_confirm' => 'Disable this customer? Their code will no longer work at the till (details and purchases are kept).',
 ];

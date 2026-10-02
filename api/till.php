@@ -6,6 +6,7 @@
  * POST {action: 'cancel', order_id}                                         → drop an unpaid counter sale
  * POST {action: 'customer', order_id, first_name, last_name, address, street_number, country, phone} → the customer's details on the order
  * POST {action: 'lookup', country, phone}                                   → someone already known by that phone, to fill the box
+ * POST {action: 'recall', order_id, code}                                   → a Clienti cassa customer, by code, on the counter sale
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -33,7 +34,12 @@ if ($action === 'checkout') {
 if ($action === 'customer') {
     $res = tillSaveCustomer((int) ($input['order_id'] ?? 0), $input);
     if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
-    jsonResponse(['success' => true]);
+    jsonResponse(['success' => true, 'code' => $res['code']]);
+}
+if ($action === 'recall') {
+    $res = tillAttachCustomer((int) ($input['order_id'] ?? 0), (string) ($input['code'] ?? ''));
+    if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    jsonResponse(['success' => true, 'customer' => $res['ok']]);
 }
 if ($action === 'lookup') {
     jsonResponse(['success' => true, 'customer' => tillCustomerLookup((string) ($input['country'] ?? 'IT'), (string) ($input['phone'] ?? ''))]);

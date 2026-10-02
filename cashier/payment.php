@@ -170,9 +170,23 @@ include __DIR__ . '/../includes/header.php';
         <details class="card mb-lg till-cust" <?= $tillCust['first_name'] === '' && $tillCust['phone'] === '' ? 'open' : '' ?>>
             <summary class="card-header" style="cursor:pointer;">
                 <h2><i class="fas fa-user"></i> <?= te('till_cust_title') ?></h2>
-                <span class="text-muted" id="tcSummary"><?= htmlspecialchars(trim($tillCust['first_name'] . ' ' . $tillCust['last_name']) ?: t('till_cust_none')) ?></span>
+                <span class="d-flex gap-sm align-center">
+                    <span class="badge badge-success" id="tcCodeBadge" <?= $tillCust['code'] === '' ? 'hidden' : '' ?>><i class="fas fa-id-card"></i> <span id="tcCode"><?= htmlspecialchars($tillCust['code']) ?></span></span>
+                    <span class="text-muted" id="tcSummary"><?= htmlspecialchars(trim($tillCust['first_name'] . ' ' . $tillCust['last_name']) ?: t('till_cust_none')) ?></span>
+                </span>
             </summary>
             <div class="card-body">
+                <?php if ($order['channel'] === TILL_CHANNEL): ?>
+                <!-- Clienti cassa: the customer's code brings their details back -->
+                <div class="form-group" style="border-bottom:1px dashed var(--border-color);padding-bottom:12px;">
+                    <label class="form-label"><i class="fas fa-id-card"></i> <?= te('till_cust_code') ?></label>
+                    <div class="d-flex gap-sm">
+                        <input id="tcRecall" class="form-control" maxlength="12" placeholder="C0001" style="max-width:160px;text-transform:uppercase;font-family:monospace;" autocomplete="off">
+                        <button type="button" class="btn btn-success" onclick="tcRecall(this)"><i class="fas fa-magnifying-glass"></i> <?= te('till_cust_recall') ?></button>
+                    </div>
+                    <small class="text-muted"><?= te('till_cust_code_hint') ?></small>
+                </div>
+                <?php endif; ?>
                 <div class="form-row">
                     <div class="form-group"><label class="form-label"><?= te('self_name') ?></label><input id="tcFirst" class="form-control" maxlength="60" value="<?= htmlspecialchars($tillCust['first_name']) ?>"></div>
                     <div class="form-group"><label class="form-label"><?= te('self_surname') ?></label><input id="tcLast" class="form-control" maxlength="60" value="<?= htmlspecialchars($tillCust['last_name']) ?>"></div>
@@ -689,7 +703,12 @@ $('couponCode') && $('couponCode').addEventListener('keydown', e => { if (e.key 
 
 <?php if ($tillOrder): ?>
 /* ---- Ordini Cassa: the customer's details ---- */
-const TC = <?= json_encode(['saved' => t('till_cust_saved'), 'known' => t('till_cust_known'), 'failed' => t('js_failed')], JSON_UNESCAPED_UNICODE) ?>;
+const TC = <?= json_encode(['saved' => t('till_cust_saved'), 'saved_code' => t('till_cust_saved_code'), 'known' => t('till_cust_known'),
+                              'recalled' => t('till_cust_recalled'), 'failed' => t('js_failed')], JSON_UNESCAPED_UNICODE) ?>;
+function tcShowCode(code) {
+    $('tcCode').textContent = code || '';
+    $('tcCodeBadge').hidden = !code;
+}
 const tcVal = id => $(id).value.trim();
 async function tcSave(btn) {
     btn.disabled = true;
@@ -698,11 +717,30 @@ async function tcSave(btn) {
         const r = await post('/api/till.php', { action: 'customer', order_id: CFG.order_id, first_name: tcVal('tcFirst'), last_name: tcVal('tcLast'),
             address: tcVal('tcAddress'), street_number: tcVal('tcNumber'), country: $('tcCountry').value, phone: tcVal('tcPhone') });
         msg.className = r.success ? 'dev-ok' : 'dev-err';
-        msg.textContent = r.success ? TC.saved : (r.message || TC.failed);
-        if (r.success) $('tcSummary').textContent = (tcVal('tcFirst') + ' ' + tcVal('tcLast')).trim();
+        msg.textContent = r.success ? (r.code ? TC.saved_code.replace('{code}', r.code) : TC.saved) : (r.message || TC.failed);
+        if (r.success) { $('tcSummary').textContent = (tcVal('tcFirst') + ' ' + tcVal('tcLast')).trim(); tcShowCode(r.code); }
     } catch (e) { msg.className = 'dev-err'; msg.textContent = e.message; }
     btn.disabled = false;
 }
+// The customer's code (Clienti cassa): their details on this sale.
+async function tcRecall(btn) {
+    const code = tcVal('tcRecall');
+    if (!code) return;
+    btn.disabled = true;
+    const msg = $('tcMsg'); msg.className = ''; msg.textContent = '';
+    try {
+        const r = await post('/api/till.php', { action: 'recall', order_id: CFG.order_id, code });
+        if (!r.success) { msg.className = 'dev-err'; msg.textContent = r.message || TC.failed; btn.disabled = false; return; }
+        const c = r.customer;
+        $('tcFirst').value = c.first_name; $('tcLast').value = c.last_name; $('tcAddress').value = c.address;
+        $('tcNumber').value = c.street_number; $('tcCountry').value = c.country; $('tcPhone').value = c.phone;
+        $('tcSummary').textContent = (c.first_name + ' ' + c.last_name).trim();
+        tcShowCode(c.code); $('tcRecall').value = '';
+        msg.className = 'dev-ok'; msg.textContent = TC.recalled.replace('{code}', c.code);
+    } catch (e) { msg.className = 'dev-err'; msg.textContent = e.message; }
+    btn.disabled = false;
+}
+$('tcRecall') && $('tcRecall').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tcRecall(e.target.nextElementSibling); } });
 // A phone we already know: fill in what is still empty.
 async function tcLookup() {
     if (!tcVal('tcPhone')) return;
@@ -711,7 +749,7 @@ async function tcLookup() {
         if (!r.success || !r.customer) return;
         const map = { tcFirst: 'first_name', tcLast: 'last_name', tcAddress: 'address', tcNumber: 'street_number' };
         Object.entries(map).forEach(([id, k]) => { if (!tcVal(id) && r.customer[k]) $(id).value = r.customer[k]; });
-        $('tcMsg').className = 'dev-ok'; $('tcMsg').textContent = TC.known;
+        $('tcMsg').className = 'dev-ok'; $('tcMsg').textContent = TC.known + (r.customer.code ? ' (' + r.customer.code + ')' : '');
     } catch (e) {}
 }
 <?php endif; ?>

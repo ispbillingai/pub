@@ -1390,4 +1390,20 @@ return [
     'till_cust_saved' => 'Dati salvati.',
     'till_cust_known' => 'Cliente già conosciuto: dati completati, controlla e salva.',
     'till_cust_lookup_hint' => 'Se il numero è già conosciuto, gli altri campi si compilano da soli.',
+
+    // ---- Clienti cassa ----
+    'till_customers_title' => 'Clienti cassa',
+    'till_customers_intro' => 'I clienti delle vendite al banco di cui hai inserito i dati in cassa (riquadro "Dati cliente" del pagamento in Ordini Cassa). Ognuno ha il suo codice: quando torna, scrivi il codice in cassa e i suoi dati si richiamano da soli. I clienti non si cancellano: si disattivano.',
+    'till_customers_search' => 'Cerca codice, nome, indirizzo o telefono',
+    'till_customers_count' => '{n} clienti cassa',
+    'till_customers_none' => 'Nessun cliente cassa ancora: si aggiungono salvando i dati cliente in un pagamento di Ordini Cassa.',
+    'till_cust_code' => 'Codice cliente',
+    'till_cust_recall' => 'Richiama',
+    'till_cust_code_hint' => 'Scrivi il codice del cliente (es. C0007, o solo 7) per richiamare i suoi dati. I clienti nuovi ricevono il codice quando salvi i loro dati.',
+    'till_cust_code_unknown' => 'Nessun cliente cassa attivo con questo codice.',
+    'till_cust_recalled' => 'Cliente {code} richiamato: dati inseriti nella vendita.',
+    'till_cust_saved_code' => 'Dati salvati. Codice cliente: {code}',
+    'till_cust_sales' => 'Acquisti',
+    'till_cust_last_sale' => 'Ultimo acquisto',
+    'till_cust_disable_confirm' => 'Disattivare questo cliente? Il suo codice non funzionerà più in cassa (i dati e gli acquisti restano).',
 ];
