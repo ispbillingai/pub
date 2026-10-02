@@ -277,7 +277,7 @@ async function toggleCamera() {
     cam = new Html5Qrcode('camView');
     cam.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, text => {
         // A product code: on the ticket, and the camera keeps reading the next one.
-        if (scanProduct(text)) return;
+        if (scanProduct(text, true)) return;
         cam.stop().catch(() => {});
         location.href = '/cashier/online.php?scan=' + encodeURIComponent(text);
     }).catch(() => { box.innerHTML = '<p class="text-muted">' + <?= json_encode(t('cash_online_camera_err')) ?> + '</p>'; cam = null; });
@@ -308,12 +308,14 @@ function renderTillMenu() {
 }
 // The scanner (or camera) read a Menu cassa product's code: it goes on the ticket.
 let lastScan = { code: '', at: 0 };
-function scanProduct(text) {
+function scanProduct(text, fromCamera = false) {
     const code = String(text || '').trim();
     const it = code && TILL_MENU.flatMap(c => c.items).find(i => i.barcode && i.barcode === code);
     if (!it) return false;
-    if (code === lastScan.code && Date.now() - lastScan.at < 1500) return true;   // the camera sees it twice
-    lastScan = { code, at: Date.now() };
+    if (fromCamera) {                    // the camera sees the same code in several frames
+        if (code === lastScan.code && Date.now() - lastScan.at < 1500) return true;
+        lastScan = { code, at: Date.now() };
+    }
     tAddProduct(it.id);
     showToast(TL.scanned.replace('{name}', it.name), 'success', 1500);
     return true;
