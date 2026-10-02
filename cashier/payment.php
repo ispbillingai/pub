@@ -146,7 +146,11 @@ include __DIR__ . '/../includes/header.php';
         <?php if ($isSeatBill): ?>
             <a href="<?= $payHref((int) $order['parent_order_id']) ?>" class="btn btn-outline"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
         <?php endif; ?>
-        <a href="<?= $backUrl ?>" class="btn btn-outline" onclick="return leavePay(false)"><i class="fas <?= $embed ? 'fa-xmark' : 'fa-arrow-left' ?>"></i> <?= te($embed ? 'close' : 'back') ?></a>
+        <?php if ($embed): ?>
+            <a href="<?= $backUrl ?>" class="btn btn-outline" onclick="return leavePay(false)"><i class="fas fa-xmark"></i> <?= te('close') ?></a>
+        <?php else: ?>
+            <a href="<?= $backUrl ?>" class="btn btn-outline"><i class="fas fa-arrow-left"></i> <?= te('back') ?></a>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -279,7 +283,7 @@ include __DIR__ . '/../includes/header.php';
                         <!-- Test mode (Settings): close the bill without money -->
                         <button class="btn-test" onclick="payVirtual(this)"><i class="fas fa-flask"></i> <?= te('test_pay_btn') ?><small><?= te('test_pay_hint') ?></small></button>
                     <?php endif; ?>
-                    <button class="btn-cancel" onclick="leavePay(false)"><?= te('cancel') ?></button>
+                    <button class="btn-cancel" onclick="<?= $embed ? 'leavePay(false)' : "location.href='" . $backUrl . "'" ?>"><?= te('cancel') ?></button>
                 </div>
                 <p id="k-choose-err" class="dev-err" style="margin-top:10px;text-align:center;"></p>
             </div>
@@ -365,7 +369,7 @@ include __DIR__ . '/../includes/header.php';
                 <?php if ($isSeatBill): ?>
                     <a class="btn btn-success btn-block" style="margin-top:8px;" href="<?= $payHref((int) $order['parent_order_id']) ?>"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
                 <?php endif; ?>
-                <a class="btn btn-outline btn-block" style="margin-top:8px;" href="<?= $backUrl ?>" onclick="return leavePay(true)"><?= te('done') ?></a>
+                <a class="btn btn-outline btn-block" style="margin-top:8px;" href="<?= $backUrl ?>"<?= $embed ? ' onclick="return leavePay(true)"' : '' ?>><?= te('done') ?></a>
             </div>
         </div>
     </div>
@@ -373,13 +377,14 @@ include __DIR__ . '/../includes/header.php';
 
 <script>
 const CFG = <?= json_encode($jsCfg, JSON_UNESCAPED_SLASHES) ?>;
-const EMBED = <?= $embed ? 'true' : 'false' ?>, BACK_URL = <?= json_encode($backUrl) ?>;
-// Leave the payment: in Ordini Cassa's window it closes (the panel reloads), otherwise back to the list.
+const EMBED = <?= $embed ? 'true' : 'false' ?>;
+<?php if ($embed): ?>
+// In Ordini Cassa's window: leaving the payment closes the window (the panel reloads).
 function leavePay(paid) {
-    if (EMBED) parent.postMessage({ tillPay: paid ? 'done' : 'close' }, location.origin);
-    else location.href = BACK_URL;
+    parent.postMessage({ tillPay: paid ? 'done' : 'close' }, location.origin);
     return false;
 }
+<?php endif; ?>
 const SYM = CFG.currency_symbol;
 const $ = id => document.getElementById(id);
 const fmtc = c => (c / 100).toFixed(2);
