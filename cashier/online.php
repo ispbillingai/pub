@@ -13,6 +13,10 @@
  * On top, the till itself (includes/till.php): the Menu cassa products as
  * buttons (with their photo) and a keypad for free amounts build a ticket, charged as a counter
  * sale or added to an online customer's bill.
+ *
+ * Paying happens here too: the till's payment page (cash machine, card, Dojo,
+ * manual, discounts) opens in a window over the panel (payment.php?embed=1)
+ * and closes back into Ordini Cassa when it is done.
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -36,7 +40,7 @@ if ($scan !== '') {
         $scanError = t('cash_online_scan_cancelled', ['order' => $order['order_number']]);
     } else {
         logActivity('online_order_scanned', 'orders', (int) $order['id']);
-        header('Location: /cashier/payment.php?order=' . (int) $order['id']);
+        header('Location: /cashier/online.php?open=' . (int) $order['id']);   // its payment, in this panel
         exit;
     }
 }
@@ -121,6 +125,10 @@ include __DIR__ . '/../includes/header.php';
 .t-total { display: flex; justify-content: space-between; font-size: 1.4rem; font-weight: 800; margin: 8px 0; }
 .till-ticket select { width: 100%; margin-bottom: 8px; }
 .t-pay { width: 100%; padding: 14px; font-size: 1.1rem; }
+/* The payment window over the panel */
+.pay-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 2vh 2vw; }
+.pay-overlay[hidden] { display: none; }
+.pay-overlay iframe { width: min(1200px, 96vw); height: 96vh; border: 0; border-radius: 14px; background: var(--bg, #f5f6fa); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
 </style>
 
 <div class="page-header">
@@ -191,7 +199,7 @@ include __DIR__ . '/../includes/header.php';
                 <td class="text-muted"><?= htmlspecialchars($s['cashier']) ?></td>
                 <td style="text-align:right;"><strong><?= formatCurrency($s['total']) ?></strong></td>
                 <td style="text-align:right;white-space:nowrap;">
-                    <a class="btn btn-sm btn-success" href="/cashier/payment.php?order=<?= (int) $s['id'] ?>"><i class="fas fa-money-bill"></i> <?= te('cash_online_collect') ?></a>
+                    <button class="btn btn-sm btn-success" onclick="openPay(<?= (int) $s['id'] ?>)"><i class="fas fa-money-bill"></i> <?= te('cash_online_collect') ?></button>
                     <button class="btn btn-sm btn-outline" onclick="tCancelSale(<?= (int) $s['id'] ?>)"><i class="fas fa-xmark"></i> <?= te('cancel') ?></button>
                 </td>
             </tr>
@@ -236,7 +244,7 @@ include __DIR__ . '/../includes/header.php';
             <div class="oo-total"><span><?= formatCurrency($o['total']) ?></span>
                 <span class="d-flex gap-sm">
                     <button type="button" class="btn btn-outline" onclick="tTargetOrder(<?= (int) $o['id'] ?>)" title="<?= te('till_add_to_this') ?>"><i class="fas fa-cart-plus"></i></button>
-                    <a href="/cashier/payment.php?order=<?= (int) $o['id'] ?>" class="btn btn-success"><i class="fas fa-money-bill"></i> <?= te('cash_online_collect') ?></a>
+                    <button type="button" class="btn btn-success" onclick="openPay(<?= (int) $o['id'] ?>)"><i class="fas fa-money-bill"></i> <?= te('cash_online_collect') ?></button>
                 </span></div>
         </div>
     <?php endforeach; ?>
@@ -263,6 +271,9 @@ include __DIR__ . '/../includes/header.php';
     </table>
 </div>
 <?php endif; ?>
+
+<!-- The till's payment page, in a window over the panel -->
+<div class="pay-overlay" id="payOverlay" hidden><iframe id="payFrame" title="<?= te('process_payment') ?>"></iframe></div>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
@@ -372,7 +383,7 @@ async function tCheckout() {
             body: JSON.stringify({ action: 'checkout', lines, target_order_id: $id('tTarget').value || null }) })).json();
         if (!r.success) { showToast(r.message || TL.failed, 'error'); $id('tPay').disabled = false; return; }
         tClear();
-        location.href = '/cashier/payment.php?order=' + r.order_id;
+        openPay(r.order_id);
     } catch (e) { showToast(TL.failed, 'error'); $id('tPay').disabled = false; }
 }
 async function tCancelSale(orderId) {
@@ -382,10 +393,30 @@ async function tCancelSale(orderId) {
 }
 renderTillMenu(); renderTicket(); kpShow();
 
+/* ---- Paying, without leaving Ordini Cassa: payment.php?embed=1 in a window.
+ * It tells us when it is paid / closed (postMessage); then the panel reloads. ---- */
+function openPay(orderId) {
+    if (cam) toggleCamera();
+    $id('payFrame').src = '/cashier/payment.php?order=' + encodeURIComponent(orderId) + '&embed=1';
+    $id('payOverlay').hidden = false;
+}
+window.addEventListener('message', e => {
+    if (e.origin !== location.origin || !e.data || !e.data.tillPay) return;
+    if (e.data.tillPay === 'paid') return;                // still showing "payment received"
+    $id('payOverlay').hidden = true;
+    $id('payFrame').src = 'about:blank';
+    location.replace('/cashier/online.php');              // fresh lists (and no ?open= left behind)
+});
+// A scanned customer QR lands here with ?open=<order>: its payment opens at once.
+(function () {
+    const open = new URLSearchParams(location.search).get('open');
+    if (open && /^\d+$/.test(open)) openPay(open);
+})();
+
 // Keep the scan box ready for the scanner, and the list fresh (not while scanning
 // or while a ticket / an amount is being made).
 document.addEventListener('click', e => { if (!e.target.closest('input, button, a, select, #camBox')) document.getElementById('scanInput').focus(); });
-setInterval(() => { if (!cam && !document.getElementById('scanInput').value && !ticket.length && !kpCents) location.reload(); }, 20000);
+setInterval(() => { if (!cam && !document.getElementById('scanInput').value && !ticket.length && !kpCents && $id('payOverlay').hidden) location.reload(); }, 20000);
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -1,14 +1,19 @@
     </main>
     </div>
 
+    <?php if (empty($embedPage)): ?>
     <footer class="main-footer">
         <p>&copy; <?= date('Y') ?> <?= te('app_name') ?> - <?= te('footer_tagline') ?></p>
     </footer>
-    
+    <?php endif; ?>
+
     <!-- Toast notifications container -->
     <div id="toastContainer" class="toast-container"></div>
-    
-    <?php if (!empty($currentUser)): ?>
+
+    <?php if (!empty($embedPage)): ?>
+    <!-- Inside another page: that page already checks for news; no second poller here. -->
+    <script>window.APP_EMBED = true;</script>
+    <?php elseif (!empty($currentUser)): ?>
     <script>
     // Labels for the guests' QR request bar (app.js).
     window.REQ_I18N = <?= json_encode([

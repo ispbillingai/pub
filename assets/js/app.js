@@ -96,6 +96,7 @@ async function markAllRead() {
 // Polling for updates
 // ============================================
 function startPolling() {
+    if (window.APP_EMBED) return;   // shown inside another page, which polls already
     // Poll every 10 seconds for updates
     App.pollingInterval = setInterval(async function() {
         await checkForUpdates();

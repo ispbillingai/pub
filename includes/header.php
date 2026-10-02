@@ -51,7 +51,9 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
         <?php endforeach; ?>
     <?php endif; ?>
 </head>
-<body class="role-<?= $currentUser['role'] ?? 'guest' ?>">
+<body class="role-<?= $currentUser['role'] ?? 'guest' ?><?= !empty($embedPage) ? ' embed' : '' ?>">
+    <?php // $embedPage: the page is shown inside another one (Ordini Cassa's payment window): no top bar, menus or footer.
+    if (empty($embedPage)): ?>
     <nav class="main-nav">
         <div class="nav-brand">
             <i class="fas fa-utensils"></i>
@@ -136,9 +138,10 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
             <!-- Notifications loaded via JS -->
         </div>
     </div>
-    
+    <?php endif; ?>
+
     <div class="app-body">
-        <?php if ($inAdmin): ?>
+        <?php if ($inAdmin && empty($embedPage)): ?>
         <aside class="admin-sidebar">
             <a href="/admin/index.php" class="<?= $currentPage === 'index' ? 'active' : '' ?>"><i class="fas fa-tachometer-alt"></i> <?= te('dashboard') ?></a>
             <a href="/admin/rooms.php" class="<?= $currentPage === 'rooms' ? 'active' : '' ?>"><i class="fas fa-door-open"></i> <?= te('rooms_tables') ?></a>

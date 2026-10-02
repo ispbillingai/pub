@@ -3,17 +3,27 @@
  * Cashier Payment — kiosk-style, behaves like the parking app.
  * Start payment (cash machine) → Cashmatic; Pay by card → Ingenico (RTS POS);
  * both emit an Epson fiscal receipt. M-Pesa / manual stays as a fallback.
+ *
+ * ?embed=1: shown in Ordini Cassa's payment window (cashier/online.php): no
+ * top bar; Back / Cancel / Done close the window (postMessage to the panel)
+ * instead of leaving the page, so the whole payment ends in Ordini Cassa.
  */
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/devices.php';
 requireRole(['admin', 'cashier']);
 
+$embed   = !empty($_GET['embed']);
 $orderId = $_GET['order'] ?? null;
-if (!$orderId) { header('Location: /cashier/index.php'); exit; }
-
-$order = getOrderById($orderId);
-if (!$order || $order['status'] === 'paid') { header('Location: /cashier/index.php'); exit; }
+$order   = $orderId ? getOrderById($orderId) : null;
+if (!$order || $order['status'] === 'paid') {
+    if ($embed) {   // nothing (left) to pay: close the window in Ordini Cassa
+        echo '<!DOCTYPE html><script>parent.postMessage({ tillPay: "done" }, location.origin);</script>';
+        exit;
+    }
+    header('Location: /cashier/index.php');
+    exit;
+}
 // Online customers' orders and counter sales come from (and go back to) Ordini Cassa.
 $backUrl = in_array($order['channel'] ?? 'dine_in', ['online', 'counter'], true) ? '/cashier/online.php' : '/cashier/index.php';
 
@@ -109,6 +119,9 @@ $jsCfg  = [
 ];
 
 $pageTitle = "Payment - Order #{$order['order_number']}";
+$embedPage = $embed;
+// Links to another bill keep the window mode.
+$payHref = fn(int $id) => '/cashier/payment.php?order=' . $id . ($embed ? '&embed=1' : '');
 include __DIR__ . '/../includes/header.php';
 ?>
 <style>
@@ -131,9 +144,9 @@ include __DIR__ . '/../includes/header.php';
     <h1><i class="fas fa-cash-register"></i> <?= te('process_payment') ?></h1>
     <div class="d-flex gap-sm">
         <?php if ($isSeatBill): ?>
-            <a href="/cashier/payment.php?order=<?= (int) $order['parent_order_id'] ?>" class="btn btn-outline"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
+            <a href="<?= $payHref((int) $order['parent_order_id']) ?>" class="btn btn-outline"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
         <?php endif; ?>
-        <a href="<?= $backUrl ?>" class="btn btn-outline"><i class="fas fa-arrow-left"></i> <?= te('back') ?></a>
+        <a href="<?= $backUrl ?>" class="btn btn-outline" onclick="return leavePay(false)"><i class="fas <?= $embed ? 'fa-xmark' : 'fa-arrow-left' ?>"></i> <?= te($embed ? 'close' : 'back') ?></a>
     </div>
 </div>
 
@@ -204,7 +217,7 @@ include __DIR__ . '/../includes/header.php';
                         <div><?= te('seat') ?> <?= (int) $sb['seat'] ?> <span class="text-muted">· <?= htmlspecialchars($sb['order_number']) ?></span></div>
                         <div class="d-flex gap-sm align-center">
                             <strong><?= formatCurrency($sb['total']) ?></strong>
-                            <a class="btn btn-sm btn-success" href="/cashier/payment.php?order=<?= (int) $sb['id'] ?>"><i class="fas fa-money-bill"></i> <?= te('process_payment') ?></a>
+                            <a class="btn btn-sm btn-success" href="<?= $payHref((int) $sb['id']) ?>"><i class="fas fa-money-bill"></i> <?= te('process_payment') ?></a>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -266,7 +279,7 @@ include __DIR__ . '/../includes/header.php';
                         <!-- Test mode (Settings): close the bill without money -->
                         <button class="btn-test" onclick="payVirtual(this)"><i class="fas fa-flask"></i> <?= te('test_pay_btn') ?><small><?= te('test_pay_hint') ?></small></button>
                     <?php endif; ?>
-                    <button class="btn-cancel" onclick="location.href='<?= $backUrl ?>'"><?= te('cancel') ?></button>
+                    <button class="btn-cancel" onclick="leavePay(false)"><?= te('cancel') ?></button>
                 </div>
                 <p id="k-choose-err" class="dev-err" style="margin-top:10px;text-align:center;"></p>
             </div>
@@ -348,11 +361,11 @@ include __DIR__ . '/../includes/header.php';
                 <div style="font-size:3rem;color:var(--success);"><i class="fas fa-check-circle"></i></div>
                 <h2 class="dev-ok"><?= te('payment_received') ?></h2>
                 <p id="done-receipt" style="color:var(--text-secondary);"></p>
-                <a id="done-print" class="btn btn-primary btn-block" href="#"><i class="fas fa-receipt"></i> <?= te('print_order_receipt') ?></a>
+                <a id="done-print" class="btn btn-primary btn-block" href="#"<?= $embed ? ' target="_blank" rel="noopener"' : '' ?>><i class="fas fa-receipt"></i> <?= te('print_order_receipt') ?></a>
                 <?php if ($isSeatBill): ?>
-                    <a class="btn btn-success btn-block" style="margin-top:8px;" href="/cashier/payment.php?order=<?= (int) $order['parent_order_id'] ?>"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
+                    <a class="btn btn-success btn-block" style="margin-top:8px;" href="<?= $payHref((int) $order['parent_order_id']) ?>"><i class="fas fa-users"></i> <?= te('back_to_table_bill') ?></a>
                 <?php endif; ?>
-                <a class="btn btn-outline btn-block" style="margin-top:8px;" href="<?= $backUrl ?>"><?= te('done') ?></a>
+                <a class="btn btn-outline btn-block" style="margin-top:8px;" href="<?= $backUrl ?>" onclick="return leavePay(true)"><?= te('done') ?></a>
             </div>
         </div>
     </div>
@@ -360,6 +373,13 @@ include __DIR__ . '/../includes/header.php';
 
 <script>
 const CFG = <?= json_encode($jsCfg, JSON_UNESCAPED_SLASHES) ?>;
+const EMBED = <?= $embed ? 'true' : 'false' ?>, BACK_URL = <?= json_encode($backUrl) ?>;
+// Leave the payment: in Ordini Cassa's window it closes (the panel reloads), otherwise back to the list.
+function leavePay(paid) {
+    if (EMBED) parent.postMessage({ tillPay: paid ? 'done' : 'close' }, location.origin);
+    else location.href = BACK_URL;
+    return false;
+}
 const SYM = CFG.currency_symbol;
 const $ = id => document.getElementById(id);
 const fmtc = c => (c / 100).toFixed(2);
@@ -380,6 +400,7 @@ function done(receiptText) {
     $('done-receipt').textContent = receiptText || '';
     $('done-print').href = '/cashier/receipt.php?order=' + CFG.order_id;
     showPanel('k-done');
+    if (EMBED) parent.postMessage({ tillPay: 'paid' }, location.origin);
 }
 
 /* ---- Split at the till: pay one seat ----
@@ -392,7 +413,7 @@ async function paySeat(seat, btn) {
     try {
         const r = await post('/api/orders.php', { action: 'request_seat_bill', order_id: CFG.order_id, seat, at_till: true });
         if (!r.success) { err.textContent = r.message || CFG.i18n.failed; btn.disabled = false; return; }
-        location.href = '/cashier/payment.php?order=' + r.order_id;
+        location.href = '/cashier/payment.php?order=' + r.order_id + (EMBED ? '&embed=1' : '');
     } catch (e) { err.textContent = e.message; btn.disabled = false; }
 }
 
