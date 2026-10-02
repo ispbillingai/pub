@@ -10,8 +10,8 @@
  * reads it; ?pay=<token> (also what a phone camera opens) goes straight to
  * that order's payment.
  *
- * On top, the till itself (includes/till.php): the Menu cassa products as
- * buttons and a keypad for free amounts build a ticket, charged as a counter
+ * On top, the till itself (includes/till.php): the Ordini Cassa products as
+ * buttons (with their photo) and a keypad for free amounts build a ticket, charged as a counter
  * sale or added to an online customer's bill.
  */
 
@@ -66,7 +66,7 @@ $paid = $pdo->prepare("
 $paid->execute([ONLINE_CHANNEL]);
 $paid = $paid->fetchAll();
 
-// The till: Menu cassa buttons, and counter sales left unpaid.
+// The till: Ordini Cassa buttons, and counter sales left unpaid.
 $tillMenu  = tillMenu();
 $openSales = tillOpenSales();
 $tillTargets = array_map(fn($o) => ['id' => (int) $o['id'], 'label' => $o['customer_name'] . ' · ' . $o['order_number']], $orders);
@@ -104,6 +104,8 @@ include __DIR__ . '/../includes/header.php';
 .till-products button:active { transform: scale(.97); }
 .till-products button span { font-size: .95rem; line-height: 1.2; }
 .till-products button small { font-size: 1rem; color: var(--primary); }
+.till-products button img { width: 100%; height: 72px; object-fit: cover; border-radius: 8px; }
+.till-products button.has-img { padding-top: 6px; }
 .till-empty { color: var(--text-secondary); padding: 20px 4px; }
 .keypad-display { background: #111827; color: #34d399; font-family: var(--font-display, monospace); font-size: 2rem; text-align: right; padding: 12px 14px; border-radius: 10px; margin-bottom: 8px; }
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
@@ -141,7 +143,7 @@ include __DIR__ . '/../includes/header.php';
     <div id="camBox" hidden></div>
 </div>
 
-<!-- The till: Menu cassa products, keypad for a free amount, the ticket -->
+<!-- The till: Ordini Cassa products, keypad for a free amount, the ticket -->
 <div class="card mb-lg" style="padding:16px 18px;">
     <h2 style="margin:0 0 10px;font-size:1.05rem;"><i class="fas fa-cash-register"></i> <?= te('till_title') ?></h2>
     <div class="till">
@@ -298,7 +300,7 @@ function renderTillMenu() {
         `<button type="button" class="${i === tillCat ? 'on' : ''}" onclick="tillCat = ${i}; renderTillMenu()">${escH(c.name)}</button>`).join('') : '';
     const c = TILL_MENU[tillCat];
     $id('tillProducts').innerHTML = c ? c.items.map(it =>
-        `<button type="button" style="--pc:${escH(c.color || '')}" onclick="tAddProduct(${it.id})"><span>${escH(it.name)}</span><small>${escH(it.price)}</small></button>`).join('')
+        `<button type="button" class="${it.image ? 'has-img' : ''}" style="--pc:${escH(c.color || '')}" onclick="tAddProduct(${it.id})">${it.image ? `<img src="${escH(it.image)}" alt="" loading="lazy">` : ''}<span>${escH(it.name)}</span><small>${escH(it.price)}</small></button>`).join('')
         : `<div class="till-empty">${escH(TL.none)}</div>`;
 }
 function tAddProduct(id) {

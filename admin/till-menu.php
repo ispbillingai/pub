@@ -1,7 +1,7 @@
 <?php
 /**
- * Admin — Menu cassa: products only the till sees (buttons in Cassa > Ordini
- * online). Categories here are marked till_only, so the guests' menus, the
+ * Admin — Ordini Cassa: products only the till sees (buttons, with their
+ * photo, in Cassa > Ordini online). Categories here are marked till_only, so the guests' menus, the
  * PDF, online ordering, the waiters and the normal Menu admin never show them.
  * Products and categories are switched off, not deleted (sold ones stay in
  * the orders' history).
@@ -9,6 +9,7 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/till.php';
+require_once __DIR__ . '/../includes/menu_images.php';
 requireRole(['admin']);
 
 $pdo     = getDBConnection();
@@ -43,13 +44,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($ok = (bool) $st->fetchColumn()) {
             $sort = $pdo->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_items WHERE category_id = ?");
             $sort->execute([$cat]);
-            $pdo->prepare("INSERT INTO menu_items (category_id, name, base_price, sort_order, active) VALUES (?, ?, ?, ?, 1)")
-                ->execute([$cat, $name, $price, (int) $sort->fetchColumn()]);
+            $pdo->prepare("INSERT INTO menu_items (category_id, name, base_price, sort_order, image_url, active) VALUES (?, ?, ?, ?, ?, 1)")
+                ->execute([$cat, $name, $price, (int) $sort->fetchColumn(), saveMenuImage('image')]);
         }
     } elseif ($a === 'update_item' && $name !== '' && ($price = tillPrice((string) ($_POST['price'] ?? ''))) !== null) {
         $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
                        SET mi.name = ?, mi.base_price = ?, mi.sort_order = ? WHERE mi.id = ? AND mc.till_only = 1 AND mc.id <> ?")
             ->execute([$name, $price, (int) ($_POST['sort_order'] ?? 0), $id, $freeCat]);
+        // A new photo replaces the old one (none chosen = keep it).
+        if ($img = saveMenuImage('image')) {
+            $pdo->prepare("UPDATE menu_items SET image_url = ? WHERE id = ?")->execute([$img, $id]);
+        }
+    } elseif ($a === 'remove_image') {
+        $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
+                       SET mi.image_url = NULL WHERE mi.id = ? AND mc.till_only = 1 AND mc.id <> ?")->execute([$id, $freeCat]);
     } elseif ($a === 'toggle_item') {
         $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
                        SET mi.active = 1 - mi.active WHERE mi.id = ? AND mc.till_only = 1 AND mc.id <> ?")->execute([$id, $freeCat]);
@@ -70,13 +78,15 @@ $pageTitle = t('till_menu_title');
 include __DIR__ . '/../includes/header.php';
 ?>
 <style>
-.tm-row { display: grid; grid-template-columns: minmax(160px, 1fr) 110px 80px auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--border-color, #e5e7eb); }
+.tm-row { display: grid; grid-template-columns: 56px minmax(160px, 1fr) 110px 80px minmax(150px, 220px) auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--border-color, #e5e7eb); }
+.tm-thumb { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; background: #f3f4f6; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.tm-file { font-size: .8rem; }
 .tm-row.off { opacity: .5; }
 .tm-row input { width: 100%; }
 .tm-cat-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .tm-cat-head input[type=text] { flex: 1; min-width: 160px; }
 .tm-swatch { width: 44px; height: 38px; padding: 2px; }
-@media (max-width: 640px) { .tm-row { grid-template-columns: 1fr 90px; } }
+@media (max-width: 900px) { .tm-row { grid-template-columns: 56px 1fr 90px; } }
 </style>
 
 <div class="page-header">
@@ -125,11 +135,17 @@ include __DIR__ . '/../includes/header.php';
         <?php foreach ($list as $it): ?>
             <?php $fid = 'item-' . (int) $it['id']; ?>
             <div class="tm-row <?= $it['active'] ? '' : 'off' ?>">
+                <?php if (!empty($it['image_url'])): ?>
+                    <img class="tm-thumb" src="<?= htmlspecialchars($it['image_url']) ?>" alt="">
+                <?php else: ?>
+                    <span class="tm-thumb"><i class="fas fa-image"></i></span>
+                <?php endif; ?>
                 <input type="text" name="name" form="<?= $fid ?>" class="form-control" value="<?= htmlspecialchars($it['name']) ?>" maxlength="150" required>
                 <input type="text" name="price" form="<?= $fid ?>" class="form-control" value="<?= number_format((float) $it['base_price'], 2, ',', '') ?>" inputmode="decimal" required title="<?= te('price') ?>">
                 <input type="number" name="sort_order" form="<?= $fid ?>" class="form-control" value="<?= (int) $it['sort_order'] ?>" title="<?= te('till_menu_order') ?>">
+                <input type="file" name="image" form="<?= $fid ?>" class="tm-file" accept="image/jpeg,image/png,image/webp,image/gif" title="<?= te(empty($it['image_url']) ? 'photo' : 'till_menu_photo_change') ?>">
                 <span class="d-flex gap-sm">
-                    <form method="POST" id="<?= $fid ?>">
+                    <form method="POST" id="<?= $fid ?>" enctype="multipart/form-data">
                         <input type="hidden" name="action" value="update_item"><input type="hidden" name="id" value="<?= (int) $it['id'] ?>"><input type="hidden" name="cat" value="<?= (int) $c['id'] ?>">
                         <button class="btn btn-sm btn-outline" title="<?= te('save_settings') ?>"><i class="fas fa-save"></i></button>
                     </form>
@@ -137,16 +153,24 @@ include __DIR__ . '/../includes/header.php';
                         <input type="hidden" name="action" value="toggle_item"><input type="hidden" name="id" value="<?= (int) $it['id'] ?>"><input type="hidden" name="cat" value="<?= (int) $c['id'] ?>">
                         <button class="btn btn-sm <?= $it['active'] ? 'btn-outline' : 'btn-success' ?>" title="<?= te($it['active'] ? 'till_menu_hide' : 'till_menu_show') ?>"><i class="fas <?= $it['active'] ? 'fa-eye-slash' : 'fa-eye' ?>"></i></button>
                     </form>
+                    <?php if (!empty($it['image_url'])): ?>
+                    <form method="POST" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('photo_remove') . '?')) ?>)">
+                        <input type="hidden" name="action" value="remove_image"><input type="hidden" name="id" value="<?= (int) $it['id'] ?>"><input type="hidden" name="cat" value="<?= (int) $c['id'] ?>">
+                        <button class="btn btn-sm btn-outline" title="<?= te('photo_remove') ?>"><i class="fas fa-image"></i><i class="fas fa-xmark" style="font-size:.7em;"></i></button>
+                    </form>
+                    <?php endif; ?>
                 </span>
             </div>
         <?php endforeach; ?>
         <?php if (!$list): ?><p class="text-muted"><?= te('till_menu_no_items') ?></p><?php endif; ?>
 
-        <form method="POST" class="tm-row" style="border-bottom:0;margin-top:6px;">
+        <form method="POST" class="tm-row" style="border-bottom:0;margin-top:6px;" enctype="multipart/form-data">
             <input type="hidden" name="action" value="add_item"><input type="hidden" name="category_id" value="<?= (int) $c['id'] ?>"><input type="hidden" name="cat" value="<?= (int) $c['id'] ?>">
+            <span class="tm-thumb"><i class="fas fa-plus"></i></span>
             <input type="text" name="name" class="form-control" maxlength="150" placeholder="<?= te('till_menu_item_ph') ?>" required>
             <input type="text" name="price" class="form-control" placeholder="0,00" inputmode="decimal" required>
             <span></span>
+            <input type="file" name="image" class="tm-file" accept="image/jpeg,image/png,image/webp,image/gif" title="<?= te('photo_optional') ?>">
             <button class="btn btn-sm btn-primary"><i class="fas fa-plus"></i> <?= te('add') ?></button>
         </form>
     </div>

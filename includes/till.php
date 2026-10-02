@@ -1,7 +1,7 @@
 <?php
 /**
- * The till's own sales (Cassa > Ordini online): the "Menu cassa" products
- * (categories marked till_only, Admin > Menu cassa, seen nowhere else) as
+ * The till's own sales (Cassa > Ordini online): the "Ordini Cassa" products
+ * (categories marked till_only, Admin > Ordini Cassa, seen nowhere else) as
  * buttons, plus free amounts typed on the keypad. The ticket either becomes a
  * counter sale (channel 'counter', on a hidden "BANCO" table, the cashier as
  * its waiter) or goes on an online customer's open bill; then the usual
@@ -41,7 +41,7 @@ function tillFreeItemId(): int
     return $id;
 }
 
-/** The category of the free amounts (to keep it out of Admin > Menu cassa). */
+/** The category of the free amounts (to keep it out of Admin > Ordini Cassa). */
 function tillFreeCategoryId(): int
 {
     $stmt = getDBConnection()->prepare("SELECT category_id FROM menu_items WHERE id = ?");
@@ -49,11 +49,11 @@ function tillFreeCategoryId(): int
     return (int) $stmt->fetchColumn();
 }
 
-/** The till's buttons: [['id', 'name', 'color', 'items' => [['id', 'name', 'price', 'amount']]]]. */
+/** The till's buttons: [['id', 'name', 'color', 'items' => [['id', 'name', 'price', 'amount', 'image']]]]. */
 function tillMenu(): array
 {
     $rows = getDBConnection()->query("
-        SELECT mc.id AS category_id, mc.name AS category, mc.color, mi.id, mi.name, mi.base_price
+        SELECT mc.id AS category_id, mc.name AS category, mc.color, mi.id, mi.name, mi.base_price, mi.image_url
         FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
         WHERE mc.till_only = 1 AND mc.active = 1 AND mi.active = 1
         ORDER BY mc.sort_order, mc.name, mi.sort_order, mi.name
@@ -62,7 +62,8 @@ function tillMenu(): array
     foreach ($rows as $r) {
         $cid = (int) $r['category_id'];
         $menu[$cid] ??= ['id' => $cid, 'name' => $r['category'], 'color' => $r['color'] ?: null, 'items' => []];
-        $menu[$cid]['items'][] = ['id' => (int) $r['id'], 'name' => $r['name'], 'price' => formatCurrency($r['base_price']), 'amount' => (float) $r['base_price']];
+        $menu[$cid]['items'][] = ['id' => (int) $r['id'], 'name' => $r['name'], 'price' => formatCurrency($r['base_price']), 'amount' => (float) $r['base_price'],
+                                     'image' => $r['image_url'] ?: null];
     }
     return array_values($menu);
 }

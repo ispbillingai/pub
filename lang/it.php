@@ -1342,7 +1342,7 @@ return [
     // ---- Online orders: where to collect ----
     'online_ready_location' => '📍 Dove ritirarlo: {address}'."\n".'{maps}',
 
-    // ---- Till: Menu cassa, keypad, counter sales ----
+    // ---- Till: Ordini Cassa, keypad, counter sales ----
     'till_title' => 'Cassa: prodotti e importi',
     'till_add_amount' => 'Aggiungi importo',
     'till_target' => 'A chi va lo scontrino',
@@ -1354,13 +1354,13 @@ return [
     'till_pay' => 'Incassa {total}',
     'till_ticket_empty' => 'Tocca un prodotto o digita un importo.',
     'till_free_line' => 'Varie (importo libero)',
-    'till_no_products' => 'Nessun prodotto nel Menu cassa: aggiungili in Admin › Menu cassa. Intanto puoi usare la tastiera.',
+    'till_no_products' => 'Nessun prodotto in Ordini Cassa: aggiungili in Admin › Ordini Cassa. Intanto puoi usare la tastiera.',
     'till_cancel_confirm' => 'Annullare questa vendita al banco non pagata?',
     'till_err_amount' => 'Importo non valido.',
-    'till_err_product' => 'Un prodotto non è più nel Menu cassa: ricarica la pagina.',
+    'till_err_product' => 'Un prodotto non è più in Ordini Cassa: ricarica la pagina.',
     'till_err_empty' => 'Lo scontrino è vuoto.',
     'till_err_target' => 'L\'ordine online scelto non è più aperto: ricarica la pagina.',
-    'till_menu_title' => 'Menu cassa',
+    'till_menu_title' => 'Ordini Cassa',
     'till_menu_intro' => 'Prodotti visibili solo alla cassa (Cassa › Ordini online): non compaiono nel menu dei clienti, nel PDF, negli ordini online né ai camerieri. Si vendono al banco o si aggiungono al conto di un cliente online. Prodotti e categorie non si eliminano: si nascondono.',
     'till_menu_error' => 'Controlla i dati: nome obbligatorio, prezzo tipo 3,50.',
     'till_menu_new_cat' => 'Nuova categoria',
@@ -1372,4 +1372,5 @@ return [
     'till_menu_no_items' => 'Nessun prodotto in questa categoria.',
     'till_menu_item_ph' => 'Nuovo prodotto',
     'till_menu_none' => 'Nessuna categoria: creane una qui sopra, poi aggiungi i prodotti.',
+    'till_menu_photo_change' => 'Cambia la foto',
 ];

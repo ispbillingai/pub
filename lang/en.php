@@ -1342,7 +1342,7 @@ return [
     // ---- Online orders: where to collect ----
     'online_ready_location' => '📍 Where to collect it: {address}'."\n".'{maps}',
 
-    // ---- Till: Menu cassa, keypad, counter sales ----
+    // ---- Till: Ordini Cassa, keypad, counter sales ----
     'till_title' => 'Till: products and amounts',
     'till_add_amount' => 'Add amount',
     'till_target' => 'Who the ticket is for',
@@ -1354,13 +1354,13 @@ return [
     'till_pay' => 'Collect {total}',
     'till_ticket_empty' => 'Tap a product or type an amount.',
     'till_free_line' => 'Misc (free amount)',
-    'till_no_products' => 'No products in the Till menu: add them in Admin › Till menu. Meanwhile you can use the keypad.',
+    'till_no_products' => 'No products in Till orders: add them in Admin › Till orders. Meanwhile you can use the keypad.',
     'till_cancel_confirm' => 'Cancel this unpaid counter sale?',
     'till_err_amount' => 'Invalid amount.',
-    'till_err_product' => 'A product is no longer on the Till menu: reload the page.',
+    'till_err_product' => 'A product is no longer in Till orders: reload the page.',
     'till_err_empty' => 'The ticket is empty.',
     'till_err_target' => 'The chosen online order is no longer open: reload the page.',
-    'till_menu_title' => 'Till menu',
+    'till_menu_title' => 'Till orders',
     'till_menu_intro' => 'Products only the till sees (Till › Online orders): they don\'t appear on the guests\' menu, the PDF, online ordering or to the waiters. They are sold at the counter or added to an online customer\'s bill. Products and categories are not deleted: they are hidden.',
     'till_menu_error' => 'Check the details: a name is required, a price like 3.50.',
     'till_menu_new_cat' => 'New category',
@@ -1372,4 +1372,5 @@ return [
     'till_menu_no_items' => 'No products in this category.',
     'till_menu_item_ph' => 'New product',
     'till_menu_none' => 'No categories: create one above, then add the products.',
+    'till_menu_photo_change' => 'Change the photo',
 ];

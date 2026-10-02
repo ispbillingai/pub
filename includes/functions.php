@@ -147,7 +147,7 @@ function getAllTables() {
  */
 function getMenuCategories() {
     $pdo = getDBConnection();
-    // Menu cassa categories (till_only) are shown only at the till (includes/till.php).
+    // Ordini Cassa categories (till_only) are shown only at the till (includes/till.php).
     $stmt = $pdo->query("SELECT * FROM menu_categories WHERE active = 1 AND till_only = 0 ORDER BY sort_order ASC, name ASC");
     return $stmt->fetchAll();
 }
