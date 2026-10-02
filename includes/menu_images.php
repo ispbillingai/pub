@@ -1,6 +1,6 @@
 <?php
 /**
- * Photos of menu products (Admin > Menu, Admin > Ordini Cassa).
+ * Photos of menu products (Admin > Menu, Admin > Menu cassa).
  */
 
 /**

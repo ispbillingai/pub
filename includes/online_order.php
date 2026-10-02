@@ -17,7 +17,7 @@
  * Every screen JOINs a table, room and waiter, so, as with Glovo, the orders
  * hang off a hidden room "Clienti online" (active = 0), a table "ONLINE" that
  * is never occupied and a disabled system user. Once sent, the order shows in
- * the till's own panel (Cassa > Ordini online). No notification goes to
+ * the till's own panel (Ordini Cassa). No notification goes to
  * waiters or cashiers: "ready" goes to the customer (onlineNotifyReady).
  *
  * Paying: every online order has a secret pay_token. Its QR (on the

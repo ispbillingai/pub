@@ -1,6 +1,6 @@
 <?php
 /**
- * Till API — the ticket of Cassa > Ordini online (includes/till.php).
+ * Till API — the ticket of Ordini Cassa (includes/till.php).
  *
  * POST {action: 'checkout', lines: [{id, qty} | {amount}], target_order_id?} → {order_id}: then the payment page
  * POST {action: 'cancel', order_id}                                         → drop an unpaid counter sale

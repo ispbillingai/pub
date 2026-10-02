@@ -1310,7 +1310,7 @@ return [
     // ---- Till: online orders panel, pay QR ----
     'online_pay_qr_title' => 'Your QR to pay',
     'online_pay_qr_text' => 'Show it at the till when you collect: the cashier scans it and takes payment for your order.',
-    'cash_online_title' => 'Online orders',
+    'cash_online_title' => 'Till orders',
     'cash_online_banner' => '{n} online orders to collect: open the panel',
     'cash_online_scan_title' => 'Scan the customer\'s QR',
     'cash_online_scan_hint' => 'The customer shows the QR (on their page or in the "order ready" WhatsApp): read it with the scanner or the camera and their order\'s payment opens.',
@@ -1342,7 +1342,7 @@ return [
     // ---- Online orders: where to collect ----
     'online_ready_location' => '📍 Where to collect it: {address}'."\n".'{maps}',
 
-    // ---- Till: Ordini Cassa, keypad, counter sales ----
+    // ---- Till: Menu cassa, keypad, counter sales ----
     'till_title' => 'Till: products and amounts',
     'till_add_amount' => 'Add amount',
     'till_target' => 'Who the ticket is for',
@@ -1354,14 +1354,14 @@ return [
     'till_pay' => 'Collect {total}',
     'till_ticket_empty' => 'Tap a product or type an amount.',
     'till_free_line' => 'Misc (free amount)',
-    'till_no_products' => 'No products in Till orders: add them in Admin › Till orders. Meanwhile you can use the keypad.',
+    'till_no_products' => 'No products in the Till menu: add them in Admin › Till menu. Meanwhile you can use the keypad.',
     'till_cancel_confirm' => 'Cancel this unpaid counter sale?',
     'till_err_amount' => 'Invalid amount.',
-    'till_err_product' => 'A product is no longer in Till orders: reload the page.',
+    'till_err_product' => 'A product is no longer on the Till menu: reload the page.',
     'till_err_empty' => 'The ticket is empty.',
     'till_err_target' => 'The chosen online order is no longer open: reload the page.',
-    'till_menu_title' => 'Till orders',
-    'till_menu_intro' => 'Products only the till sees (Till › Online orders): they don\'t appear on the guests\' menu, the PDF, online ordering or to the waiters. They are sold at the counter or added to an online customer\'s bill. Products and categories are not deleted: they are hidden.',
+    'till_menu_title' => 'Till menu',
+    'till_menu_intro' => 'Products only the till sees (Till orders, in the top bar): they don\'t appear on the guests\' menu, the PDF, online ordering or to the waiters. They are sold at the counter or added to an online customer\'s bill. Products and categories are not deleted: they are hidden.',
     'till_menu_error' => 'Check the details: a name is required, a price like 3.50.',
     'till_menu_new_cat' => 'New category',
     'till_menu_cat_ph' => 'E.g. Drinks, Bread, Desserts',

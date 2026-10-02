@@ -62,7 +62,7 @@ try {
         JOIN users u ON o.waiter_id = u.id
         LEFT JOIN stations st ON o.till_id = st.id
         WHERE o.status = 'bill_requested'
-          AND COALESCE(o.channel, 'dine_in') NOT IN ('online', 'counter')   -- Cassa > Ordini online
+          AND COALESCE(o.channel, 'dine_in') NOT IN ('online', 'counter')   -- Ordini Cassa
           -- a table order emptied into seat bills: nothing to take, the seat bills are listed
           AND NOT (o.parent_order_id IS NULL AND o.total = 0 AND EXISTS (
                 SELECT 1 FROM orders sb WHERE sb.parent_order_id = o.id AND sb.status NOT IN ('paid', 'cancelled')))

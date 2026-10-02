@@ -1,7 +1,7 @@
 <?php
 /**
- * The till's own sales (Cassa > Ordini online): the "Ordini Cassa" products
- * (categories marked till_only, Admin > Ordini Cassa, seen nowhere else) as
+ * The till's own sales (Ordini Cassa): the "Menu cassa" products
+ * (categories marked till_only, Admin > Menu cassa, seen nowhere else) as
  * buttons, plus free amounts typed on the keypad. The ticket either becomes a
  * counter sale (channel 'counter', on a hidden "BANCO" table, the cashier as
  * its waiter) or goes on an online customer's open bill; then the usual
@@ -41,7 +41,7 @@ function tillFreeItemId(): int
     return $id;
 }
 
-/** The category of the free amounts (to keep it out of Admin > Ordini Cassa). */
+/** The category of the free amounts (to keep it out of Admin > Menu cassa). */
 function tillFreeCategoryId(): int
 {
     $stmt = getDBConnection()->prepare("SELECT category_id FROM menu_items WHERE id = ?");

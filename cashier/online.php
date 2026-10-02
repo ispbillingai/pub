@@ -1,6 +1,6 @@
 <?php
 /**
- * Cassa — Ordini online: the till's own panel for the online customers'
+ * Ordini Cassa: the till's own panel for the online customers'
  * orders (the shop with no tables). Every open online order with the
  * customer, their intolerances, the dishes and whether the kitchen has it
  * ready; "Collect" opens the usual payment page.
@@ -10,7 +10,7 @@
  * reads it; ?pay=<token> (also what a phone camera opens) goes straight to
  * that order's payment.
  *
- * On top, the till itself (includes/till.php): the Ordini Cassa products as
+ * On top, the till itself (includes/till.php): the Menu cassa products as
  * buttons (with their photo) and a keypad for free amounts build a ticket, charged as a counter
  * sale or added to an online customer's bill.
  */
@@ -66,7 +66,7 @@ $paid = $pdo->prepare("
 $paid->execute([ONLINE_CHANNEL]);
 $paid = $paid->fetchAll();
 
-// The till: Ordini Cassa buttons, and counter sales left unpaid.
+// The till: Menu cassa buttons, and counter sales left unpaid.
 $tillMenu  = tillMenu();
 $openSales = tillOpenSales();
 $tillTargets = array_map(fn($o) => ['id' => (int) $o['id'], 'label' => $o['customer_name'] . ' · ' . $o['order_number']], $orders);
@@ -143,7 +143,7 @@ include __DIR__ . '/../includes/header.php';
     <div id="camBox" hidden></div>
 </div>
 
-<!-- The till: Ordini Cassa products, keypad for a free amount, the ticket -->
+<!-- The till: Menu cassa products, keypad for a free amount, the ticket -->
 <div class="card mb-lg" style="padding:16px 18px;">
     <h2 style="margin:0 0 10px;font-size:1.05rem;"><i class="fas fa-cash-register"></i> <?= te('till_title') ?></h2>
     <div class="till">

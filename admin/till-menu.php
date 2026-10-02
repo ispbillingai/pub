@@ -1,7 +1,7 @@
 <?php
 /**
- * Admin — Ordini Cassa: products only the till sees (buttons, with their
- * photo, in Cassa > Ordini online). Categories here are marked till_only, so the guests' menus, the
+ * Admin — Menu cassa: products only the till sees (buttons, with their
+ * photo, in Ordini Cassa). Categories here are marked till_only, so the guests' menus, the
  * PDF, online ordering, the waiters and the normal Menu admin never show them.
  * Products and categories are switched off, not deleted (sold ones stay in
  * the orders' history).

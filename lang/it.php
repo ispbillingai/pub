@@ -1310,7 +1310,7 @@ return [
     // ---- Till: online orders panel, pay QR ----
     'online_pay_qr_title' => 'Il tuo QR per pagare',
     'online_pay_qr_text' => 'Mostralo alla cassa quando ritiri: il cassiere lo inquadra e incassa il tuo ordine.',
-    'cash_online_title' => 'Ordini online',
+    'cash_online_title' => 'Ordini Cassa',
     'cash_online_banner' => '{n} ordini online da incassare: apri il pannello',
     'cash_online_scan_title' => 'Scansiona il QR del cliente',
     'cash_online_scan_hint' => 'Il cliente mostra il QR (nella sua pagina o nel WhatsApp "ordine pronto"): leggilo con il lettore o con la fotocamera e si apre il pagamento del suo ordine.',
@@ -1342,7 +1342,7 @@ return [
     // ---- Online orders: where to collect ----
     'online_ready_location' => '📍 Dove ritirarlo: {address}'."\n".'{maps}',
 
-    // ---- Till: Ordini Cassa, keypad, counter sales ----
+    // ---- Till: Menu cassa, keypad, counter sales ----
     'till_title' => 'Cassa: prodotti e importi',
     'till_add_amount' => 'Aggiungi importo',
     'till_target' => 'A chi va lo scontrino',
@@ -1354,14 +1354,14 @@ return [
     'till_pay' => 'Incassa {total}',
     'till_ticket_empty' => 'Tocca un prodotto o digita un importo.',
     'till_free_line' => 'Varie (importo libero)',
-    'till_no_products' => 'Nessun prodotto in Ordini Cassa: aggiungili in Admin › Ordini Cassa. Intanto puoi usare la tastiera.',
+    'till_no_products' => 'Nessun prodotto nel Menu cassa: aggiungili in Admin › Menu cassa. Intanto puoi usare la tastiera.',
     'till_cancel_confirm' => 'Annullare questa vendita al banco non pagata?',
     'till_err_amount' => 'Importo non valido.',
-    'till_err_product' => 'Un prodotto non è più in Ordini Cassa: ricarica la pagina.',
+    'till_err_product' => 'Un prodotto non è più nel Menu cassa: ricarica la pagina.',
     'till_err_empty' => 'Lo scontrino è vuoto.',
     'till_err_target' => 'L\'ordine online scelto non è più aperto: ricarica la pagina.',
-    'till_menu_title' => 'Ordini Cassa',
-    'till_menu_intro' => 'Prodotti visibili solo alla cassa (Cassa › Ordini online): non compaiono nel menu dei clienti, nel PDF, negli ordini online né ai camerieri. Si vendono al banco o si aggiungono al conto di un cliente online. Prodotti e categorie non si eliminano: si nascondono.',
+    'till_menu_title' => 'Menu cassa',
+    'till_menu_intro' => 'Prodotti visibili solo alla cassa (Ordini Cassa, nella barra in alto): non compaiono nel menu dei clienti, nel PDF, negli ordini online né ai camerieri. Si vendono al banco o si aggiungono al conto di un cliente online. Prodotti e categorie non si eliminano: si nascondono.',
     'till_menu_error' => 'Controlla i dati: nome obbligatorio, prezzo tipo 3,50.',
     'till_menu_new_cat' => 'Nuova categoria',
     'till_menu_cat_ph' => 'Es. Bevande, Pane, Dolci',
