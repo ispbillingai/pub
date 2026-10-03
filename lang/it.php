@@ -1473,7 +1473,7 @@ return [
 
     // ---- Online ordering: add first, customise after ----
     'online_customize' => 'Personalizza',
-    'online_customize_edit' => 'Modifica',
+    'online_customize_edit' => 'Personalizza',
     'online_customize_save' => 'Salva · {price}',
     'online_added_custom' => '{name} aggiunto! Puoi personalizzarlo dal carrello.',
 
@@ -1515,5 +1515,5 @@ return [
     'mc_birthdays_hint' => 'Seleziona i clienti che compiono gli anni questo mese (per gli auguri con un coupon regalo)',
 
     // ---- Online ordering: change one of several identical dishes ----
-    'online_customize_how_many' => 'Quanti modificare (su {n})',
+    'online_customize_how_many' => 'Quanti personalizzare (su {n})',
 ];
