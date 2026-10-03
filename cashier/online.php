@@ -424,6 +424,7 @@ function openPay(orderId) {
 window.addEventListener('message', e => {
     if (e.origin !== location.origin || !e.data || !e.data.tillPay) return;
     if (e.data.tillPay === 'paid') return;                // still showing "payment received"
+    if ($id('payOverlay').hidden) return;                 // not a window opened here, now (a restored one)
     $id('payOverlay').hidden = true;
     $id('payFrame').src = 'about:blank';
     location.replace('/cashier/online.php');              // fresh lists (and no ?open= left behind)

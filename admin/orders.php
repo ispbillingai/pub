@@ -221,9 +221,13 @@ function openPay(orderId) {
 // The payment window says when it is closed / done: back to this list, refreshed.
 window.addEventListener('message', e => {
     if (e.origin !== location.origin || !e.data || !e.data.tillPay || e.data.tillPay === 'paid') return;
+    // Only a payment window opened here, now: on a reload some browsers bring the
+    // window's last page back by themselves, and a paid order would answer "done"
+    // again and again (the page reloading in a loop).
+    if (document.getElementById('payOverlay').hidden) return;
     document.getElementById('payOverlay').hidden = true;
     document.getElementById('payFrame').src = 'about:blank';
-    location.reload();
+    location.replace(location.pathname + location.search);   // a fresh page, no window restored
 });
 </script>
 <?php endif; ?>
