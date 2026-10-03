@@ -622,7 +622,7 @@ return [
 
     // ---- Admin ----
     'admin_dashboard'     => 'Admin Dashboard',
-    'menu_management'      => 'Menu Management',
+    'menu_management'      => 'Table menu',
     'rooms_tables'        => 'Rooms & Tables',
     'users'               => 'Users',
     'reports'             => 'Reports',
@@ -691,7 +691,7 @@ return [
 
     // ---- Admin: Work points (preparation stations) ----
     'work_points'         => 'Work Points',
-    'work_points_help'    => 'Define where orders are prepared — kitchen, bar, pizza oven, grill — and the non-fiscal printer for each. Assign a menu category to a work point (in Menu Management); when an order is sent, each part prints at its own area. Anything left unassigned prints at the default kitchen printer.',
+    'work_points_help'    => 'Define where orders are prepared — kitchen, bar, pizza oven, grill — and the non-fiscal printer for each. Assign a menu category to a work point (in Table menu); when an order is sent, each part prints at its own area. Anything left unassigned prints at the default kitchen printer.',
     'add_work_point'      => 'Add Work Point',
     'edit_work_point'     => 'Edit Work Point',
     'work_point_name'     => 'Name (e.g. Bar, Pizza oven, Grill)',

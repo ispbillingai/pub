@@ -622,7 +622,7 @@ return [
 
     // ---- Admin ----
     'admin_dashboard'     => 'Pannello Amministrazione',
-    'menu_management'      => 'Gestione Menu',
+    'menu_management'      => 'Menu a tavola',
     'rooms_tables'        => 'Sale e Tavoli',
     'users'               => 'Utenti',
     'reports'             => 'Report',
@@ -691,7 +691,7 @@ return [
 
     // ---- Admin: Work points (preparation stations) ----
     'work_points'         => 'Postazioni',
-    'work_points_help'    => 'Definisci dove vengono preparati gli ordini — cucina, bar, forno pizza, griglia — e la stampante non fiscale di ciascuna. Assegna una categoria del menu a una postazione (in Gestione Menu); quando un ordine viene inviato, ogni parte viene stampata nella propria area. Ciò che resta senza postazione viene stampato sulla stampante cucina predefinita.',
+    'work_points_help'    => 'Definisci dove vengono preparati gli ordini — cucina, bar, forno pizza, griglia — e la stampante non fiscale di ciascuna. Assegna una categoria del menu a una postazione (in Menu a tavola); quando un ordine viene inviato, ogni parte viene stampata nella propria area. Ciò che resta senza postazione viene stampato sulla stampante cucina predefinita.',
     'add_work_point'      => 'Aggiungi Postazione',
     'edit_work_point'     => 'Modifica Postazione',
     'work_point_name'     => 'Nome (es. Bar, Forno pizza, Griglia)',
