@@ -167,6 +167,16 @@ include __DIR__ . '/../includes/header.php';
 </div>
 <p class="text-muted"><?= te($isTill ? 'till_menu_intro' : 'online_menu_intro') ?></p>
 
+<?php
+// Links to share: this menu to browse (and, online, the page to order from).
+require_once __DIR__ . '/../includes/menu_pdf.php';
+$shareLinks = $isTill
+    ? [['label' => t('till_menu_title'), 'url' => publicUrl('menu.php?m=till'), 'icon' => 'fa-cash-register']]
+    : [['label' => t('online_menu_title'), 'url' => publicUrl('menu.php?m=online'), 'icon' => 'fa-book-open'],
+       ['label' => t('menu_share_order_online'), 'url' => publicUrl('online.php'), 'icon' => 'fa-mobile-screen']];
+include __DIR__ . '/partials/menu_share.php';
+?>
+
 <?php if (isset($_GET['saved'])): ?>
     <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-check-circle"></i> <?= te('msg_settings_saved') ?></div>
 <?php elseif (isset($_GET['code_taken'])): ?>

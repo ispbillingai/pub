@@ -3,6 +3,9 @@
  * Customer Menu - Public Facing
  * Restaurant POS System
  * Beautiful, mobile-friendly menu with multi-language support
+ *
+ * Which menu (the links to share in each menu's admin page):
+ *   (default) Menu a tavola · ?m=online Menu online · ?m=till Menu cassa
  */
 
 require_once __DIR__ . '/config/database.php';
@@ -277,8 +280,13 @@ try {
     $stmt = $pdo->query("SELECT * FROM workspaces LIMIT 1");
     $restaurant = $stmt->fetch();
 
+    // Which menu: the tables' (default), the online one or the till's.
+    $menuKind  = in_array($_GET['m'] ?? '', ['online', 'till'], true) ? $_GET['m'] : 'table';
+    $menuWhere = ['table' => 'mc.till_only = 0 AND mc.online_only = 0', 'online' => 'mc.online_only = 1', 'till' => 'mc.till_only = 1'][$menuKind];
+    $freeItem  = (int) ($pdo->query("SELECT setting_value FROM settings WHERE setting_key = 'till_free_item'")->fetchColumn() ?: 0); // the keypad's hidden "Varie"
+
     // Get all active categories
-    $stmt = $pdo->query("SELECT * FROM menu_categories WHERE active = 1 AND till_only = 0 AND online_only = 0 ORDER BY sort_order");
+    $stmt = $pdo->query("SELECT * FROM menu_categories mc WHERE mc.active = 1 AND $menuWhere ORDER BY mc.sort_order");
     $categories = $stmt->fetchAll();
 
     // Get all menu items with categories
@@ -286,7 +294,7 @@ try {
         SELECT mi.*, mc.name as category_name, mc.id as category_id, mc.icon as category_icon
         FROM menu_items mi
         JOIN menu_categories mc ON mi.category_id = mc.id
-        WHERE mi.active = 1 AND mc.active = 1 AND mc.till_only = 0 AND mc.online_only = 0
+        WHERE mi.active = 1 AND mc.active = 1 AND $menuWhere AND mi.id <> $freeItem
         ORDER BY mc.sort_order, mi.sort_order, mi.name
     ");
     $allItems = $stmt->fetchAll();
@@ -1087,7 +1095,7 @@ $currency = __('currency');
         </button>
         <div class="lang-dropdown">
             <?php foreach ($translations as $code => $trans): ?>
-                <a href="?lang=<?= $code ?>" class="lang-option <?= $code === $lang ? 'active' : '' ?>">
+                <a href="?<?= htmlspecialchars(http_build_query(['lang' => $code] + (($menuKind ?? 'table') !== 'table' ? ['m' => $menuKind] : []))) ?>" class="lang-option <?= $code === $lang ? 'active' : '' ?>">
                     <span class="flag"><?= $trans['flag'] ?></span>
                     <span><?= $trans['lang_name'] ?></span>
                 </a>

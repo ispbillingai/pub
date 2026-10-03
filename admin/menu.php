@@ -266,6 +266,13 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php
+// Link to share: this menu, for the guests.
+require_once __DIR__ . '/../includes/menu_pdf.php';
+$shareLinks = [['label' => t('menu_management'), 'url' => publicUrl('menu.php'), 'icon' => 'fa-utensils']];
+include __DIR__ . '/partials/menu_share.php';
+?>
+
 <?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 16px; border-radius: 8px;">
         <i class="fas fa-check-circle"></i>

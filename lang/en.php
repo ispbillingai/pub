@@ -1462,4 +1462,12 @@ return [
 
     // ---- Cassa: online orders open in place ----
     'cash_online_toggle' => '{n} to collect — click to see them below',
+
+    // ---- Menus: links to share ----
+    'menu_share_title' => 'Link to share',
+    'menu_share_copy' => 'Copy',
+    'menu_share_copied' => 'Copied!',
+    'menu_share_open' => 'Open',
+    'menu_share_qr' => 'Click to download the QR',
+    'menu_share_order_online' => 'Order online (page to order from)',
 ];
