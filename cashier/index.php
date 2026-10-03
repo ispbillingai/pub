@@ -89,16 +89,10 @@ try {
 }
 
 // Online customers' orders waiting at the till (their own panel).
-// Online customers' orders still to collect: they open below the banner, on this page.
-$onlineOrders = $pdo->query("
-    SELECT o.id, o.order_number, o.customer_name, o.customer_phone, o.total, o.created_at,
-           (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = o.id AND oi.status <> 'cancelled') AS items_count,
-           (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id AND oi.status IN ('pending', 'in_kitchen')) AS cooking
-    FROM orders o
-    WHERE o.channel = 'online' AND o.status NOT IN ('paid', 'cancelled')
-    ORDER BY o.created_at
-")->fetchAll();
-$onlineOpen = count($onlineOrders);
+// Online customers' orders still to collect: their cards open below the banner, on this page.
+require_once __DIR__ . '/../includes/online_order.php';
+$onlineOrders = onlineOpenOrdersWithItems();
+$onlineOpen   = count($onlineOrders);
 
 $pageTitle = t('nav_cashier');
 
@@ -146,9 +140,6 @@ include __DIR__ . '/../includes/header.php';
 .oo-toggle .chev { transition: transform .2s; }
 .oo-toggle.open .chev { transform: rotate(90deg); }
 .oo-panel { margin-top: -6px; }
-.oo-state { font-size:.78rem; font-weight:700; padding:4px 10px; border-radius:999px; white-space:nowrap; }
-.oo-state.cooking { background:#dbeafe; color:#1e40af; }
-.oo-state.ready { background:#dcfce7; color:#166534; }
 .pay-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 2vh 2vw; }
 .pay-overlay[hidden] { display: none; }
 .pay-overlay iframe { width: min(1200px, 96vw); height: 96vh; border: 0; border-radius: 14px; background: var(--bg, #f5f6fa); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
@@ -162,30 +153,9 @@ include __DIR__ . '/../includes/header.php';
         <i class="fas fa-chevron-right text-muted chev"></i>
     </button>
     <div class="oo-panel" id="ooPanel" hidden>
-        <?php if ($onlineOrders): ?>
-        <div style="overflow-x:auto;">
-        <table class="data-table">
-            <thead><tr><th><?= te('time') ?></th><th><?= te('order_no') ?></th><th><?= te('cust_name') ?></th><th><?= te('cust_phone') ?></th>
-                <th><?= te('ss_items') ?></th><th><?= te('status') ?></th><th><?= te('total') ?></th><th></th></tr></thead>
-            <tbody>
-            <?php foreach ($onlineOrders as $oo): ?>
-                <tr>
-                    <td style="white-space:nowrap;"><?= date('d/m H:i', strtotime($oo['created_at'])) ?></td>
-                    <td><?= htmlspecialchars($oo['order_number']) ?></td>
-                    <td><strong><?= htmlspecialchars($oo['customer_name'] ?: '—') ?></strong></td>
-                    <td style="white-space:nowrap;"><?= htmlspecialchars($oo['customer_phone'] ?: '—') ?></td>
-                    <td><?= (int) $oo['items_count'] ?></td>
-                    <td><span class="oo-state <?= $oo['cooking'] ? 'cooking' : 'ready' ?>"><?= te($oo['cooking'] ? 'cash_online_st_cooking' : 'cash_online_st_ready') ?></span></td>
-                    <td><strong class="text-primary"><?= formatCurrency($oo['total']) ?></strong></td>
-                    <td><button type="button" class="btn btn-sm btn-success" onclick="openPay(<?= (int) $oo['id'] ?>)"><i class="fas fa-money-bill"></i> <?= te('cash_online_collect') ?></button></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+        <div style="padding:16px 18px 2px;">
+            <?php $ooCards = $onlineOrders; include __DIR__ . '/partials/online_order_cards.php'; ?>
         </div>
-        <?php else: ?>
-            <p class="text-muted" style="padding:16px 18px;margin:0;"><?= te('cash_online_none') ?></p>
-        <?php endif; ?>
     </div>
 </div>
 <div class="pay-overlay" id="payOverlay" hidden><iframe id="payFrame" title="<?= te('process_payment') ?>"></iframe></div>

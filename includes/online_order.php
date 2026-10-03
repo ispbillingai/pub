@@ -328,6 +328,28 @@ function onlineOpenOrder(array $customer): ?array
     return $id ? getOrderById((int) $id) : null;
 }
 
+/**
+ * The online orders still to collect, oldest first, with the customer's
+ * details and their dishes ('items'), and 'ready' when every dish is ready
+ * (cards in Ordini Cassa and on the Cassa page: cashier/partials/online_order_cards.php).
+ */
+function onlineOpenOrdersWithItems(): array
+{
+    $stmt = getDBConnection()->prepare("
+        SELECT o.*, c.address, c.street_number, c.landline, c.intolerances
+        FROM orders o LEFT JOIN online_customers c ON c.id = o.online_customer_id
+        WHERE o.channel = ? AND o.status NOT IN ('paid', 'cancelled')
+        ORDER BY o.created_at ASC
+    ");
+    $stmt->execute([ONLINE_CHANNEL]);
+    $orders = $stmt->fetchAll();
+    foreach ($orders as &$o) {
+        $o['items'] = array_values(array_filter(getOrderItems((int) $o['id']), fn($i) => $i['status'] !== 'cancelled'));
+        $o['ready'] = $o['items'] && !array_filter($o['items'], fn($i) => !in_array($i['status'], ['ready', 'served'], true));
+    }
+    return $orders;
+}
+
 /** "ONLINE · Mario R." — what the kitchen, the slips and the till show instead of a table. */
 function onlineOrderLabel(array $customer): string
 {
