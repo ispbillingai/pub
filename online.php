@@ -24,6 +24,10 @@ $L = [
     'self_custom'   => t('self_custom_label'),
     'self_fixed'    => t('self_custom_fixed'),
     'self_add_basket' => t('self_add_basket'),
+    'custom_btn'    => t('online_customize'),
+    'custom_edit'   => t('online_customize_edit'),
+    'custom_save'   => t('online_customize_save'),
+    'added_custom'  => t('online_added_custom'),
     'self_dishes'   => t('self_cart_dishes'),
     'self_note_ph'  => t('self_note_ph'),
     'self_resend'   => t('self_resend'),
@@ -154,6 +158,9 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .pick .comp-img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex: 0 0 auto; }
 .hint-small { font-size: .8rem; color: var(--muted); margin: 4px 0 0; }
 .custom-qty { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-weight: 700; }
+#customSheet { z-index: 11; }   /* over the cart when a dish is changed from there */
+.custom-link { background: none; border: 0; padding: 4px 0 0; color: var(--p); font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; display: block; }
+.cart-line .edit-link { background: none; border: 0; padding: 4px 0 0; color: var(--p); font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; }
 .video-sheet video { width: 100%; max-height: 60vh; border-radius: 12px; background: #000; }
 .ready-banner { position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 30; background: var(--ok); color: #fff; border-radius: 16px; padding: 16px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; gap: 14px; align-items: center; }
 .ready-banner i { font-size: 1.8rem; }
@@ -531,7 +538,7 @@ function renderShop() {
             ? `<button type="button" class="shop-thumb ${i.video ? '' : 'novideo'}" ${i.video ? `onclick="openDishVideo(${i.id})" aria-label="Video"` : 'tabindex="-1"'}>
                    ${i.image ? `<img src="${esc(i.image)}" alt="" loading="lazy">` : ''}<span class="pl"><i class="fas fa-play"></i></span></button>` : '';
         return `<div class="shop-item">${thumb}
-            <div class="info"><strong>${esc(i.name)}</strong>${i.description ? `<small>${esc(i.description)}</small>` : ''}${i.components?.length ? `<small class="custom"><i class="fas fa-sliders"></i> ${esc(L.self_custom)}</small>` : ''}</div>
+            <div class="info"><strong>${esc(i.name)}</strong>${i.description ? `<small>${esc(i.description)}</small>` : ''}${i.components?.length ? `<button type="button" class="custom-link" onclick="openCustomize(${i.id})"><i class="fas fa-sliders"></i> ${esc(L.custom_btn)}</button>` : ''}</div>
             <div class="price">${esc(i.price)}</div>
             <div class="qty">${q ? `<button onclick="itemMinus(${i.id})" aria-label="-">−</button><span>${q}</span>` : ''}<button class="plus" onclick="itemPlus(${i.id})" aria-label="+">+</button></div>
         </div>`; }).join('')}</div>` : `<div class="card"><div class="empty"><?= te('no_items_cat') ?></div></div>`;
@@ -548,9 +555,12 @@ function openDishVideo(id) {
     v.play().catch(() => {});
 }
 function closeDishVideo() { const v = $('dishVideo'); v.pause(); v.removeAttribute('src'); v.load(); $('videoSheet').classList.remove('on'); }
+// "+": the dish goes in the cart as it is; changing it (ingredients off / extras)
+// comes after, with "Personalizza" on the dish or "Modifica" in the cart.
 function itemPlus(id) {
-    if (itemOf(id)?.components?.length) { openCustomize(id); return; }
     addLine(id); cartChanged();
+    const it = itemOf(id);
+    if (it?.components?.length) toast(L.added_custom.replace('{name}', it.name));
 }
 function itemMinus(id) {
     for (let i = cart.length - 1; i >= 0; i--) if (cart[i].id === id) { lineInc(i, -1); return; }
@@ -569,15 +579,18 @@ function cartChanged() {
 }
 function cartSum() { return cartItems().reduce((s, l) => s + l.qty * lineUnit(l), 0); }
 
-let customId = null, customQty = 1;
-function openCustomize(id) {
+// "Personalizza" (a new, changed dish) or "Modifica" on a cart line (editIdx: that line).
+let customId = null, customQty = 1, customEditIdx = null;
+function openCustomize(id, editIdx = null) {
     const it = itemOf(id);
     if (!it) return;
-    customId = id; customQty = 1;
+    const line = editIdx !== null ? cart[editIdx] : null;
+    customId = id; customEditIdx = line ? editIdx : null; customQty = line ? line.qty : 1;
+    const on = c => line ? (c.default ? !(line.remove || []).includes(c.id) : (line.add || []).includes(c.id)) : c.default;
     $('customTitle').textContent = it.name;
     $('customList').innerHTML = it.components.map(c => `
         <label class="pick">
-            <input type="checkbox" data-cid="${c.id}" data-default="${c.default ? 1 : 0}" ${c.default ? 'checked' : ''} ${c.default && !c.removable ? 'disabled' : ''} onchange="customPrice()">
+            <input type="checkbox" data-cid="${c.id}" data-default="${c.default ? 1 : 0}" ${on(c) ? 'checked' : ''} ${c.default && !c.removable ? 'disabled' : ''} onchange="customPrice()">
             ${c.image ? `<img class="comp-img" src="${esc(c.image)}" alt="" loading="lazy">` : ''}
             <span>${esc(c.name)}${c.default && !c.removable ? ` <small class="hint-small">(${esc(L.self_fixed)})</small>` : ''}</span>
             <span class="price">${esc(c.extra_fmt)}</span>
@@ -598,11 +611,22 @@ function customQtyStep(d) { customQty = Math.max(1, Math.min(20, customQty + d))
 function customPrice() {
     const { add } = customChoice();
     $('customQty').textContent = customQty;
-    $('customAddBtn').textContent = L.self_add_basket.replace('{price}', money(customQty * lineUnit({ id: customId, add })));
+    $('customAddBtn').textContent = (customEditIdx !== null ? L.custom_save : L.self_add_basket).replace('{price}', money(customQty * lineUnit({ id: customId, add })));
 }
 function customAdd() {
     const { add, remove } = customChoice();
-    addLine(customId, add, remove, customQty);
+    if (customEditIdx !== null && cart[customEditIdx]) {
+        // Change that cart line; if it now equals another line, they become one.
+        const line = cart[customEditIdx];
+        const key = customId + '|' + [...add].sort().join('.') + '|' + [...remove].sort().join('.');
+        const twin = cart.find((l, i) => i !== customEditIdx && l.key === key);
+        if (twin) { twin.qty = Math.min(20, twin.qty + customQty); cart.splice(customEditIdx, 1); }
+        else Object.assign(line, { key, add, remove, qty: customQty });
+        saveCart();
+    } else {
+        addLine(customId, add, remove, customQty);
+    }
+    customEditIdx = null;
     $('customSheet').classList.remove('on');
     cartChanged();
 }
@@ -618,7 +642,7 @@ function renderCartLines() {
     if (!lines.length) { $('cartSheet').classList.remove('on'); return; }
     $('cartLines').innerHTML = lines.map(l => `
         <div class="cart-line">
-            <div class="top"><strong>${esc(l.item.name)}${lineMods(l) ? `<small class="mods">${esc(lineMods(l))}</small>` : ''}</strong>
+            <div class="top"><strong>${esc(l.item.name)}${lineMods(l) ? `<small class="mods">${esc(lineMods(l))}</small>` : ''}${l.item.components?.length ? `<button type="button" class="edit-link" onclick="openCustomize(${l.id}, ${l.idx})"><i class="fas fa-pen"></i> ${esc(L.custom_edit)}</button>` : ''}</strong>
                 <span class="lp">${money(l.qty * lineUnit(l))}</span>
                 <div class="qty"><button onclick="lineInc(${l.idx}, -1)">−</button><span>${l.qty}</span><button class="plus" onclick="lineInc(${l.idx}, 1)">+</button></div></div>
             <input maxlength="200" placeholder="${esc(L.self_note_ph)}" value="${esc(l.note || '')}" oninput="cart[${l.idx}].note = this.value; saveCart()">

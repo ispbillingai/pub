@@ -1470,4 +1470,10 @@ return [
     'menu_share_open' => 'Open',
     'menu_share_qr' => 'Click to download the QR',
     'menu_share_order_online' => 'Order online (page to order from)',
+
+    // ---- Online ordering: add first, customise after ----
+    'online_customize' => 'Customise',
+    'online_customize_edit' => 'Change',
+    'online_customize_save' => 'Save · {price}',
+    'online_added_custom' => '{name} added! You can customise it from the basket.',
 ];
