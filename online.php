@@ -245,6 +245,8 @@ $footHtml = ob_get_clean(); ?>
             </div>
             <label for="rgLandline"><?= te('online_landline') ?> <small class="opt">(<?= te('self_consent_optional') ?>)</small></label>
             <input id="rgLandline" type="tel" inputmode="tel" maxlength="25" placeholder="081 123 4567">
+            <label for="rgBirth"><?= te('online_birth_date') ?> <small class="opt">(<?= te('online_birth_hint') ?>)</small></label>
+            <input id="rgBirth" type="date" min="1900-01-01" max="<?= date('Y-m-d') ?>" autocomplete="bday">
             <label for="rgIntol"><?= te('online_intolerances') ?> <small class="opt">(<?= te('self_consent_optional') ?>)</small></label>
             <textarea id="rgIntol" maxlength="500" placeholder="<?= te('online_intolerances_ph') ?>"></textarea>
             <label class="consent">
@@ -453,7 +455,7 @@ function formData(mode) {
     if (mode === 'login') return { mode, country: $('lgCountry').value, mobile: $('lgMobile').value };
     return { mode, first_name: $('rgFirst').value, last_name: $('rgLast').value, address: $('rgAddress').value,
              street_number: $('rgNumber').value, country: $('rgCountry').value, mobile: $('rgMobile').value,
-             landline: $('rgLandline').value, intolerances: $('rgIntol').value, consent: $('rgConsent').checked };
+             landline: $('rgLandline').value, intolerances: $('rgIntol').value, birth_date: $('rgBirth').value, consent: $('rgConsent').checked };
 }
 async function requestCode(e, mode) {
     e.preventDefault();

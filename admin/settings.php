@@ -680,13 +680,14 @@ $mcSrc = ['online' => ['fa-globe', 'mc_src_online'], 'cassa' => ['fa-cash-regist
                 <input type="search" class="form-control" id="mcSearch" placeholder="<?= te('mc_search') ?>" style="max-width:260px;" oninput="mcFilter()">
                 <button type="button" class="btn btn-sm btn-outline" onclick="mcAll(true)"><?= te('mc_select_all') ?></button>
                 <button type="button" class="btn btn-sm btn-outline" onclick="mcAll(false)"><?= te('mc_select_none') ?></button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="mcBirthdays()" title="<?= te('mc_birthdays_hint') ?>">🎂 <?= te('mc_birthdays') ?></button>
             </div>
             <div class="mc-list" id="mcList">
                 <?php foreach ($mcRecipients as $r):
                     $blocked = in_array($r['consent'], ['declined', 'revoked'], true); ?>
-                    <label class="mc-row <?= $blocked ? 'off' : '' ?>" data-q="<?= htmlspecialchars(mb_strtolower($r['name'] . ' ' . $r['phone'])) ?>" title="<?= $blocked ? te('mc_blocked') : '' ?>">
+                    <label class="mc-row <?= $blocked ? 'off' : '' ?>" data-q="<?= htmlspecialchars(mb_strtolower($r['name'] . ' ' . $r['phone'])) ?>" data-bmonth="<?= $r['birth_date'] ? (int) date('n', strtotime($r['birth_date'])) : '' ?>" title="<?= $blocked ? te('mc_blocked') : '' ?>">
                         <input type="checkbox" name="mc_phones[]" value="<?= htmlspecialchars($r['phone']) ?>" <?= $blocked ? 'disabled' : '' ?> onchange="mcCountUpdate()">
-                        <span class="who"><strong><?= htmlspecialchars($r['name'] ?: '—') ?></strong><small><?= htmlspecialchars($r['phone']) ?></small></span>
+                        <span class="who"><strong><?= htmlspecialchars($r['name'] ?: '—') ?><?php if ($r['birth_date']): ?> <span style="font-weight:400;font-size:.85rem;" title="<?= te('online_birth_date') ?>">🎂 <?= date('d/m', strtotime($r['birth_date'])) ?></span><?php endif; ?></strong><small><?= htmlspecialchars($r['phone']) ?></small></span>
                         <span class="mc-tags">
                             <?php foreach ($r['sources'] as $src): ?><span class="badge badge-info"><i class="fas <?= $mcSrc[$src][0] ?>"></i> <?= te($mcSrc[$src][1]) ?></span><?php endforeach; ?>
                             <?= consentCellHtml($r['phone']) ?>
@@ -732,6 +733,12 @@ function mcFilter() {
 // "Select all" picks the customers on screen (after a search: the ones found) who can receive it.
 function mcAll(on) {
     document.querySelectorAll('#mcList .mc-row').forEach(r => { const b = r.querySelector('input'); if (!r.hidden && !b.disabled) b.checked = on; });
+    mcCountUpdate();
+}
+// The customers whose birthday is this month (and who can receive it): picked, the others not.
+function mcBirthdays() {
+    const m = String(new Date().getMonth() + 1);
+    document.querySelectorAll('#mcList .mc-row').forEach(r => { const b = r.querySelector('input'); if (!b.disabled) b.checked = r.dataset.bmonth === m; });
     mcCountUpdate();
 }
 function mcSubmit(form) {

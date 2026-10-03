@@ -1506,4 +1506,11 @@ return [
     'mc_col_expires' => 'Expires',
     'mc_col_used' => 'Used',
     'mc_expired' => 'Expired',
+
+    // ---- Customers: date of birth ----
+    'online_birth_date' => 'Date of birth',
+    'online_birth_hint' => 'optional: for birthday wishes and a gift',
+    'online_err_birth' => 'The date of birth is not valid.',
+    'mc_birthdays' => 'This month\'s birthdays',
+    'mc_birthdays_hint' => 'Select the customers whose birthday is this month (for wishes with a gift coupon)',
 ];

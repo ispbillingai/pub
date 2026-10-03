@@ -123,7 +123,7 @@ const MANUAL_COUPON_RULE = 'manual';
 
 /**
  * Everyone a manual coupon can go to, one row per phone: ['phone', 'name',
- * 'sources' => ['online'|'cassa'|'tavoli'], 'consent' => status]. Online and
+ * 'sources' => ['online'|'cassa'|'tavoli'], 'consent' => status, 'birth_date']. Online and
  * till customers (active ones), and table guests who left their number.
  */
 function couponRecipients(): array
@@ -131,14 +131,15 @@ function couponRecipients(): array
     require_once __DIR__ . '/consent.php';
     $pdo = getDBConnection();
     $out = [];
-    $add = function (?string $phone, ?string $name, string $src) use (&$out) {
+    $add = function (?string $phone, ?string $name, string $src, ?string $birth = null) use (&$out) {
         if (!$phone || !preg_match('/^\+\d{6,16}$/', $phone)) return;
-        $out[$phone] ??= ['phone' => $phone, 'name' => '', 'sources' => []];
+        $out[$phone] ??= ['phone' => $phone, 'name' => '', 'sources' => [], 'birth_date' => ''];
         if ($out[$phone]['name'] === '' && trim((string) $name) !== '') $out[$phone]['name'] = trim((string) $name);
+        if ($out[$phone]['birth_date'] === '' && $birth) $out[$phone]['birth_date'] = $birth;
         if (!in_array($src, $out[$phone]['sources'], true)) $out[$phone]['sources'][] = $src;
     };
-    foreach ($pdo->query("SELECT mobile, CONCAT_WS(' ', first_name, last_name) AS name FROM online_customers WHERE active = 1") as $r) $add($r['mobile'], $r['name'], 'online');
-    foreach ($pdo->query("SELECT phone, CONCAT_WS(' ', first_name, last_name) AS name FROM till_customers WHERE active = 1 AND phone IS NOT NULL") as $r) $add($r['phone'], $r['name'], 'cassa');
+    foreach ($pdo->query("SELECT mobile, CONCAT_WS(' ', first_name, last_name) AS name, birth_date FROM online_customers WHERE active = 1") as $r) $add($r['mobile'], $r['name'], 'online', $r['birth_date']);
+    foreach ($pdo->query("SELECT phone, CONCAT_WS(' ', first_name, last_name) AS name, birth_date FROM till_customers WHERE active = 1 AND phone IS NOT NULL") as $r) $add($r['phone'], $r['name'], 'cassa', $r['birth_date']);
     foreach ($pdo->query("
         SELECT phone, MAX(name) AS name FROM (
             SELECT o.customer_phone AS phone, o.customer_name AS name FROM orders o

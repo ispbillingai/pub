@@ -34,6 +34,23 @@ function userMayUseOrder($orderId) {
 }
 
 /**
+ * A date of birth as typed (YYYY-MM-DD from a date field): the date if it is a
+ * real one between 1900 and today, '' when empty, null when not valid.
+ */
+function birthDateValue($v) {
+    $v = trim((string) $v);
+    if ($v === '') return '';
+    $d = DateTime::createFromFormat('!Y-m-d', $v);
+    if (!$d || $d->format('Y-m-d') !== $v || $v < '1900-01-01' || $v > date('Y-m-d')) return null;
+    return $v;
+}
+
+/** "12/05/1990" for a stored date of birth, '' when none. */
+function birthDateLabel($v) {
+    return $v ? date('d/m/Y', strtotime($v)) : '';
+}
+
+/**
  * Check if user is logged in
  */
 function isLoggedIn() {

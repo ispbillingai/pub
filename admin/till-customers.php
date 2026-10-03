@@ -22,10 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $f       = fn($k, $max) => mb_substr(trim((string) ($_POST[$k] ?? '')), 0, $max);
         $country = strtoupper($f('country', 2)) ?: 'IT';
         $phone   = $f('phone', 20) !== '' ? internationalPhone($country, $f('phone', 20)) : null;
-        if ($f('phone', 20) === '' || $phone) {
-            $pdo->prepare("UPDATE till_customers SET first_name = ?, last_name = ?, address = ?, street_number = ?, phone = ?, country = ? WHERE id = ?")
+        $birth   = birthDateValue($_POST['birth_date'] ?? '');
+        if (($f('phone', 20) === '' || $phone) && $birth !== null) {
+            $pdo->prepare("UPDATE till_customers SET first_name = ?, last_name = ?, address = ?, street_number = ?, phone = ?, country = ?, birth_date = ? WHERE id = ?")
                 ->execute([$f('first_name', 60) ?: null, $f('last_name', 60) ?: null, $f('address', 150) ?: null, $f('street_number', 15) ?: null,
-                           $phone, $phone ? $country : null, $id]);
+                           $phone, $phone ? $country : null, $birth ?: null, $id]);
             $ok = true;
         }
     } elseif ($a === 'send_qr') {
@@ -71,11 +72,11 @@ if (($_GET['export'] ?? '') === 'csv') {
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // Excel: UTF-8
     fputcsv($out, [t('till_cust_code'), t('self_name'), t('self_surname'), t('online_address'), t('online_street_number'), t('cust_phone'),
-                   t('till_cust_sales'), t('total'), t('till_cust_last_sale'), t('online_col_registered'), t('online_col_active'), t('till_cust_no_receipt')], ';');
+                   t('till_cust_sales'), t('total'), t('till_cust_last_sale'), t('online_col_registered'), t('online_col_active'), t('till_cust_no_receipt'), t('online_birth_date')], ';');
     foreach ($rows as $r) {
         fputcsv($out, [$r['code'], $r['first_name'], $r['last_name'], $r['address'], $r['street_number'], $r['phone'], $r['sales'],
                        number_format((float) $r['spent'], 2, ',', ''), $r['last_sale'] ? date('d/m/Y H:i', strtotime($r['last_sale'])) : '',
-                       date('d/m/Y H:i', strtotime($r['created_at'])), $r['active'] ? t('yes') : t('no'), $r['no_receipt'] ? t('yes') : t('no')], ';');
+                       date('d/m/Y H:i', strtotime($r['created_at'])), $r['active'] ? t('yes') : t('no'), $r['no_receipt'] ? t('yes') : t('no'), birthDateLabel($r['birth_date'])], ';');
     }
     exit;
 }
@@ -142,7 +143,7 @@ include __DIR__ . '/../includes/header.php';
                 <td><span class="tc-code"><?= htmlspecialchars((string) $r['code']) ?></span>
                     <?php if (!$r['active']): ?><br><span class="badge badge-danger"><?= te('online_disabled') ?></span><?php endif; ?></td>
                 <td><a href="<?= htmlspecialchars(tillCustomerQrUrl($r, true)) ?>" title="<?= te('till_cust_qr_download') ?>"><img class="tc-qr" src="<?= htmlspecialchars(tillCustomerQrUrl($r)) ?>" alt="QR <?= htmlspecialchars((string) $r['code']) ?>" loading="lazy"></a></td>
-                <td><strong><?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name']) ?: '—') ?></strong></td>
+                <td><strong><?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name']) ?: '—') ?></strong><?php if (!empty($r['birth_date'])): ?><br><small class="text-muted" title="<?= te('online_birth_date') ?>">🎂 <?= birthDateLabel($r['birth_date']) ?></small><?php endif; ?></td>
                 <td><?= htmlspecialchars(trim(($r['address'] ?? '') . ($r['street_number'] ? ', ' . $r['street_number'] : '')) ?: '—') ?></td>
                 <td class="flag-font" style="white-space:nowrap;"><?= $r['phone'] ? countryFlag($r['country'] ?: 'IT') . ' ' . htmlspecialchars($r['phone']) : '—' ?></td>
                 <td style="text-align:right;white-space:nowrap;"><?= (int) $r['sales'] ?><?php if ((float) $r['spent'] > 0): ?> <span class="text-muted">· <?= formatCurrency($r['spent']) ?></span><?php endif; ?></td>
@@ -183,6 +184,7 @@ include __DIR__ . '/../includes/header.php';
                             <?php foreach ($countries as $pc): ?><option value="<?= $pc['iso'] ?>" <?= $pc['iso'] === ($r['country'] ?: 'IT') ? 'selected' : '' ?>><?= $pc['flag'] ?> <?= $pc['dial'] ?></option><?php endforeach; ?>
                         </select>
                         <input name="phone" type="tel" class="form-control" maxlength="20" value="<?= htmlspecialchars($r['phone'] ? nationalPhone($r['country'] ?: 'IT', $r['phone']) : '') ?>" placeholder="<?= te('cust_phone') ?>">
+                        <input name="birth_date" type="date" class="form-control" min="1900-01-01" max="<?= date('Y-m-d') ?>" value="<?= htmlspecialchars((string) $r['birth_date']) ?>" title="<?= te('online_birth_date') ?>">
                         <button class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save_settings') ?></button>
                     </form>
                 </td>

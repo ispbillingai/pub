@@ -234,7 +234,9 @@ function onlineRequestCode(array $in): array
             'address' => $f('address', 150), 'street_number' => $f('street_number', 15),
             'landline' => $f('landline', 25), 'intolerances' => $f('intolerances', 500),
             'consent' => !empty($in['consent']),
+            'birth_date' => birthDateValue($in['birth_date'] ?? ''),   // optional: birthday wishes and a gift
         ];
+        if ($data['birth_date'] === null) return ['error' => 'online_err_birth'];
         if ($data['first_name'] === '' || $data['last_name'] === '' || $data['address'] === '' || $data['street_number'] === '') {
             return ['error' => 'online_err_fields'];
         }
@@ -293,12 +295,12 @@ function onlineVerifyCode(string $code): array
     if ($r['mode'] === 'register' && !$customer) {
         $pdo->prepare("
             INSERT INTO online_customers (first_name, last_name, address, street_number, mobile, mobile_country, landline,
-                                          intolerances, marketing_consent, registration_ip)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                          intolerances, birth_date, marketing_consent, registration_ip)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ")->execute([
             $r['first_name'], $r['last_name'], $r['address'], $r['street_number'], $r['mobile'], $r['country'],
             $r['landline'] !== '' ? $r['landline'] : null, $r['intolerances'] !== '' ? $r['intolerances'] : null,
-            $r['consent'] ? 1 : 0, onlineClientIp(),
+            ($r['birth_date'] ?? '') !== '' ? $r['birth_date'] : null, $r['consent'] ? 1 : 0, onlineClientIp(),
         ]);
         $customer = onlineCustomerById((int) $pdo->lastInsertId());
         onlineLogAccess((int) $customer['id'], 'register');

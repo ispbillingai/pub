@@ -152,16 +152,18 @@ function tillOrderCustomer(array $order): array
     $c = [
         'first_name' => (string) strtok($name, ' '), 'last_name' => trim((string) substr($name, strlen((string) strtok($name, ' ')))),
         'address' => (string) ($order['customer_address'] ?? ''), 'street_number' => (string) ($order['customer_street_number'] ?? ''),
-        'country' => (string) ($order['customer_country'] ?: 'IT'), 'phone' => '',
+        'country' => (string) ($order['customer_country'] ?: 'IT'), 'phone' => '', 'birth_date' => '',
     ];
-    if (!empty($order['online_customer_id']) && $c['address'] === '' && ($oc = onlineCustomerById((int) $order['online_customer_id']))) {
+    $oc = !empty($order['online_customer_id']) ? onlineCustomerById((int) $order['online_customer_id']) : null;
+    if ($oc && $c['address'] === '') {
         $c = ['first_name' => $oc['first_name'], 'last_name' => $oc['last_name'], 'address' => $oc['address'],
-              'street_number' => $oc['street_number'], 'country' => $oc['mobile_country'] ?: 'IT', 'phone' => ''];
+              'street_number' => $oc['street_number'], 'country' => $oc['mobile_country'] ?: 'IT', 'phone' => '', 'birth_date' => ''];
         $order['customer_phone'] = $oc['mobile'];
     }
     if (!empty($order['customer_phone'])) $c['phone'] = nationalPhone($c['country'], $order['customer_phone']);
     $tc = !empty($order['till_customer_id']) ? tillCustomerById((int) $order['till_customer_id']) : null;
     $c['code'] = $tc['code'] ?? '';
+    $c['birth_date'] = (string) ($tc['birth_date'] ?? $oc['birth_date'] ?? '');
     return $c;
 }
 
@@ -179,6 +181,8 @@ function tillSaveCustomer(int $orderId, array $in): array
     $country = strtoupper($f('country', 2)) ?: 'IT';
     $phone   = null;
     if ($f('phone', 20) !== '' && !($phone = internationalPhone($country, $f('phone', 20)))) return ['error' => 'cust_bad_phone'];
+    $birth = birthDateValue($in['birth_date'] ?? '');
+    if ($birth === null) return ['error' => 'online_err_birth'];
     getDBConnection()->prepare("
         UPDATE orders SET customer_name = ?, customer_address = ?, customer_street_number = ?, customer_country = ?, customer_phone = ? WHERE id = ?
     ")->execute([$name !== '' ? $name : null, $f('address', 150) ?: null, $f('street_number', 15) ?: null, $phone ? $country : null, $phone, $orderId]);
@@ -186,6 +190,7 @@ function tillSaveCustomer(int $orderId, array $in): array
     $tc = $order['channel'] === TILL_CHANNEL ? tillCustomerKeep(getOrderById($orderId), [
         'first_name' => $f('first_name', 60), 'last_name' => $f('last_name', 60), 'address' => $f('address', 150),
         'street_number' => $f('street_number', 15), 'phone' => $phone, 'country' => $phone ? $country : null,
+        'birth_date' => $birth,
     ]) : null;
     return ['ok' => true, 'code' => $tc['code'] ?? ''];
 }
@@ -238,12 +243,15 @@ function tillCustomerKeep(array $order, array $d): ?array
         $st->execute([$d['phone']]);
         $tc = $st->fetch() ?: null;
     }
-    $vals = [$d['first_name'] ?: null, $d['last_name'] ?: null, $d['address'] ?: null, $d['street_number'] ?: null, $d['phone'] ?: null, $d['country'] ?: null];
+    $vals = [$d['first_name'] ?: null, $d['last_name'] ?: null, $d['address'] ?: null, $d['street_number'] ?: null, $d['phone'] ?: null, $d['country'] ?: null,
+             ($d['birth_date'] ?? '') ?: null];
     if ($tc) {
-        $pdo->prepare("UPDATE till_customers SET first_name = ?, last_name = ?, address = ?, street_number = ?, phone = ?, country = ? WHERE id = ?")
+        // An empty date of birth keeps the one already known.
+        $pdo->prepare("UPDATE till_customers SET first_name = ?, last_name = ?, address = ?, street_number = ?, phone = ?, country = ?,
+                       birth_date = COALESCE(?, birth_date) WHERE id = ?")
             ->execute([...$vals, (int) $tc['id']]);
     } else {
-        $pdo->prepare("INSERT INTO till_customers (code, first_name, last_name, address, street_number, phone, country) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        $pdo->prepare("INSERT INTO till_customers (code, first_name, last_name, address, street_number, phone, country, birth_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
             ->execute([tillNewCustomerCode(), ...$vals]);
         $id = (int) $pdo->lastInsertId();
         $tc = ['id' => $id];
@@ -378,10 +386,11 @@ function tillCustomerLookup(string $country, string $phone): ?array
     $st->execute([$e164]);
     if ($tc = $st->fetch()) {
         return ['first_name' => (string) $tc['first_name'], 'last_name' => (string) $tc['last_name'], 'address' => (string) $tc['address'],
-                'street_number' => (string) $tc['street_number'], 'code' => $tc['code']];
+                'street_number' => (string) $tc['street_number'], 'code' => $tc['code'], 'birth_date' => (string) $tc['birth_date']];
     }
     if ($oc = onlineCustomerByMobile($e164)) {
-        return ['first_name' => $oc['first_name'], 'last_name' => $oc['last_name'], 'address' => $oc['address'], 'street_number' => $oc['street_number']];
+        return ['first_name' => $oc['first_name'], 'last_name' => $oc['last_name'], 'address' => $oc['address'], 'street_number' => $oc['street_number'],
+                'birth_date' => (string) $oc['birth_date']];
     }
     $stmt = getDBConnection()->prepare("SELECT customer_name, customer_address, customer_street_number FROM orders
                                         WHERE customer_phone = ? AND customer_name IS NOT NULL ORDER BY id DESC LIMIT 1");

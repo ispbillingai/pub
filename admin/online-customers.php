@@ -69,12 +69,12 @@ if (($_GET['export'] ?? '') === 'csv') {
     fwrite($out, "\xEF\xBB\xBF"); // Excel: UTF-8
     fputcsv($out, [t('online_col_registered'), t('self_name'), t('self_surname'), t('online_address'), t('online_street_number'),
                    t('online_mobile'), t('online_landline'), t('online_intolerances'), t('consent_col'), t('online_col_reg_ip'),
-                   t('online_col_last_seen'), t('online_col_last_ip'), t('orders'), t('online_col_active')], ';');
+                   t('online_col_last_seen'), t('online_col_last_ip'), t('orders'), t('online_col_active'), t('online_birth_date')], ';');
     foreach ($rows as $r) {
         fputcsv($out, [date('d/m/Y H:i', strtotime($r['created_at'])), $r['first_name'], $r['last_name'], $r['address'], $r['street_number'],
                        $r['mobile'], $r['landline'], $r['intolerances'], t('consent_st_' . consentStatusOf($r['mobile'])), $r['registration_ip'],
                        $r['last_seen_at'] ? date('d/m/Y H:i', strtotime($r['last_seen_at'])) : '', $r['last_ip'], $r['orders_count'],
-                       $r['active'] ? t('yes') : t('no')], ';');
+                       $r['active'] ? t('yes') : t('no'), birthDateLabel($r['birth_date'])], ';');
     }
     exit;
 }
@@ -235,7 +235,7 @@ include __DIR__ . '/../includes/header.php';
                 <tr<?= $r['active'] ? '' : ' style="opacity:.55;"' ?>>
                     <td style="white-space:nowrap;"><strong><?= date('d/m/Y', strtotime($r['created_at'])) ?></strong>
                         <span class="text-muted"><?= date('H:i', strtotime($r['created_at'])) ?></span></td>
-                    <td><strong><?= htmlspecialchars($r['first_name'] . ' ' . $r['last_name']) ?></strong>
+                    <td><strong><?= htmlspecialchars($r['first_name'] . ' ' . $r['last_name']) ?></strong><?php if (!empty($r['birth_date'])): ?><br><small class="text-muted" title="<?= te('online_birth_date') ?>">🎂 <?= birthDateLabel($r['birth_date']) ?></small><?php endif; ?>
                         <?php if (!$r['active']): ?><span class="badge badge-danger"><?= te('online_disabled') ?></span><?php endif; ?></td>
                     <td><?= htmlspecialchars($r['address'] . ', ' . $r['street_number']) ?></td>
                     <td class="flag-font" style="white-space:nowrap;"><?= countryFlag($r['mobile_country'] ?: 'IT') ?> <?= htmlspecialchars($r['mobile']) ?></td>

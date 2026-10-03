@@ -1506,4 +1506,11 @@ return [
     'mc_col_expires' => 'Scade',
     'mc_col_used' => 'Usato',
     'mc_expired' => 'Scaduto',
+
+    // ---- Customers: date of birth ----
+    'online_birth_date' => 'Data di nascita',
+    'online_birth_hint' => 'facoltativa: per farti gli auguri e un regalo',
+    'online_err_birth' => 'La data di nascita non è valida.',
+    'mc_birthdays' => 'Compleanni di questo mese',
+    'mc_birthdays_hint' => 'Seleziona i clienti che compiono gli anni questo mese (per gli auguri con un coupon regalo)',
 ];

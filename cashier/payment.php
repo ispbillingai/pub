@@ -198,6 +198,10 @@ include __DIR__ . '/../includes/header.php';
                     <div class="form-group" style="flex:1;"><label class="form-label"><?= te('online_street_number') ?></label><input id="tcNumber" class="form-control" maxlength="15" value="<?= htmlspecialchars($tillCust['street_number']) ?>"></div>
                 </div>
                 <div class="form-group">
+                    <label class="form-label">🎂 <?= te('online_birth_date') ?> <small class="text-muted">(<?= te('online_birth_hint') ?>)</small></label>
+                    <input id="tcBirth" type="date" class="form-control" min="1900-01-01" max="<?= date('Y-m-d') ?>" value="<?= htmlspecialchars($tillCust['birth_date']) ?>" style="max-width:220px;">
+                </div>
+                <div class="form-group">
                     <label class="form-label"><?= te('cust_phone') ?></label>
                     <div class="d-flex gap-sm">
                         <select id="tcCountry" class="form-control" style="max-width:130px;" aria-label="<?= te('cust_prefix') ?>">
@@ -717,7 +721,7 @@ async function tcSave(btn) {
     const msg = $('tcMsg'); msg.className = ''; msg.textContent = '';
     try {
         const r = await post('/api/till.php', { action: 'customer', order_id: CFG.order_id, first_name: tcVal('tcFirst'), last_name: tcVal('tcLast'),
-            address: tcVal('tcAddress'), street_number: tcVal('tcNumber'), country: $('tcCountry').value, phone: tcVal('tcPhone') });
+            address: tcVal('tcAddress'), street_number: tcVal('tcNumber'), country: $('tcCountry').value, phone: tcVal('tcPhone'), birth_date: tcVal('tcBirth') });
         msg.className = r.success ? 'dev-ok' : 'dev-err';
         msg.textContent = r.success ? (r.code ? TC.saved_code.replace('{code}', r.code) : TC.saved) : (r.message || TC.failed);
         if (r.success) { $('tcSummary').textContent = (tcVal('tcFirst') + ' ' + tcVal('tcLast')).trim(); tcShowCode(r.code); }
@@ -735,7 +739,7 @@ async function tcRecall(btn) {
         if (!r.success) { msg.className = 'dev-err'; msg.textContent = r.message || TC.failed; btn.disabled = false; return; }
         const c = r.customer;
         $('tcFirst').value = c.first_name; $('tcLast').value = c.last_name; $('tcAddress').value = c.address;
-        $('tcNumber').value = c.street_number; $('tcCountry').value = c.country; $('tcPhone').value = c.phone;
+        $('tcNumber').value = c.street_number; $('tcCountry').value = c.country; $('tcPhone').value = c.phone; $('tcBirth').value = c.birth_date || '';
         $('tcSummary').textContent = (c.first_name + ' ' + c.last_name).trim();
         tcShowCode(c.code); $('tcRecall').value = '';
         msg.className = 'dev-ok'; msg.textContent = TC.recalled.replace('{code}', c.code);
@@ -749,7 +753,7 @@ async function tcLookup() {
     try {
         const r = await post('/api/till.php', { action: 'lookup', country: $('tcCountry').value, phone: tcVal('tcPhone') });
         if (!r.success || !r.customer) return;
-        const map = { tcFirst: 'first_name', tcLast: 'last_name', tcAddress: 'address', tcNumber: 'street_number' };
+        const map = { tcFirst: 'first_name', tcLast: 'last_name', tcAddress: 'address', tcNumber: 'street_number', tcBirth: 'birth_date' };
         Object.entries(map).forEach(([id, k]) => { if (!tcVal(id) && r.customer[k]) $(id).value = r.customer[k]; });
         $('tcMsg').className = 'dev-ok'; $('tcMsg').textContent = TC.known + (r.customer.code ? ' (' + r.customer.code + ')' : '');
     } catch (e) {}
