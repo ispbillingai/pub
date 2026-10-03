@@ -1459,4 +1459,7 @@ return [
     'orders_count' => '{n} orders',
     'orders_all_days' => 'all days (pick a date to filter)',
     'orders_limit' => 'showing the latest {n}',
+
+    // ---- Cassa: online orders open in place ----
+    'cash_online_toggle' => '{n} to collect — click to see them below',
 ];

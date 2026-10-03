@@ -1459,4 +1459,7 @@ return [
     'orders_count' => '{n} ordini',
     'orders_all_days' => 'tutti i giorni (scegli una data per filtrare)',
     'orders_limit' => 'mostrati i più recenti {n}',
+
+    // ---- Cassa: online orders open in place ----
+    'cash_online_toggle' => '{n} da incassare — clicca per vederli qui sotto',
 ];
