@@ -136,6 +136,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Manual coupon: one coupon with its own code for each customer picked, on WhatsApp.
+    if ($action === 'manual_coupon') {
+        $type  = ($_POST['mc_type'] ?? '') === 'fixed' ? 'fixed' : 'percent';
+        $value = max(0, min($type === 'fixed' ? 9999 : 100, (float) str_replace(',', '.', (string) ($_POST['mc_value'] ?? 0))));
+        $spec  = [
+            'name'           => mb_substr(trim((string) ($_POST['mc_name'] ?? '')), 0, 120),
+            'discount_type'  => $type,
+            'discount_value' => $value,
+            'valid_days'     => max(1, min(3650, (int) ($_POST['mc_days'] ?? 30))),
+            'message_it'     => mb_substr(trim((string) ($_POST['mc_message_it'] ?? '')), 0, 1000),
+            'message_en'     => mb_substr(trim((string) ($_POST['mc_message_en'] ?? '')), 0, 1000),
+        ];
+        $known = array_column(couponRecipients(), null, 'phone');
+        $sent = $skipped = 0;
+        if ($value > 0 && guestWhatsappEnabled()) {
+            foreach (array_unique((array) ($_POST['mc_phones'] ?? [])) as $phone) {
+                $r = $known[(string) $phone] ?? null;
+                if (!$r || in_array($r['consent'], ['declined', 'revoked'], true)) { $skipped++; continue; }
+                issueManualCoupon($spec, $r['phone'], $r['name'] ?: null, (int) getCurrentUser()['id']);
+                $sent++;
+                if ($sent >= 500) break;
+            }
+        }
+        $_SESSION['mc_result'] = ['sent' => $sent, 'skipped' => $skipped, 'error' => $value <= 0 ? 'value' : (!guestWhatsappEnabled() ? 'wa' : ($sent === 0 ? 'none' : ''))];
+        logActivity('coupon_manual_sent', 'settings', null, ['sent' => $sent, 'skipped' => $skipped]);
+        header('Location: /admin/settings.php#manualcoupon');
+        exit;
+    }
+
     // Marketing consent texts: what the guest accepts, the WhatsApp
     // confirmation (with the revoke link) and the revoke page.
     if ($action === 'update_consent') {
@@ -586,6 +615,129 @@ function addLoyaltyRule() {
 function removeLoyaltyRule(btn) { btn.closest('.loy-rule').remove(); renumberLoyalty(); }
 function renumberLoyalty() {
     document.querySelectorAll('#loyRules .loy-prio').forEach((el, i) => { el.textContent = (i + 1) + '.'; });
+}
+</script>
+
+<!-- Manual coupon: chosen by hand, to one or more customers -->
+<?php
+$mcRecipients = couponRecipients();
+$mcResult = $_SESSION['mc_result'] ?? null;
+unset($_SESSION['mc_result']);
+$mcSrc = ['online' => ['fa-globe', 'mc_src_online'], 'cassa' => ['fa-cash-register', 'mc_src_till'], 'tavoli' => ['fa-chair', 'mc_src_tables']];
+?>
+<style>
+.mc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.mc-list { max-height: 360px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 10px; }
+.mc-row { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border-color); cursor: pointer; }
+.mc-row:last-child { border-bottom: 0; }
+.mc-row.off { opacity: .5; cursor: not-allowed; }
+.mc-row input { width: 18px; height: 18px; }
+.mc-row .who strong { display: block; }
+.mc-row .who small { color: var(--text-secondary); font-family: monospace; }
+.mc-tags .badge { margin-left: 4px; }
+.mc-msgs textarea { width: 100%; min-height: 100px; font-family: inherit; }
+</style>
+<div class="card" id="manualcoupon" style="margin-top: var(--space-lg);">
+    <div class="card-header">
+        <h2><i class="fas fa-gift"></i> <?= te('mc_title') ?></h2>
+    </div>
+    <form method="POST" onsubmit="return mcSubmit(this)">
+        <input type="hidden" name="action" value="manual_coupon">
+        <div class="card-body">
+            <p class="text-muted" style="margin-top:0;"><?= te('mc_intro') ?></p>
+            <?php if (!$tmbKeyOn): ?>
+                <p style="color:var(--danger);font-size:.9rem;"><i class="fas fa-triangle-exclamation"></i> <?= te('loy_needs_whatsapp') ?></p>
+            <?php endif; ?>
+            <?php if ($mcResult): ?>
+                <div class="alert mb-lg" style="padding:12px 16px;border-radius:8px;<?= $mcResult['sent'] ? 'background:rgba(39,174,96,0.1);color:var(--success);' : 'background:rgba(220,38,38,.08);color:var(--danger);' ?>">
+                    <?php if ($mcResult['sent']): ?>
+                        <i class="fab fa-whatsapp"></i> <?= te('mc_sent', ['n' => $mcResult['sent']]) ?><?= $mcResult['skipped'] ? ' ' . te('mc_skipped', ['n' => $mcResult['skipped']]) : '' ?>
+                    <?php else: ?>
+                        <i class="fas fa-triangle-exclamation"></i> <?= te('mc_err_' . ($mcResult['error'] ?: 'none')) ?>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="mc-grid">
+                <div><label class="form-label"><?= te('mc_name') ?></label><input type="text" name="mc_name" class="form-control" maxlength="120" placeholder="<?= te('mc_name_ph') ?>"></div>
+                <div><label class="form-label"><?= te('discount_type') ?></label>
+                    <select name="mc_type" class="form-control"><option value="percent"><?= te('percentage') ?></option><option value="fixed"><?= te('fixed') ?> (€)</option></select></div>
+                <div><label class="form-label"><?= te('discount_value') ?></label><input type="text" name="mc_value" class="form-control" value="10" inputmode="decimal" required></div>
+                <div><label class="form-label"><?= te('mc_valid_days') ?></label><input type="number" name="mc_days" class="form-control" value="30" min="1" max="3650" required></div>
+            </div>
+
+            <details class="mc-msgs" style="margin-top:12px;">
+                <summary style="cursor:pointer;font-weight:700;"><?= te('loy_messages') ?></summary>
+                <div class="mc-grid" style="margin-top:8px;">
+                    <div><label class="form-label"><?= te('loy_msg_it') ?></label><textarea name="mc_message_it" class="form-control" placeholder="<?= htmlspecialchars(tIn('it', 'mc_default_message')) ?>"></textarea></div>
+                    <div><label class="form-label"><?= te('loy_msg_en') ?></label><textarea name="mc_message_en" class="form-control" placeholder="<?= htmlspecialchars(tIn('en', 'mc_default_message')) ?>"></textarea></div>
+                </div>
+                <p class="text-muted" style="font-size:.8rem;margin:6px 0 0;"><?= te('mc_placeholders') ?></p>
+            </details>
+
+            <div class="d-flex gap-sm align-center" style="margin:16px 0 8px;flex-wrap:wrap;">
+                <strong style="flex:1;"><i class="fas fa-users"></i> <?= te('mc_customers') ?> (<span id="mcCount">0</span> / <?= count($mcRecipients) ?>)</strong>
+                <input type="search" class="form-control" id="mcSearch" placeholder="<?= te('mc_search') ?>" style="max-width:260px;" oninput="mcFilter()">
+                <button type="button" class="btn btn-sm btn-outline" onclick="mcAll(true)"><?= te('mc_select_all') ?></button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="mcAll(false)"><?= te('mc_select_none') ?></button>
+            </div>
+            <div class="mc-list" id="mcList">
+                <?php foreach ($mcRecipients as $r):
+                    $blocked = in_array($r['consent'], ['declined', 'revoked'], true); ?>
+                    <label class="mc-row <?= $blocked ? 'off' : '' ?>" data-q="<?= htmlspecialchars(mb_strtolower($r['name'] . ' ' . $r['phone'])) ?>" title="<?= $blocked ? te('mc_blocked') : '' ?>">
+                        <input type="checkbox" name="mc_phones[]" value="<?= htmlspecialchars($r['phone']) ?>" <?= $blocked ? 'disabled' : '' ?> onchange="mcCountUpdate()">
+                        <span class="who"><strong><?= htmlspecialchars($r['name'] ?: '—') ?></strong><small><?= htmlspecialchars($r['phone']) ?></small></span>
+                        <span class="mc-tags">
+                            <?php foreach ($r['sources'] as $src): ?><span class="badge badge-info"><i class="fas <?= $mcSrc[$src][0] ?>"></i> <?= te($mcSrc[$src][1]) ?></span><?php endforeach; ?>
+                            <?= consentCellHtml($r['phone']) ?>
+                        </span>
+                    </label>
+                <?php endforeach; ?>
+                <?php if (!$mcRecipients): ?><p class="text-muted" style="padding:14px;margin:0;"><?= te('mc_no_customers') ?></p><?php endif; ?>
+            </div>
+            <p class="text-muted" style="font-size:.8rem;margin:6px 0 0;"><i class="fas fa-circle-info"></i> <?= te('mc_consent_note') ?></p>
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-success" <?= $tmbKeyOn ? '' : 'disabled' ?>><i class="fab fa-whatsapp"></i> <?= te('mc_send') ?></button>
+        </div>
+    </form>
+
+    <?php $mcList = manualCoupons(); if ($mcList): ?>
+    <div style="overflow-x:auto;border-top:1px solid var(--border-color);">
+        <table class="data-table">
+            <thead><tr><th><?= te('mc_col_code') ?></th><th><?= te('cust_name') ?></th><th><?= te('cust_phone') ?></th><th><?= te('mc_name') ?></th><th><?= te('discount') ?></th><th><?= te('mc_col_expires') ?></th><th><?= te('mc_col_used') ?></th></tr></thead>
+            <tbody>
+            <?php foreach ($mcList as $c): ?>
+                <tr>
+                    <td style="font-family:monospace;font-weight:700;"><?= htmlspecialchars($c['code']) ?></td>
+                    <td><?= htmlspecialchars($c['customer_name'] ?: '—') ?></td>
+                    <td style="white-space:nowrap;"><?= htmlspecialchars($c['phone']) ?></td>
+                    <td><?= htmlspecialchars($c['rule_name'] ?: '—') ?></td>
+                    <td><?= htmlspecialchars(couponDiscountLabel($c)) ?></td>
+                    <td style="white-space:nowrap;"><?= date('d/m/Y', strtotime($c['expires_at'])) ?></td>
+                    <td><?= $c['used_at'] ? '<span class="badge badge-success">' . date('d/m/Y', strtotime($c['used_at'])) . '</span>' : (strtotime($c['expires_at']) < time() ? '<span class="badge badge-light">' . te('mc_expired') . '</span>' : '<span class="text-muted">—</span>') ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+</div>
+<script>
+function mcCountUpdate() { document.getElementById('mcCount').textContent = document.querySelectorAll('#mcList input:checked').length; }
+function mcFilter() {
+    const q = document.getElementById('mcSearch').value.trim().toLowerCase();
+    document.querySelectorAll('#mcList .mc-row').forEach(r => { r.hidden = q !== '' && !r.dataset.q.includes(q); });
+}
+// "Select all" picks the customers on screen (after a search: the ones found) who can receive it.
+function mcAll(on) {
+    document.querySelectorAll('#mcList .mc-row').forEach(r => { const b = r.querySelector('input'); if (!r.hidden && !b.disabled) b.checked = on; });
+    mcCountUpdate();
+}
+function mcSubmit(form) {
+    const n = document.querySelectorAll('#mcList input:checked').length;
+    if (!n) { alert(<?= json_encode(t('mc_err_none')) ?>); return false; }
+    return confirm(<?= json_encode(t('mc_confirm')) ?>.replace('{n}', n));
 }
 </script>
 

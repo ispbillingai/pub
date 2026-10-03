@@ -10,6 +10,10 @@
  * reach issues a coupon with a unique code and sends it on WhatsApp — at most
  * once per rule and guest in that period. The cashier redeems the code on an
  * order, which applies its discount.
+ *
+ * Manual coupons (Settings > Coupon manuale): a discount and validity chosen by
+ * hand, one coupon with its own code per customer picked (online, till and
+ * table customers), sent on WhatsApp; rule_id 'manual'.
  */
 
 require_once __DIR__ . '/functions.php';
@@ -113,6 +117,79 @@ function couponMessage(array $coupon, array $rule, string $lang): string
         '{restaurant}' => restaurantName(),
     ]);
     return preg_replace('/ +([!,.])/', '$1', $text); // "Ciao !" when there is no name
+}
+
+const MANUAL_COUPON_RULE = 'manual';
+
+/**
+ * Everyone a manual coupon can go to, one row per phone: ['phone', 'name',
+ * 'sources' => ['online'|'cassa'|'tavoli'], 'consent' => status]. Online and
+ * till customers (active ones), and table guests who left their number.
+ */
+function couponRecipients(): array
+{
+    require_once __DIR__ . '/consent.php';
+    $pdo = getDBConnection();
+    $out = [];
+    $add = function (?string $phone, ?string $name, string $src) use (&$out) {
+        if (!$phone || !preg_match('/^\+\d{6,16}$/', $phone)) return;
+        $out[$phone] ??= ['phone' => $phone, 'name' => '', 'sources' => []];
+        if ($out[$phone]['name'] === '' && trim((string) $name) !== '') $out[$phone]['name'] = trim((string) $name);
+        if (!in_array($src, $out[$phone]['sources'], true)) $out[$phone]['sources'][] = $src;
+    };
+    foreach ($pdo->query("SELECT mobile, CONCAT_WS(' ', first_name, last_name) AS name FROM online_customers WHERE active = 1") as $r) $add($r['mobile'], $r['name'], 'online');
+    foreach ($pdo->query("SELECT phone, CONCAT_WS(' ', first_name, last_name) AS name FROM till_customers WHERE active = 1 AND phone IS NOT NULL") as $r) $add($r['phone'], $r['name'], 'cassa');
+    foreach ($pdo->query("
+        SELECT phone, MAX(name) AS name FROM (
+            SELECT o.customer_phone AS phone, o.customer_name AS name FROM orders o
+            WHERE COALESCE(o.channel, 'dine_in') = 'dine_in' AND o.customer_phone IS NOT NULL AND o.status <> 'cancelled'
+            UNION ALL
+            SELECT sg.customer_phone, sg.customer_name FROM order_seat_guests sg WHERE sg.customer_phone IS NOT NULL
+        ) t GROUP BY phone") as $r) $add($r['phone'], $r['name'], 'tavoli');
+    foreach ($out as &$r) $r['consent'] = consentStatusOf($r['phone']);
+    unset($r);
+    uasort($out, fn($a, $b) => strcasecmp($a['name'] ?: $a['phone'], $b['name'] ?: $b['phone']));
+    return array_values($out);
+}
+
+/** The manual coupon's WhatsApp text: {nome} {sconto} {codice} {scadenza} {ristorante}. */
+function manualCouponMessage(array $coupon, string $template, string $lang): string
+{
+    $tpl   = trim($template) ?: tIn($lang, 'mc_default_message');
+    $first = trim(strtok((string) $coupon['customer_name'], ' ') ?: '');
+    $text  = strtr($tpl, [
+        '{nome}' => $first, '{name}' => $first,
+        '{codice}' => $coupon['code'], '{code}' => $coupon['code'],
+        '{sconto}' => couponDiscountLabel($coupon), '{discount}' => couponDiscountLabel($coupon),
+        '{scadenza}' => date('d/m/Y', strtotime($coupon['expires_at'])), '{expiry}' => date('d/m/Y', strtotime($coupon['expires_at'])),
+        '{ristorante}' => restaurantName(), '{restaurant}' => restaurantName(),
+    ]);
+    return preg_replace('/ +([!,.])/', '$1', $text);
+}
+
+/**
+ * A manual coupon for one customer, sent on WhatsApp.
+ * $spec: ['name', 'discount_type', 'discount_value', 'valid_days', 'message_it', 'message_en'].
+ */
+function issueManualCoupon(array $spec, string $phone, ?string $name, ?int $byUser): array
+{
+    $pdo  = getDBConnection();
+    $code = newCouponCode();
+    $pdo->prepare("
+        INSERT INTO coupons (code, phone, customer_name, rule_id, rule_name, discount_type, discount_value, issued_at, expires_at, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW() + INTERVAL " . (int) $spec['valid_days'] . " DAY, ?)
+    ")->execute([$code, $phone, $name ?: null, MANUAL_COUPON_RULE, $spec['name'] ?: null, $spec['discount_type'], $spec['discount_value'], $byUser]);
+    $coupon = $pdo->query("SELECT * FROM coupons WHERE id = " . (int) $pdo->lastInsertId())->fetch();
+    $lang   = str_starts_with($phone, '+39') ? 'it' : 'en';
+    queueGuestWhatsapp(null, null, 'coupon', $phone, manualCouponMessage($coupon, $lang === 'it' ? $spec['message_it'] : $spec['message_en'], $lang));
+    logActivity('coupon_manual_issued', 'coupons', (int) $coupon['id']);
+    return $coupon;
+}
+
+/** The latest manual coupons, for Settings. */
+function manualCoupons(int $limit = 50): array
+{
+    return getDBConnection()->query("SELECT * FROM coupons WHERE rule_id = '" . MANUAL_COUPON_RULE . "' ORDER BY id DESC LIMIT " . (int) $limit)->fetchAll();
 }
 
 /** Issue a coupon from a rule to a phone and send it on WhatsApp. */
