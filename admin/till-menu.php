@@ -1,11 +1,17 @@
 <?php
 /**
- * Admin — Menu cassa: products only the till sees (buttons, with their
- * photo, in Ordini Cassa). A product can carry the code of its own QR /
- * barcode: scanned at the till, it goes straight on the ticket. Categories here are marked till_only, so the guests' menus, the
- * PDF, online ordering, the waiters and the normal Menu admin never show them.
- * Products and categories are switched off, not deleted (sold ones stay in
- * the orders' history).
+ * Admin — a menu of its own, two of them on this page:
+ *   Menu cassa  (this file, $menuKind 'till'): products only the till sees
+ *               (buttons, with their photo, in Ordini Cassa). A product can
+ *               carry the code of its own QR / barcode: scanned at the till,
+ *               it goes straight on the ticket. Categories marked till_only.
+ *   Menu online (admin/online-menu.php, $menuKind 'online'): the only menu
+ *               online customers see (online.php); a description instead of
+ *               the code; "copy the tables' menu" fills an empty one.
+ *               Categories marked online_only.
+ * Neither shows on the guests' table menus, the PDF, the waiters or the
+ * normal Menu admin. Products and categories are switched off, not deleted
+ * (sold ones stay in the orders' history).
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -13,8 +19,12 @@ require_once __DIR__ . '/../includes/till.php';
 require_once __DIR__ . '/../includes/menu_images.php';
 requireRole(['admin']);
 
-$pdo     = getDBConnection();
-$freeCat = tillFreeCategoryId();      // the keypad's hidden "Varie": not managed here
+$menuKind = ($menuKind ?? 'till') === 'online' ? 'online' : 'till';
+$isTill   = $menuKind === 'till';
+$flag     = $isTill ? 'till_only' : 'online_only';      // which categories belong to this menu
+$self     = $isTill ? '/admin/till-menu.php' : '/admin/online-menu.php';
+$pdo      = getDBConnection();
+$freeCat  = $isTill ? tillFreeCategoryId() : 0;          // the keypad's hidden "Varie": not managed here
 
 /** A price typed as "3,50" or "3.50"; null when it isn't one. */
 function tillPrice(string $v): ?float
@@ -29,60 +39,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id  = (int) ($_POST['id'] ?? 0);
     $name = mb_substr(trim((string) ($_POST['name'] ?? '')), 0, 150);
     $ok  = true;
-    // The product's QR / barcode: one product per code.
-    $code  = tillBarcode((string) ($_POST['barcode'] ?? ''));
-    $taken = in_array($a, ['add_item', 'update_item'], true) ? tillBarcodeTakenBy($code, $a === 'update_item' ? $id : 0) : null;
+    // Menu cassa: the product's QR / barcode, one product per code.
+    // Menu online: the product's description instead.
+    $code  = $isTill ? tillBarcode((string) ($_POST['barcode'] ?? '')) : '';
+    $desc  = $isTill ? null : (mb_substr(trim((string) ($_POST['description'] ?? '')), 0, 500) ?: null);
+    $taken = $isTill && in_array($a, ['add_item', 'update_item'], true) ? tillBarcodeTakenBy($code, $a === 'update_item' ? $id : 0) : null;
     if ($taken !== null) {
-        header('Location: /admin/till-menu.php?code_taken=' . rawurlencode($taken) . (!empty($_POST['cat']) ? '#cat-' . (int) $_POST['cat'] : ''));
+        header('Location: ' . $self . '?code_taken=' . rawurlencode($taken) . (!empty($_POST['cat']) ? '#cat-' . (int) $_POST['cat'] : ''));
         exit;
     }
     if ($a === 'add_category' && $name !== '') {
-        $sort = (int) $pdo->query("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_categories WHERE till_only = 1")->fetchColumn();
-        $pdo->prepare("INSERT INTO menu_categories (name, sort_order, allow_composition, color, active, till_only) VALUES (?, ?, 0, ?, 1, 1)")
-            ->execute([mb_substr($name, 0, 100), $sort, $color($_POST['color'] ?? '')]);
+        $sort = (int) $pdo->query("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_categories WHERE $flag = 1")->fetchColumn();
+        $pdo->prepare("INSERT INTO menu_categories (name, sort_order, allow_composition, color, active, $flag) VALUES (?, ?, ?, ?, 1, 1)")
+            ->execute([mb_substr($name, 0, 100), $sort, $isTill ? 0 : 1, $color($_POST['color'] ?? '')]);
     } elseif ($a === 'update_category' && $name !== '' && $id !== $freeCat) {
-        $pdo->prepare("UPDATE menu_categories SET name = ?, color = ?, sort_order = ? WHERE id = ? AND till_only = 1")
+        $pdo->prepare("UPDATE menu_categories SET name = ?, color = ?, sort_order = ? WHERE id = ? AND $flag = 1")
             ->execute([mb_substr($name, 0, 100), $color($_POST['color'] ?? ''), (int) ($_POST['sort_order'] ?? 0), $id]);
     } elseif ($a === 'toggle_category' && $id !== $freeCat) {
-        $pdo->prepare("UPDATE menu_categories SET active = 1 - active WHERE id = ? AND till_only = 1")->execute([$id]);
+        $pdo->prepare("UPDATE menu_categories SET active = 1 - active WHERE id = ? AND $flag = 1")->execute([$id]);
+    } elseif ($a === 'copy_tables_menu' && !$isTill) {
+        $ok = onlineMenuCopyFromTables($pdo) > 0;
     } elseif ($a === 'add_item' && $name !== '' && ($price = tillPrice((string) ($_POST['price'] ?? ''))) !== null) {
         $cat = (int) ($_POST['category_id'] ?? 0);
-        $st  = $pdo->prepare("SELECT 1 FROM menu_categories WHERE id = ? AND till_only = 1 AND id <> ?");
+        $st  = $pdo->prepare("SELECT 1 FROM menu_categories WHERE id = ? AND $flag = 1 AND id <> ?");
         $st->execute([$cat, $freeCat]);
         if ($ok = (bool) $st->fetchColumn()) {
             $sort = $pdo->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_items WHERE category_id = ?");
             $sort->execute([$cat]);
-            $pdo->prepare("INSERT INTO menu_items (category_id, name, base_price, sort_order, image_url, barcode, active) VALUES (?, ?, ?, ?, ?, ?, 1)")
-                ->execute([$cat, $name, $price, (int) $sort->fetchColumn(), saveMenuImage('image'), $code !== '' ? $code : null]);
+            $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, sort_order, image_url, barcode, active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)")
+                ->execute([$cat, $name, $desc, $price, (int) $sort->fetchColumn(), saveMenuImage('image'), $code !== '' ? $code : null]);
         }
     } elseif ($a === 'update_item' && $name !== '' && ($price = tillPrice((string) ($_POST['price'] ?? ''))) !== null) {
         $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
-                       SET mi.name = ?, mi.base_price = ?, mi.sort_order = ?, mi.barcode = ? WHERE mi.id = ? AND mc.till_only = 1 AND mc.id <> ?")
-            ->execute([$name, $price, (int) ($_POST['sort_order'] ?? 0), $code !== '' ? $code : null, $id, $freeCat]);
+                       SET mi.name = ?, mi.base_price = ?, mi.sort_order = ?, " . ($isTill ? "mi.barcode = ?" : "mi.description = ?") . "
+                       WHERE mi.id = ? AND mc.$flag = 1 AND mc.id <> ?")
+            ->execute([$name, $price, (int) ($_POST['sort_order'] ?? 0), $isTill ? ($code !== '' ? $code : null) : $desc, $id, $freeCat]);
         // A new photo replaces the old one (none chosen = keep it).
         if ($img = saveMenuImage('image')) {
             $pdo->prepare("UPDATE menu_items SET image_url = ? WHERE id = ?")->execute([$img, $id]);
         }
     } elseif ($a === 'remove_image') {
         $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
-                       SET mi.image_url = NULL WHERE mi.id = ? AND mc.till_only = 1 AND mc.id <> ?")->execute([$id, $freeCat]);
+                       SET mi.image_url = NULL WHERE mi.id = ? AND mc.$flag = 1 AND mc.id <> ?")->execute([$id, $freeCat]);
     } elseif ($a === 'toggle_item') {
         $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
-                       SET mi.active = 1 - mi.active WHERE mi.id = ? AND mc.till_only = 1 AND mc.id <> ?")->execute([$id, $freeCat]);
+                       SET mi.active = 1 - mi.active WHERE mi.id = ? AND mc.$flag = 1 AND mc.id <> ?")->execute([$id, $freeCat]);
     } else {
         $ok = false;
     }
-    if ($ok) logActivity('till_menu_' . $a, 'menu', $id ?: null);
-    header('Location: /admin/till-menu.php?' . ($ok ? 'saved=1' : 'error=1') . (!empty($_POST['cat']) ? '#cat-' . (int) $_POST['cat'] : ''));
+    if ($ok) logActivity($menuKind . '_menu_' . $a, 'menu', $id ?: null);
+    header('Location: ' . $self . '?' . ($ok ? 'saved=1' : 'error=1') . (!empty($_POST['cat']) ? '#cat-' . (int) $_POST['cat'] : ''));
     exit;
 }
 
-$cats = $pdo->prepare("SELECT * FROM menu_categories WHERE till_only = 1 AND id <> ? ORDER BY active DESC, sort_order, name");
+$cats = $pdo->prepare("SELECT * FROM menu_categories WHERE $flag = 1 AND id <> ? ORDER BY active DESC, sort_order, name");
 $cats->execute([$freeCat]);
 $cats  = $cats->fetchAll();
 $items = $pdo->prepare("SELECT * FROM menu_items WHERE category_id = ? ORDER BY active DESC, sort_order, name");
 
-$pageTitle = t('till_menu_title');
+$pageTitle = t($isTill ? 'till_menu_title' : 'online_menu_title');
 include __DIR__ . '/../includes/header.php';
 ?>
 <style>
@@ -92,6 +107,7 @@ include __DIR__ . '/../includes/header.php';
 .tm-code { position: relative; }
 .tm-code i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); pointer-events: none; }
 .tm-code input { padding-left: 30px; font-family: monospace; }
+.tm-desc { font-size: .85rem; }
 .tm-row.off { opacity: .5; }
 .tm-row input { width: 100%; }
 .tm-cat-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -101,10 +117,14 @@ include __DIR__ . '/../includes/header.php';
 </style>
 
 <div class="page-header">
-    <h1><i class="fas fa-cash-register"></i> <?= te('till_menu_title') ?></h1>
-    <a class="btn btn-outline" href="/cashier/online.php"><i class="fas fa-globe"></i> <?= te('cash_online_title') ?></a>
+    <h1><i class="fas <?= $isTill ? 'fa-cash-register' : 'fa-mobile-screen' ?>"></i> <?= te($isTill ? 'till_menu_title' : 'online_menu_title') ?></h1>
+    <?php if ($isTill): ?>
+        <a class="btn btn-outline" href="/cashier/online.php"><i class="fas fa-globe"></i> <?= te('cash_online_title') ?></a>
+    <?php else: ?>
+        <a class="btn btn-outline" href="/online.php" target="_blank"><i class="fas fa-up-right-from-square"></i> <?= te('online_menu_preview') ?></a>
+    <?php endif; ?>
 </div>
-<p class="text-muted"><?= te('till_menu_intro') ?></p>
+<p class="text-muted"><?= te($isTill ? 'till_menu_intro' : 'online_menu_intro') ?></p>
 
 <?php if (isset($_GET['saved'])): ?>
     <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-check-circle"></i> <?= te('msg_settings_saved') ?></div>
@@ -112,6 +132,17 @@ include __DIR__ . '/../includes/header.php';
     <div class="alert alert-danger mb-lg" style="background: rgba(220,38,38,.08); color: var(--danger); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-triangle-exclamation"></i> <?= te('till_menu_code_taken', ['name' => (string) $_GET['code_taken']]) ?></div>
 <?php elseif (isset($_GET['error'])): ?>
     <div class="alert alert-danger mb-lg" style="background: rgba(220,38,38,.08); color: var(--danger); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-triangle-exclamation"></i> <?= te('till_menu_error') ?></div>
+<?php endif; ?>
+
+<?php if (!$isTill && !$cats): ?>
+<!-- An empty online menu: start from a copy of the tables' menu -->
+<form method="POST" class="card mb-lg" style="padding:14px 18px;border-left:5px solid var(--primary);" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('online_menu_copy_confirm'))) ?>)">
+    <input type="hidden" name="action" value="copy_tables_menu">
+    <div class="d-flex gap-md align-center" style="flex-wrap:wrap;">
+        <div style="flex:1;min-width:240px;"><strong><?= te('online_menu_empty_title') ?></strong><br><span class="text-muted" style="font-size:.9rem;"><?= te('online_menu_empty_text') ?></span></div>
+        <button class="btn btn-primary"><i class="fas fa-copy"></i> <?= te('online_menu_copy') ?></button>
+    </div>
+</form>
 <?php endif; ?>
 
 <!-- New category -->
@@ -155,7 +186,11 @@ include __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
                 <input type="text" name="name" form="<?= $fid ?>" class="form-control" value="<?= htmlspecialchars($it['name']) ?>" maxlength="150" required>
                 <input type="text" name="price" form="<?= $fid ?>" class="form-control" value="<?= number_format((float) $it['base_price'], 2, ',', '') ?>" inputmode="decimal" required title="<?= te('price') ?>">
+                <?php if ($isTill): ?>
                 <span class="tm-code"><i class="fas fa-barcode"></i><input type="text" name="barcode" form="<?= $fid ?>" class="form-control" value="<?= htmlspecialchars((string) $it['barcode']) ?>" maxlength="64" placeholder="<?= te('till_menu_code_ph') ?>" title="<?= te('till_menu_code') ?>" autocomplete="off"></span>
+                <?php else: ?>
+                <input type="text" name="description" form="<?= $fid ?>" class="form-control tm-desc" value="<?= htmlspecialchars((string) $it['description']) ?>" maxlength="500" placeholder="<?= te('online_menu_desc_ph') ?>" title="<?= te('online_menu_desc_ph') ?>">
+                <?php endif; ?>
                 <input type="number" name="sort_order" form="<?= $fid ?>" class="form-control" value="<?= (int) $it['sort_order'] ?>" title="<?= te('till_menu_order') ?>">
                 <input type="file" name="image" form="<?= $fid ?>" class="tm-file" accept="image/jpeg,image/png,image/webp,image/gif" title="<?= te(empty($it['image_url']) ? 'photo' : 'till_menu_photo_change') ?>">
                 <span class="d-flex gap-sm">
@@ -183,7 +218,11 @@ include __DIR__ . '/../includes/header.php';
             <span class="tm-thumb"><i class="fas fa-plus"></i></span>
             <input type="text" name="name" class="form-control" maxlength="150" placeholder="<?= te('till_menu_item_ph') ?>" required>
             <input type="text" name="price" class="form-control" placeholder="0,00" inputmode="decimal" required>
+            <?php if ($isTill): ?>
             <span class="tm-code"><i class="fas fa-barcode"></i><input type="text" name="barcode" class="form-control new-code" maxlength="64" placeholder="<?= te('till_menu_code_ph') ?>" title="<?= te('till_menu_code') ?>" autocomplete="off"></span>
+            <?php else: ?>
+            <input type="text" name="description" class="form-control tm-desc" maxlength="500" placeholder="<?= te('online_menu_desc_ph') ?>">
+            <?php endif; ?>
             <span></span>
             <input type="file" name="image" class="tm-file" accept="image/jpeg,image/png,image/webp,image/gif" title="<?= te('photo_optional') ?>">
             <button class="btn btn-sm btn-primary"><i class="fas fa-plus"></i> <?= te('add') ?></button>
@@ -193,7 +232,7 @@ include __DIR__ . '/../includes/header.php';
 <?php endforeach; ?>
 
 <?php if (!$cats): ?>
-    <div class="card" style="padding:40px;text-align:center;"><p class="text-muted"><?= te('till_menu_none') ?></p></div>
+    <div class="card" style="padding:40px;text-align:center;"><p class="text-muted"><?= te($isTill ? 'till_menu_none' : 'online_menu_none') ?></p></div>
 <?php endif; ?>
 
 <script>

@@ -64,6 +64,51 @@ function onlineOrderUrl(): string
     return publicUrl('/online.php');
 }
 
+/**
+ * The online customers' menu: only the Menu online categories (online_only),
+ * in guestMenu()'s shape (categories, dishes, photo, video, ingredients).
+ */
+function onlineMenu(): array
+{
+    return guestMenu('online');
+}
+
+/**
+ * Fill an empty Menu online with a copy of the tables' menu (active categories
+ * and dishes, with their photo, video and ingredients). Returns dishes copied.
+ */
+function onlineMenuCopyFromTables(PDO $pdo): int
+{
+    if ($pdo->query("SELECT COUNT(*) FROM menu_categories WHERE online_only = 1")->fetchColumn()) return 0;
+    $cats  = $pdo->query("SELECT * FROM menu_categories WHERE active = 1 AND till_only = 0 AND online_only = 0 ORDER BY sort_order, name")->fetchAll();
+    $items = $pdo->prepare("SELECT * FROM menu_items WHERE category_id = ? AND active = 1 ORDER BY sort_order, name");
+    $comps = $pdo->prepare("SELECT * FROM menu_item_components WHERE menu_item_id = ?");
+    $addC  = $pdo->prepare("INSERT INTO menu_categories (name, description, sort_order, allow_composition, icon, color, station_id, active, online_only) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)");
+    $addI  = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, image_url, video_url, preparation_time, station_id, sort_order, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
+    $addK  = $pdo->prepare("INSERT INTO menu_item_components (menu_item_id, component_name, is_default, extra_price, removable, image_url) VALUES (?, ?, ?, ?, ?, ?)");
+    $n = 0;
+    $pdo->beginTransaction();
+    foreach ($cats as $c) {
+        $items->execute([(int) $c['id']]);
+        $list = $items->fetchAll();
+        if (!$list) continue;
+        $addC->execute([$c['name'], $c['description'], $c['sort_order'], $c['allow_composition'], $c['icon'], $c['color'], $c['station_id'] ?? null]);
+        $newCat = (int) $pdo->lastInsertId();
+        foreach ($list as $it) {
+            $addI->execute([$newCat, $it['name'], $it['description'], $it['base_price'], $it['image_url'], $it['video_url'] ?? null,
+                            $it['preparation_time'], $it['station_id'] ?? null, $it['sort_order']]);
+            $newItem = (int) $pdo->lastInsertId();
+            $comps->execute([(int) $it['id']]);
+            foreach ($comps->fetchAll() as $k) {
+                $addK->execute([$newItem, $k['component_name'], $k['is_default'], $k['extra_price'], $k['removable'], $k['image_url'] ?? null]);
+            }
+            $n++;
+        }
+    }
+    $pdo->commit();
+    return $n;
+}
+
 /** The customer's IP address (Apache talks to the phone directly: no proxy). */
 function onlineClientIp(): ?string
 {
@@ -314,7 +359,7 @@ function onlineSendCart(array $customer, array $cart): array
         ]);
         $order = getOrderById((int) $pdo->lastInsertId());
     }
-    $n = addGuestCartItems((int) $order['id'], $cart);
+    $n = addGuestCartItems((int) $order['id'], $cart, 'online');
     if (!$n) {
         if ($new) $pdo->prepare("UPDATE orders SET status = 'cancelled', closed_at = NOW() WHERE id = ?")->execute([(int) $order['id']]);
         return ['error' => 'self_err_empty'];

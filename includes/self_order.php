@@ -211,14 +211,16 @@ function selfOrderSend(array $order, array $cart): array
 }
 
 /**
- * A guest's cart onto an order as pending dishes (table page and online
- * customers): [['id', 'qty', 'note', 'add' => [ingredient ids], 'remove' => [...]]].
+ * A guest's cart onto an order as pending dishes (table page: the tables'
+ * menu; online customers, $menu 'online': the Menu online only):
+ * [['id', 'qty', 'note', 'add' => [ingredient ids], 'remove' => [...]]].
  * Prices come from the menu, never from the phone. Returns how many dishes.
  */
-function addGuestCartItems(int $orderId, array $cart): int
+function addGuestCartItems(int $orderId, array $cart, string $menu = 'table'): int
 {
-    $pdo  = getDBConnection();
-    $menu  = $pdo->prepare("SELECT mi.id, mi.base_price, mc.allow_composition FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1 AND mc.till_only = 0");
+    $pdo   = getDBConnection();
+    $which = $menu === 'online' ? "mc.online_only = 1" : "mc.till_only = 0 AND mc.online_only = 0";
+    $menu  = $pdo->prepare("SELECT mi.id, mi.base_price, mc.allow_composition FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1 AND $which");
     $comps = $pdo->prepare("SELECT * FROM menu_item_components WHERE menu_item_id = ?");
     $add   = $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, notes) VALUES (?, NULL, ?, ?, ?, ?, ?)");
     $mod   = $pdo->prepare("INSERT INTO order_item_modifications (order_item_id, component_name, action, extra_price) VALUES (?, ?, ?, ?)");

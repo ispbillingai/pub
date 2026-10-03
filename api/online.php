@@ -5,7 +5,7 @@
  * their mobile with the WhatsApp code. See includes/online_order.php.
  *
  * GET  /api/online.php                         → signed in: their order; otherwise {signed_in: false, pending}
- * GET  /api/online.php?menu=1                  → the menu (signed in only)
+ * GET  /api/online.php?menu=1                  → the Menu online (signed in only)
  * POST {action: 'request_code', mode: 'register', first_name, last_name, address, street_number,
  *       country, mobile, landline, intolerances, consent}  → new customer: code on WhatsApp
  * POST {action: 'request_code', mode: 'login', country, mobile} → returning customer: code on WhatsApp
@@ -59,7 +59,7 @@ if ($action === 'send') {
 }
 
 if (!empty($_GET['menu'])) {
-    jsonResponse(['success' => true, 'menu' => guestMenu()]);
+    jsonResponse(['success' => true, 'menu' => onlineMenu()]);   // the Menu online only
 }
 
 jsonResponse(onlineOrderState($customer) + ['signed_in' => true]);

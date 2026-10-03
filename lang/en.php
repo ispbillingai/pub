@@ -1433,4 +1433,15 @@ return [
 
     // ---- User group: Ordini Cassa only ----
     'role_till' => 'Till orders operator',
+
+    // ---- Menu online ----
+    'online_menu_title' => 'Online menu',
+    'online_menu_intro' => 'The only menu online customers see (the "Order online" page of the single QR): its own categories and products, with price, description and photo. It doesn\'t show at the tables, on the PDF menu, at the till or to the waiters. Products and categories are not deleted: they are hidden.',
+    'online_menu_preview' => 'Open the customers\' page',
+    'online_menu_desc_ph' => 'Description (optional)',
+    'online_menu_none' => 'The online menu is empty: online customers see no products yet. Create a category above or copy the tables\' menu.',
+    'online_menu_empty_title' => 'Start from the tables\' menu',
+    'online_menu_empty_text' => 'Copy here the tables\' active categories and dishes (with photos, videos and ingredients), then change prices and products as you like: the changes apply to online customers only.',
+    'online_menu_copy' => 'Copy the tables\' menu',
+    'online_menu_copy_confirm' => 'Copy all the active categories and dishes of the tables\' menu into the online menu?',
 ];

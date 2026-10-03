@@ -49,7 +49,7 @@ function renderMenuPdf(string $lang): string
     $items = $pdo->query("
         SELECT mi.name, mi.description, mi.base_price, mc.id AS cat_id, mc.name AS category
         FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
-        WHERE mi.active = 1 AND mc.active = 1 AND mc.till_only = 0
+        WHERE mi.active = 1 AND mc.active = 1 AND mc.till_only = 0 AND mc.online_only = 0
         ORDER BY mc.sort_order, mc.name, mi.sort_order, mi.name
     ")->fetchAll();
     $byCat = [];

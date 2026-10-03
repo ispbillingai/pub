@@ -156,7 +156,7 @@ function createTableRequest(array $table, string $type, ?int $orderItemId = null
         if (!$stmt->fetchColumn()) return ['ok' => false, 'error' => 'no_dish'];
         // Swap for another dish: it must be on the menu right now.
         if ($replacementId) {
-            $stmt = $pdo->prepare("SELECT mi.id FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1 AND mc.till_only = 0");
+            $stmt = $pdo->prepare("SELECT mi.id FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1 AND mc.till_only = 0 AND mc.online_only = 0");
             $stmt->execute([$replacementId]);
             if (!$stmt->fetchColumn()) return ['ok' => false, 'error' => 'no_replacement'];
         } elseif ($message === '') {
@@ -229,12 +229,14 @@ function openTableRequestsForRole(string $role, ?int $userId = null): array
 }
 
 /** What a guest can pick as a replacement dish: active menu, by category. */
-function guestMenu(): array
+function guestMenu(string $menu = 'table'): array
 {
+    // The tables' menu, or (online customers) the Menu online only.
+    $which = $menu === 'online' ? "mc.online_only = 1" : "mc.till_only = 0 AND mc.online_only = 0";
     $rows = getDBConnection()->query("
         SELECT mc.id AS category_id, mc.name AS category, mc.allow_composition, mi.id, mi.name, mi.description, mi.base_price, mi.image_url, mi.video_url
         FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
-        WHERE mi.active = 1 AND mc.active = 1 AND mc.till_only = 0
+        WHERE mi.active = 1 AND mc.active = 1 AND $which
         ORDER BY mc.sort_order, mc.name, mi.sort_order, mi.name
     ")->fetchAll();
     // Ingredients the guest may take off / add (categories allowing composition).

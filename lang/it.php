@@ -1433,4 +1433,15 @@ return [
 
     // ---- User group: Ordini Cassa only ----
     'role_till' => 'Operatore Ordini Cassa',
+
+    // ---- Menu online ----
+    'online_menu_title' => 'Menu online',
+    'online_menu_intro' => 'L\'unico menu che vedono i clienti online (pagina "Ordina online" del QR unico): ha categorie e prodotti suoi, con prezzo, descrizione e foto. Non compare ai tavoli, nel menu PDF, alla cassa né ai camerieri. Prodotti e categorie non si eliminano: si nascondono.',
+    'online_menu_preview' => 'Apri la pagina dei clienti',
+    'online_menu_desc_ph' => 'Descrizione (facoltativa)',
+    'online_menu_none' => 'Il menu online è vuoto: i clienti online non vedono ancora nessun prodotto. Crea una categoria qui sopra o copia il menu dei tavoli.',
+    'online_menu_empty_title' => 'Parti dal menu dei tavoli',
+    'online_menu_empty_text' => 'Copia qui categorie e piatti attivi del menu dei tavoli (con foto, video e ingredienti), poi modifica prezzi e prodotti come vuoi: le modifiche valgono solo per i clienti online.',
+    'online_menu_copy' => 'Copia il menu dei tavoli',
+    'online_menu_copy_confirm' => 'Copiare nel menu online tutte le categorie e i piatti attivi del menu dei tavoli?',
 ];

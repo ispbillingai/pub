@@ -181,16 +181,9 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 </header>
 
 <?php
-// The menu to browse / download, and the shop's address, under the forms.
-ob_start(); ?>
-    <div class="card">
-        <h2><i class="fas fa-book-open"></i> <?= te('menu_card_title') ?></h2>
-        <div class="menu-btns">
-            <a class="mb-view" href="<?= htmlspecialchars(menuViewUrl($mLang)) ?>" target="_blank" rel="noopener"><i class="fas fa-eye"></i><?= te('menu_view') ?></a>
-            <a class="mb-pdf" href="<?= htmlspecialchars(menuPdfUrl($mLang, true)) ?>"><i class="fas fa-file-arrow-down"></i><?= te('menu_download') ?></a>
-        </div>
-    </div>
-<?php
+// The shop's address under the forms. (No link to the tables' menu or its PDF:
+// online customers have a menu of their own, Admin > Menu online.)
+ob_start();
 $rsInfo = restaurantInfo();
 $rsAddr = restaurantAddressLine();
 if ($rsAddr || !empty($rsInfo['phone'])): ?>

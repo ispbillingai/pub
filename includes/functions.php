@@ -162,8 +162,8 @@ function getAllTables() {
  */
 function getMenuCategories() {
     $pdo = getDBConnection();
-    // Menu cassa categories (till_only) are shown only at the till (includes/till.php).
-    $stmt = $pdo->query("SELECT * FROM menu_categories WHERE active = 1 AND till_only = 0 ORDER BY sort_order ASC, name ASC");
+    // Menu cassa (till_only) and Menu online (online_only) categories have pages of their own.
+    $stmt = $pdo->query("SELECT * FROM menu_categories WHERE active = 1 AND till_only = 0 AND online_only = 0 ORDER BY sort_order ASC, name ASC");
     return $stmt->fetchAll();
 }
 
@@ -186,7 +186,7 @@ function getAllMenuItems() {
         SELECT mi.*, mc.name as category_name, mc.allow_composition 
         FROM menu_items mi 
         JOIN menu_categories mc ON mi.category_id = mc.id 
-        WHERE mi.active = 1 AND mc.active = 1 AND mc.till_only = 0
+        WHERE mi.active = 1 AND mc.active = 1 AND mc.till_only = 0 AND mc.online_only = 0
         ORDER BY mc.sort_order, mi.sort_order, mi.name
     ");
     return $stmt->fetchAll();
