@@ -9,7 +9,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/till.php';
 
 $tc  = tillCustomerByQrToken((string) ($_GET['t'] ?? ''));
-$png = $tc ? onlineQrPng((string) $tc['code']) : null;
+$png = $tc ? qrPng((string) $tc['code']) : null;
 if ($png === null) {
     http_response_code(404);
     exit;

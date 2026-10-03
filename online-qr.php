@@ -10,7 +10,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/online_order.php';
 
 $order = onlineOrderByPayToken((string) ($_GET['t'] ?? ''));
-$png   = $order ? onlineQrPng(onlinePayUrl((string) $order['pay_token'])) : null;
+$png   = $order ? qrPng(onlinePayUrl((string) $order['pay_token'])) : null;
 if ($png === null) {
     http_response_code(404);
     exit;

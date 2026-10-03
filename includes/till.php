@@ -291,7 +291,7 @@ function tillSendReceipt(array $order): bool
         'extra' => ['', tIn($lang, 'till_receipt_code', ['code' => $tc['code']])],
         'note'  => tIn($lang, 'till_receipt_note'),
     ], $lang);
-    queueGuestWhatsapp((int) $order['id'], null, 'till_receipt', $tc['phone'], $body, onlineQrPngAvailable() ? tillCustomerQrUrl($tc) : null);
+    queueGuestWhatsapp((int) $order['id'], null, 'till_receipt', $tc['phone'], $body, qrPngAvailable() ? tillCustomerQrUrl($tc) : null);
     logActivity('till_receipt_sent', 'orders', (int) $order['id']);
     return true;
 }
@@ -351,7 +351,7 @@ function tillCustomerWelcome(?array $tc, bool $force = false): bool
     $first = trim((string) $tc['first_name']) ?: tIn(guestLang($tc['country']), 'thanks_no_name');
     queueGuestWhatsapp(null, null, 'till_welcome', $tc['phone'], tIn(guestLang($tc['country']), 'till_welcome_text', [
         'name' => $first, 'restaurant' => restaurantName(), 'code' => $tc['code'],
-    ]), onlineQrPngAvailable() ? tillCustomerQrUrl($tc) : null);
+    ]), qrPngAvailable() ? tillCustomerQrUrl($tc) : null);
     logActivity('till_customer_welcome_sent', 'till_customers', (int) $tc['id']);
     return true;
 }

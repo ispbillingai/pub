@@ -35,6 +35,7 @@ require_once __DIR__ . '/consent.php';
 require_once __DIR__ . '/self_order.php';
 require_once __DIR__ . '/restaurant.php';
 require_once __DIR__ . '/system_place.php';
+require_once __DIR__ . '/qr.php';
 
 const ONLINE_CHANNEL       = 'online';
 const ONLINE_COOKIE        = 'online_customer';
@@ -427,7 +428,7 @@ function onlineNotifyReady(array $order): void
         $body .= "\n\n" . tIn($lang, 'online_ready_location', ['address' => $addr, 'maps' => restaurantMapsUrl()]);
     }
     queueGuestWhatsapp((int) $order['id'], null, 'online_ready', $order['customer_phone'], $body,
-        onlineQrPngAvailable() ? onlineQrImageUrl($token) : null);
+        qrPngAvailable() ? onlineQrImageUrl($token) : null);
 }
 
 /**
@@ -498,21 +499,6 @@ function onlineOrderByPayToken(string $token): ?array
     $stmt->execute([$token, ONLINE_CHANNEL]);
     $id = $stmt->fetchColumn();
     return $id ? getOrderById((int) $id) : null;
-}
-
-/** The server can draw QR images (the qrencode tool is installed). */
-function onlineQrPngAvailable(): bool
-{
-    static $ok = null;
-    return $ok ??= is_executable('/usr/bin/qrencode');
-}
-
-/** A QR of $text as PNG bytes, or null. */
-function onlineQrPng(string $text): ?string
-{
-    if (!onlineQrPngAvailable()) return null;
-    $png = shell_exec('/usr/bin/qrencode -t PNG -s 10 -m 3 -l M -o - ' . escapeshellarg($text));
-    return is_string($png) && substr($png, 1, 3) === 'PNG' ? $png : null;
 }
 
 /** What the customer sees: their order's dishes and how each is doing, the total. */

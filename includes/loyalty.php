@@ -18,6 +18,7 @@
 
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/whatsapp_guest.php';
+require_once __DIR__ . '/qr.php';
 
 const LOYALTY_PERIODS = ['week' => 7, 'month' => 30, 'year' => 365];
 
@@ -121,6 +122,34 @@ function couponMessage(array $coupon, array $rule, string $lang): string
 
 const MANUAL_COUPON_RULE = 'manual';
 
+/* ---- The coupon's QR (its code), sent with the WhatsApp: coupon-qr.php ---- */
+
+/** The secret token of the coupon's QR image (made on first use). */
+function couponQrToken(array $coupon): string
+{
+    if (!empty($coupon['qr_token'])) return (string) $coupon['qr_token'];
+    $token = bin2hex(random_bytes(12));
+    $pdo   = getDBConnection();
+    $pdo->prepare("UPDATE coupons SET qr_token = ? WHERE id = ? AND qr_token IS NULL")->execute([$token, (int) $coupon['id']]);
+    return (string) $pdo->query("SELECT qr_token FROM coupons WHERE id = " . (int) $coupon['id'])->fetchColumn();
+}
+
+function couponByQrToken(string $token): ?array
+{
+    if (!preg_match('/^[a-f0-9]{24}$/', $token)) return null;
+    $stmt = getDBConnection()->prepare("SELECT * FROM coupons WHERE qr_token = ?");
+    $stmt->execute([$token]);
+    return $stmt->fetch() ?: null;
+}
+
+/** The coupon's QR image link, for the WhatsApp (null when the server can't draw it). */
+function couponQrUrl(array $coupon): ?string
+{
+    if (!qrPngAvailable()) return null;
+    require_once __DIR__ . '/menu_pdf.php';
+    return publicUrl('coupon-qr.php?t=' . couponQrToken($coupon));
+}
+
 /**
  * Everyone a manual coupon can go to, one row per phone: ['phone', 'name',
  * 'sources' => ['online'|'cassa'|'tavoli'], 'consent' => status, 'birth_date']. Online and
@@ -182,7 +211,8 @@ function issueManualCoupon(array $spec, string $phone, ?string $name, ?int $byUs
     ")->execute([$code, $phone, $name ?: null, MANUAL_COUPON_RULE, $spec['name'] ?: null, $spec['discount_type'], $spec['discount_value'], $byUser]);
     $coupon = $pdo->query("SELECT * FROM coupons WHERE id = " . (int) $pdo->lastInsertId())->fetch();
     $lang   = str_starts_with($phone, '+39') ? 'it' : 'en';
-    queueGuestWhatsapp(null, null, 'coupon', $phone, manualCouponMessage($coupon, $lang === 'it' ? $spec['message_it'] : $spec['message_en'], $lang));
+    queueGuestWhatsapp(null, null, 'coupon', $phone, manualCouponMessage($coupon, $lang === 'it' ? $spec['message_it'] : $spec['message_en'], $lang),
+                       couponQrUrl($coupon));
     logActivity('coupon_manual_issued', 'coupons', (int) $coupon['id']);
     return $coupon;
 }
@@ -206,7 +236,7 @@ function issueCoupon(array $rule, string $phone, ?string $name, int $visits, ?in
                  $rule['discount_value'], $visits, $rule['period'], $byUser]);
     $coupon = $pdo->query("SELECT * FROM coupons WHERE id = " . (int) $pdo->lastInsertId())->fetch();
     $lang   = str_starts_with($phone, '+39') ? 'it' : 'en';
-    queueGuestWhatsapp(null, null, 'coupon', $phone, couponMessage($coupon, $rule, $lang));
+    queueGuestWhatsapp(null, null, 'coupon', $phone, couponMessage($coupon, $rule, $lang), couponQrUrl($coupon));
     logActivity('coupon_issued', 'coupons', (int) $coupon['id'], ['rule' => $rule['id'], 'visits' => $visits]);
     return $coupon;
 }
