@@ -308,7 +308,7 @@ function onlineVerifyCode(string $code): array
         logActivity('online_customer_registered', 'online_customers', (int) $customer['id'], ['phone_end' => substr($r['mobile'], -4)]);
         // The marketing consent as they gave it (with its text, as proof), in
         // the same register the campaigns read.
-        setConsent($r['mobile'], $r['consent'] ? 'granted' : 'declined', 'online', consentText('prompt', $r['lang']), null, $r['lang']);
+        setConsent($r['mobile'], $r['consent'] ? 'granted' : 'declined', 'online', consentText('prompt_online', $r['lang']), null, $r['lang']);
         if ($r['consent']) sendConsentConfirmation($r['mobile']);
     } elseif (!$customer || !$customer['active']) {
         return ['error' => 'online_err_disabled'];

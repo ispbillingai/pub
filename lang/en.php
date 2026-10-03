@@ -1516,4 +1516,8 @@ return [
 
     // ---- Online ordering: change one of several identical dishes ----
     'online_customize_how_many' => 'How many to customise (of {n})',
+
+    // ---- Marketing consent: the online customers' clause ----
+    'consent_default_prompt_online' => 'I agree that {restaurant} may use my phone number to send me marketing and promotional messages on WhatsApp: invitations to events and initiatives, offers and coupons.'."\n".'Consent is optional: without it I can keep shopping online. I can withdraw it at any time with the link I will get on WhatsApp.',
+    'consent_field_prompt_online' => 'Consent text (online customers)',
 ];

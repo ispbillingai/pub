@@ -12,7 +12,9 @@
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/whatsapp_guest.php';
 
-const CONSENT_TEXT_KINDS = ['prompt', 'confirm', 'revoke'];
+// 'prompt_online': the same clause for online customers ("you can keep buying
+// online" instead of "the table service stays the same").
+const CONSENT_TEXT_KINDS = ['prompt', 'prompt_online', 'confirm', 'revoke'];
 const CONSENT_STATUSES = ['granted', 'declined', 'revoked', 'pending'];
 const CONSENT_BADGE    = ['granted' => 'success', 'declined' => 'warning', 'revoked' => 'danger', 'pending' => 'light'];
 

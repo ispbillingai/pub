@@ -253,7 +253,7 @@ $footHtml = ob_get_clean(); ?>
             <textarea id="rgIntol" maxlength="500" placeholder="<?= te('online_intolerances_ph') ?>"></textarea>
             <label class="consent">
                 <input type="checkbox" id="rgConsent">
-                <span><strong><?= te('self_consent_label') ?></strong> (<?= te('self_consent_optional') ?>)<br><?= htmlspecialchars(consentText('prompt', currentLang())) ?></span>
+                <span><strong><?= te('self_consent_label') ?></strong> (<?= te('self_consent_optional') ?>)<br><?= htmlspecialchars(consentText('prompt_online', currentLang())) ?></span>
             </label>
             <button class="btn-go" type="submit"><i class="fab fa-whatsapp"></i> <?= te('online_register_btn') ?></button>
         </form>
