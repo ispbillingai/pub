@@ -156,9 +156,11 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
             <a href="/admin/users.php" class="<?= $currentPage === 'users' ? 'active' : '' ?>"><i class="fas fa-users"></i> <?= te('users') ?></a>
             <?php $ordCh = $currentPage === 'orders' ? (in_array($_GET['ch'] ?? '', ['online', 'counter'], true) ? $_GET['ch'] : 'tables') : ''; ?>
             <a href="/admin/orders.php" class="<?= $currentPage === 'orders' ? 'open' : '' ?>"><i class="fas fa-list"></i> <?= te('orders') ?></a>
+            <?php if ($ordCh !== ''): // the sub-menus show once Ordini is open ?>
             <a href="/admin/orders.php" class="sub <?= $ordCh === 'tables' ? 'active' : '' ?>"><i class="fas fa-chair"></i> <?= te('orders_tab_tables') ?></a>
             <a href="/admin/orders.php?ch=online" class="sub <?= $ordCh === 'online' ? 'active' : '' ?>"><i class="fas fa-globe"></i> <?= te('orders_tab_online') ?></a>
             <a href="/admin/orders.php?ch=counter" class="sub <?= $ordCh === 'counter' ? 'active' : '' ?>"><i class="fas fa-cash-register"></i> <?= te('orders_tab_counter') ?></a>
+            <?php endif; ?>
             <a href="/admin/reports.php" class="<?= $currentPage === 'reports' ? 'active' : '' ?>"><i class="fas fa-chart-bar"></i> <?= te('reports') ?></a>
             <a href="/admin/customers.php" class="<?= $currentPage === 'customers' ? 'active' : '' ?>"><i class="fas fa-address-book"></i> <?= te('customers_title') ?></a>
             <a href="/admin/online-customers.php" class="<?= $currentPage === 'online-customers' ? 'active' : '' ?>"><i class="fas fa-globe"></i> <?= te('online_customers_title') ?></a>
