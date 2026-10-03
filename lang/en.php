@@ -1454,4 +1454,9 @@ return [
     'orders_tab_counter' => 'Till orders',
     'orders_cashier' => 'Cashier',
     'orders_till_customer' => 'Till customer',
+
+    // ---- Orders list: all days ----
+    'orders_count' => '{n} orders',
+    'orders_all_days' => 'all days (pick a date to filter)',
+    'orders_limit' => 'showing the latest {n}',
 ];

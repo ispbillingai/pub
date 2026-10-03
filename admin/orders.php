@@ -4,7 +4,9 @@
  *   tables   (default) table orders: table, waiter, covers
  *   online   online customers' orders: customer, phone, items
  *   counter  Ordini Cassa counter sales: cashier, till customer and code
- * Online and counter orders open as PDF and are collected in Ordini Cassa.
+ * Online and counter orders: all of them by default (a day can still be
+ * picked), as PDF, collected right here in a payment window
+ * (cashier/payment.php?embed=1) without leaving the page.
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -18,7 +20,8 @@ $tab  = isset($tabs[$_GET['ch'] ?? '']) ? $_GET['ch'] : 'tables';
 
 // Filters
 $status = $_GET['status'] ?? '';
-$date = $_GET['date'] ?? date('Y-m-d');
+// Tables: today by default. Online / till: every order, unless a day is picked.
+$date = $_GET['date'] ?? ($tab === 'tables' ? date('Y-m-d') : '');
 
 // Build query
 $sql = "
@@ -44,7 +47,8 @@ if ($date) {
     $params[] = $date;
 }
 
-$sql .= " ORDER BY o.opened_at DESC LIMIT 100";
+$limit = $tab === 'tables' ? 100 : 500;
+$sql .= " ORDER BY o.opened_at DESC LIMIT " . $limit;
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
@@ -59,6 +63,9 @@ include __DIR__ . '/../includes/header.php';
 .ord-tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
 .ord-tabs a { padding: 10px 18px; border-radius: 10px; text-decoration: none; font-weight: 700; color: var(--text-primary); background: #fff; border: 2px solid var(--border-color); }
 .ord-tabs a.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.pay-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 2vh 2vw; }
+.pay-overlay[hidden] { display: none; }
+.pay-overlay iframe { width: min(1200px, 96vw); height: 96vh; border: 0; border-radius: 14px; background: var(--bg, #f5f6fa); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
 </style>
 
 <div class="page-header">
@@ -68,7 +75,7 @@ include __DIR__ . '/../includes/header.php';
 <!-- Three sub-menus: tables, online, till -->
 <div class="ord-tabs">
     <?php foreach ($tabLabels as $tk => [$ti, $tl]): ?>
-        <a href="?<?= htmlspecialchars(http_build_query(array_filter(['ch' => $tk === 'tables' ? '' : $tk, 'date' => $date, 'status' => $status]))) ?>" class="<?= $tab === $tk ? 'on' : '' ?>"><i class="fas <?= $ti ?>"></i> <?= te($tl) ?></a>
+        <a href="?<?= htmlspecialchars(http_build_query(array_filter(['ch' => $tk === 'tables' ? '' : $tk, 'date' => $tk === $tab ? $date : '', 'status' => $status]))) ?>" class="<?= $tab === $tk ? 'on' : '' ?>"><i class="fas <?= $ti ?>"></i> <?= te($tl) ?></a>
     <?php endforeach; ?>
 </div>
 
@@ -101,6 +108,8 @@ include __DIR__ . '/../includes/header.php';
         </form>
     </div>
 </div>
+
+<p class="text-muted"><?= te('orders_count', ['n' => count($orders)]) ?><?= $date === '' ? ' · ' . te('orders_all_days') : '' ?><?= count($orders) >= $limit ? ' · ' . te('orders_limit', ['n' => $limit]) : '' ?></p>
 
 <div class="card">
     <table class="data-table">
@@ -182,9 +191,9 @@ include __DIR__ . '/../includes/header.php';
                             <i class="fas fa-file-pdf" style="color:#dc2626;"></i>
                         </a>
                         <?php if (!in_array($order['status'], ['paid', 'cancelled'], true)): ?>
-                            <a href="/cashier/online.php?open=<?= $order['id'] ?>" class="btn btn-sm btn-success" title="<?= te('cash_online_collect') ?>">
+                            <button type="button" class="btn btn-sm btn-success" onclick="openPay(<?= (int) $order['id'] ?>)" title="<?= te('cash_online_collect') ?>">
                                 <i class="fas fa-money-bill"></i>
-                            </a>
+                            </button>
                         <?php endif; ?>
                         <?php endif; ?>
                     </td>
@@ -200,5 +209,23 @@ include __DIR__ . '/../includes/header.php';
         </tbody>
     </table>
 </div>
+
+<?php if ($tab !== 'tables'): ?>
+<!-- Collect without leaving the page: the till's payment page in a window -->
+<div class="pay-overlay" id="payOverlay" hidden><iframe id="payFrame" title="<?= te('process_payment') ?>"></iframe></div>
+<script>
+function openPay(orderId) {
+    document.getElementById('payFrame').src = '/cashier/payment.php?order=' + encodeURIComponent(orderId) + '&embed=1';
+    document.getElementById('payOverlay').hidden = false;
+}
+// The payment window says when it is closed / done: back to this list, refreshed.
+window.addEventListener('message', e => {
+    if (e.origin !== location.origin || !e.data || !e.data.tillPay || e.data.tillPay === 'paid') return;
+    document.getElementById('payOverlay').hidden = true;
+    document.getElementById('payFrame').src = 'about:blank';
+    location.reload();
+});
+</script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

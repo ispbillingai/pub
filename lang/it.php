@@ -1454,4 +1454,9 @@ return [
     'orders_tab_counter' => 'Ordini cassa',
     'orders_cashier' => 'Cassiere',
     'orders_till_customer' => 'Cliente cassa',
+
+    // ---- Orders list: all days ----
+    'orders_count' => '{n} ordini',
+    'orders_all_days' => 'tutti i giorni (scegli una data per filtrare)',
+    'orders_limit' => 'mostrati i più recenti {n}',
 ];
