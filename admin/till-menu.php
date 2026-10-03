@@ -7,7 +7,9 @@
  *               it goes straight on the ticket. Categories marked till_only.
  *   Menu online (admin/online-menu.php, $menuKind 'online'): the only menu
  *               online customers see (online.php); a description instead of
- *               the code; "copy the tables' menu" fills an empty one.
+ *               the code; each product's components (ingredients to take
+ *               off / extras with their price and photo, as in Admin > Menu,
+ *               ?item=<id>); "copy the tables' menu" fills an empty one.
  *               Categories marked online_only.
  * Neither shows on the guests' table menus, the PDF, the waiters or the
  * normal Menu admin. Products and categories are switched off, not deleted
@@ -81,6 +83,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($a === 'remove_image') {
         $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
                        SET mi.image_url = NULL WHERE mi.id = ? AND mc.$flag = 1 AND mc.id <> ?")->execute([$id, $freeCat]);
+    } elseif (!$isTill && in_array($a, ['add_component', 'component_photo', 'delete_component'], true)) {
+        // Components of a Menu online product (as in Admin > Menu).
+        $itemId = (int) ($_POST['menu_item_id'] ?? 0);
+        $st = $pdo->prepare("SELECT 1 FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mc.$flag = 1");
+        $st->execute([$itemId]);
+        $ok = (bool) $st->fetchColumn();
+        $compId = (int) ($_POST['component_id'] ?? 0);
+        if ($ok && $a === 'add_component') {
+            $cname = mb_substr(trim((string) ($_POST['component_name'] ?? '')), 0, 100);
+            $extra = tillPrice((string) ($_POST['extra_price'] ?? '0')) ?? 0.0;
+            if ($ok = $cname !== '') {
+                $pdo->prepare("INSERT INTO menu_item_components (menu_item_id, component_name, is_default, extra_price, removable, image_url) VALUES (?, ?, ?, ?, ?, ?)")
+                    ->execute([$itemId, $cname, isset($_POST['is_default']) ? 1 : 0, $extra, isset($_POST['removable']) ? 1 : 0, saveMenuImage('image')]);
+            }
+        } elseif ($ok && $a === 'component_photo') {
+            $photo = !empty($_POST['remove']) ? null : saveMenuImage('image');
+            if ($ok = !empty($_POST['remove']) || $photo) {
+                $pdo->prepare("UPDATE menu_item_components SET image_url = ? WHERE id = ? AND menu_item_id = ?")->execute([$photo, $compId, $itemId]);
+            }
+        } elseif ($ok) {
+            $pdo->prepare("DELETE FROM menu_item_components WHERE id = ? AND menu_item_id = ?")->execute([$compId, $itemId]);
+        }
+        if ($ok) logActivity('online_menu_' . $a, 'menu', $itemId);
+        header('Location: ' . $self . '?item=' . $itemId . '&' . ($ok ? 'saved=1' : 'error=1') . '#comp');
+        exit;
     } elseif ($a === 'toggle_item') {
         $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
                        SET mi.active = 1 - mi.active WHERE mi.id = ? AND mc.$flag = 1 AND mc.id <> ?")->execute([$id, $freeCat]);
@@ -95,7 +122,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $cats = $pdo->prepare("SELECT * FROM menu_categories WHERE $flag = 1 AND id <> ? ORDER BY active DESC, sort_order, name");
 $cats->execute([$freeCat]);
 $cats  = $cats->fetchAll();
-$items = $pdo->prepare("SELECT * FROM menu_items WHERE category_id = ? ORDER BY active DESC, sort_order, name");
+$items = $pdo->prepare("SELECT mi.*, (SELECT COUNT(*) FROM menu_item_components k WHERE k.menu_item_id = mi.id) AS comp_count
+                        FROM menu_items mi WHERE mi.category_id = ? ORDER BY mi.active DESC, mi.sort_order, mi.name");
+
+// Menu online: the product whose components are being edited (?item=<id>).
+$editItem = null;
+$itemComponents = [];
+if (!$isTill && !empty($_GET['item'])) {
+    $st = $pdo->prepare("SELECT mi.* FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id WHERE mi.id = ? AND mc.$flag = 1");
+    $st->execute([(int) $_GET['item']]);
+    if ($editItem = $st->fetch() ?: null) $itemComponents = getMenuItemComponents((int) $editItem['id']);
+}
 
 $pageTitle = t($isTill ? 'till_menu_title' : 'online_menu_title');
 include __DIR__ . '/../includes/header.php';
@@ -108,6 +145,10 @@ include __DIR__ . '/../includes/header.php';
 .tm-code i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); pointer-events: none; }
 .tm-code input { padding-left: 30px; font-family: monospace; }
 .tm-desc { font-size: .85rem; }
+.comp-photo { position: relative; display: inline-block; }
+.comp-photo label { cursor: pointer; display: block; }
+.comp-photo img, .comp-photo .comp-noimg { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; display: flex; align-items: center; justify-content: center; background: var(--bg-light, #f3f4f6); color: var(--text-secondary); border: 1px dashed var(--border-color); }
+.comp-photo-x { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--danger); color: #fff; font-size: 10px; cursor: pointer; }
 .tm-row.off { opacity: .5; }
 .tm-row input { width: 100%; }
 .tm-cat-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -132,6 +173,93 @@ include __DIR__ . '/../includes/header.php';
     <div class="alert alert-danger mb-lg" style="background: rgba(220,38,38,.08); color: var(--danger); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-triangle-exclamation"></i> <?= te('till_menu_code_taken', ['name' => (string) $_GET['code_taken']]) ?></div>
 <?php elseif (isset($_GET['error'])): ?>
     <div class="alert alert-danger mb-lg" style="background: rgba(220,38,38,.08); color: var(--danger); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-triangle-exclamation"></i> <?= te('till_menu_error') ?></div>
+<?php endif; ?>
+
+<?php if ($editItem): ?>
+<!-- Components of a Menu online product (as in Admin > Menu) -->
+<div class="card mb-lg" id="comp" style="border-left:5px solid var(--primary);">
+    <div class="card-header">
+        <h2><i class="fas fa-puzzle-piece"></i> <?= te('components_for') ?> <?= htmlspecialchars($editItem['name']) ?></h2>
+        <a href="<?= $self ?>#cat-<?= (int) $editItem['category_id'] ?>" class="btn btn-sm btn-outline"><i class="fas fa-times"></i> <?= te('close') ?></a>
+    </div>
+    <div class="card-body">
+        <p class="text-muted" style="margin-top:0;font-size:.9rem;"><?= te('online_menu_comp_hint') ?></p>
+        <form method="POST" class="form-row mb-lg" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="add_component">
+            <input type="hidden" name="menu_item_id" value="<?= (int) $editItem['id'] ?>">
+            <div class="form-group">
+                <label class="form-label"><?= te('component_name') ?></label>
+                <input type="text" name="component_name" class="form-control" maxlength="100" required placeholder="<?= te('component_name') ?>">
+            </div>
+            <div class="form-group">
+                <label class="form-label"><?= te('extra_price') ?></label>
+                <input type="text" name="extra_price" class="form-control" value="0,00" inputmode="decimal">
+            </div>
+            <div class="form-group">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-flex gap-md">
+                    <label><input type="checkbox" name="is_default" checked> <?= te('default_label') ?></label>
+                    <label><input type="checkbox" name="removable" checked> <?= te('removable') ?></label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label"><i class="fas fa-image"></i> <?= te('photo_optional') ?></label>
+                <input type="file" name="image" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
+            </div>
+            <div class="form-group">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-success"><i class="fas fa-plus"></i> <?= te('add') ?></button>
+            </div>
+        </form>
+
+        <?php if (!$itemComponents): ?>
+            <p class="text-muted"><?= te('no_components') ?></p>
+        <?php else: ?>
+            <table class="data-table">
+                <thead>
+                    <tr><th><?= te('photo') ?></th><th><?= te('component') ?></th><th><?= te('default_label') ?></th><th><?= te('extra_price') ?></th><th><?= te('removable') ?></th><th><?= te('actions') ?></th></tr>
+                </thead>
+                <tbody>
+                <?php foreach ($itemComponents as $comp): ?>
+                    <tr>
+                        <td>
+                            <!-- The ingredient's photo: tap the picture to add / replace it -->
+                            <form method="POST" enctype="multipart/form-data" class="comp-photo">
+                                <input type="hidden" name="action" value="component_photo">
+                                <input type="hidden" name="component_id" value="<?= (int) $comp['id'] ?>">
+                                <input type="hidden" name="menu_item_id" value="<?= (int) $editItem['id'] ?>">
+                                <label title="<?= te(!empty($comp['image_url']) ? 'replace_photo_optional' : 'photo_optional') ?>">
+                                    <?php if (!empty($comp['image_url'])): ?>
+                                        <img src="<?= htmlspecialchars($comp['image_url']) ?>" alt="">
+                                    <?php else: ?>
+                                        <span class="comp-noimg"><i class="fas fa-camera"></i></span>
+                                    <?php endif; ?>
+                                    <input type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif" hidden onchange="this.form.submit()">
+                                </label>
+                                <?php if (!empty($comp['image_url'])): ?>
+                                    <button type="submit" name="remove" value="1" class="comp-photo-x" title="<?= te('photo_remove') ?>"><i class="fas fa-times"></i></button>
+                                <?php endif; ?>
+                            </form>
+                        </td>
+                        <td><?= htmlspecialchars($comp['component_name']) ?></td>
+                        <td><?= $comp['is_default'] ? '<span class="badge badge-success">' . te('yes') . '</span>' : '<span class="badge badge-warning">' . te('addon') . '</span>' ?></td>
+                        <td><?= $comp['extra_price'] > 0 ? formatCurrency($comp['extra_price']) : '-' ?></td>
+                        <td><?= $comp['removable'] ? te('yes') : te('no') ?></td>
+                        <td>
+                            <form method="POST" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('component_delete_confirm')), ENT_QUOTES) ?>);">
+                                <input type="hidden" name="action" value="delete_component">
+                                <input type="hidden" name="component_id" value="<?= (int) $comp['id'] ?>">
+                                <input type="hidden" name="menu_item_id" value="<?= (int) $editItem['id'] ?>">
+                                <button type="submit" class="btn btn-sm btn-danger" title="<?= te('delete') ?>"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+</div>
 <?php endif; ?>
 
 <?php if (!$isTill && !$cats): ?>
@@ -198,6 +326,9 @@ include __DIR__ . '/../includes/header.php';
                         <input type="hidden" name="action" value="update_item"><input type="hidden" name="id" value="<?= (int) $it['id'] ?>"><input type="hidden" name="cat" value="<?= (int) $c['id'] ?>">
                         <button class="btn btn-sm btn-outline" title="<?= te('save_settings') ?>"><i class="fas fa-save"></i></button>
                     </form>
+                    <?php if (!$isTill): ?>
+                    <a class="btn btn-sm <?= (int) $it['id'] === (int) ($editItem['id'] ?? 0) ? 'btn-primary' : 'btn-outline' ?>" href="<?= $self ?>?item=<?= (int) $it['id'] ?>#comp" title="<?= te('components') ?>"><i class="fas fa-puzzle-piece"></i> <?= (int) $it['comp_count'] ?></a>
+                    <?php endif; ?>
                     <form method="POST">
                         <input type="hidden" name="action" value="toggle_item"><input type="hidden" name="id" value="<?= (int) $it['id'] ?>"><input type="hidden" name="cat" value="<?= (int) $c['id'] ?>">
                         <button class="btn btn-sm <?= $it['active'] ? 'btn-outline' : 'btn-success' ?>" title="<?= te($it['active'] ? 'till_menu_hide' : 'till_menu_show') ?>"><i class="fas <?= $it['active'] ? 'fa-eye-slash' : 'fa-eye' ?>"></i></button>

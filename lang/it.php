@@ -1444,4 +1444,7 @@ return [
     'online_menu_empty_text' => 'Copia qui categorie e piatti attivi del menu dei tavoli (con foto, video e ingredienti), poi modifica prezzi e prodotti come vuoi: le modifiche valgono solo per i clienti online.',
     'online_menu_copy' => 'Copia il menu dei tavoli',
     'online_menu_copy_confirm' => 'Copiare nel menu online tutte le categorie e i piatti attivi del menu dei tavoli?',
+
+    // ---- Menu online: components ----
+    'online_menu_comp_hint' => 'Componenti "predefiniti": già nel piatto, il cliente può toglierli se "rimovibili". Le "aggiunte" (non predefinite) il cliente le può aggiungere pagando il prezzo extra. Valgono solo per il menu online.',
 ];

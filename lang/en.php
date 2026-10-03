@@ -1444,4 +1444,7 @@ return [
     'online_menu_empty_text' => 'Copy here the tables\' active categories and dishes (with photos, videos and ingredients), then change prices and products as you like: the changes apply to online customers only.',
     'online_menu_copy' => 'Copy the tables\' menu',
     'online_menu_copy_confirm' => 'Copy all the active categories and dishes of the tables\' menu into the online menu?',
+
+    // ---- Menu online: components ----
+    'online_menu_comp_hint' => '"Default" components are in the dish already; the customer can take them off if "removable". Add-ons (not default) can be added by the customer for their extra price. They apply to the online menu only.',
 ];
