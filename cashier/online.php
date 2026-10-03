@@ -75,7 +75,6 @@ $tillMenu  = tillMenu();
 $openSales = tillOpenSales();
 $tillTargets = array_map(fn($o) => ['id' => (int) $o['id'], 'label' => $o['customer_name'] . ' · ' . $o['order_number']], $orders);
 
-$readyCount = count(array_filter($orders, fn($o) => $o['ready']));
 $pageTitle  = t('cash_online_title');
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -213,15 +212,6 @@ include __DIR__ . '/../includes/header.php';
     </table>
 </div>
 <?php endif; ?>
-
-<div class="stats-grid mb-lg">
-    <div class="stat-card"><div class="stat-icon primary"><i class="fas fa-receipt"></i></div>
-        <div><div class="stat-value"><?= count($orders) ?></div><div class="stat-label"><?= te('cash_online_open') ?></div></div></div>
-    <div class="stat-card"><div class="stat-icon success"><i class="fas fa-bell-concierge"></i></div>
-        <div><div class="stat-value"><?= $readyCount ?></div><div class="stat-label"><?= te('cash_online_ready') ?></div></div></div>
-    <div class="stat-card"><div class="stat-icon warning"><i class="fas fa-euro-sign"></i></div>
-        <div><div class="stat-value"><?= formatCurrency(array_sum(array_column($paid, 'total'))) ?></div><div class="stat-label"><?= te('cash_online_paid_today', ['n' => count($paid)]) ?></div></div></div>
-</div>
 
 <?php if (!$orders): ?>
     <div class="card" style="padding:50px;text-align:center;"><p class="text-muted"><?= te('cash_online_none') ?></p></div>
