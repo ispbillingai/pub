@@ -1447,4 +1447,11 @@ return [
 
     // ---- Menu online: components ----
     'online_menu_comp_hint' => '"Default" components are in the dish already; the customer can take them off if "removable". Add-ons (not default) can be added by the customer for their extra price. They apply to the online menu only.',
+
+    // ---- Orders: three sub-menus ----
+    'orders_tab_tables' => 'Table orders',
+    'orders_tab_online' => 'Online orders',
+    'orders_tab_counter' => 'Till orders',
+    'orders_cashier' => 'Cashier',
+    'orders_till_customer' => 'Till customer',
 ];

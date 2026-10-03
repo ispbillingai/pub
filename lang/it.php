@@ -1447,4 +1447,11 @@ return [
 
     // ---- Menu online: components ----
     'online_menu_comp_hint' => 'Componenti "predefiniti": già nel piatto, il cliente può toglierli se "rimovibili". Le "aggiunte" (non predefinite) il cliente le può aggiungere pagando il prezzo extra. Valgono solo per il menu online.',
+
+    // ---- Orders: three sub-menus ----
+    'orders_tab_tables' => 'Ordini a tavola',
+    'orders_tab_online' => 'Ordini online',
+    'orders_tab_counter' => 'Ordini cassa',
+    'orders_cashier' => 'Cassiere',
+    'orders_till_customer' => 'Cliente cassa',
 ];

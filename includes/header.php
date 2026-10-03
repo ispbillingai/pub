@@ -38,6 +38,8 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
         .admin-sidebar a i { width:18px; text-align:center; }
         .admin-sidebar a:hover { background:rgba(255,255,255,.08); color:#fff; }
         .admin-sidebar a.active { background:var(--primary,#e74c3c); color:#fff; }
+        .admin-sidebar a.open { color:#fff; font-weight:700; }
+        .admin-sidebar a.sub { padding:8px 13px 8px 34px; font-size:.88rem; margin-bottom:1px; }
         @media (max-width:1024px){ .app-body{flex-direction:column;} .admin-sidebar{flex:none;width:auto;min-height:0;display:flex;flex-wrap:wrap;} }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -152,7 +154,11 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
             <a href="/admin/till-menu.php" class="<?= $currentPage === 'till-menu' ? 'active' : '' ?>"><i class="fas fa-cash-register"></i> <?= te('till_menu_title') ?></a>
             <a href="/admin/online-menu.php" class="<?= $currentPage === 'online-menu' ? 'active' : '' ?>"><i class="fas fa-mobile-screen"></i> <?= te('online_menu_title') ?></a>
             <a href="/admin/users.php" class="<?= $currentPage === 'users' ? 'active' : '' ?>"><i class="fas fa-users"></i> <?= te('users') ?></a>
-            <a href="/admin/orders.php" class="<?= $currentPage === 'orders' ? 'active' : '' ?>"><i class="fas fa-list"></i> <?= te('orders') ?></a>
+            <?php $ordCh = $currentPage === 'orders' ? (in_array($_GET['ch'] ?? '', ['online', 'counter'], true) ? $_GET['ch'] : 'tables') : ''; ?>
+            <a href="/admin/orders.php" class="<?= $currentPage === 'orders' ? 'open' : '' ?>"><i class="fas fa-list"></i> <?= te('orders') ?></a>
+            <a href="/admin/orders.php" class="sub <?= $ordCh === 'tables' ? 'active' : '' ?>"><i class="fas fa-chair"></i> <?= te('orders_tab_tables') ?></a>
+            <a href="/admin/orders.php?ch=online" class="sub <?= $ordCh === 'online' ? 'active' : '' ?>"><i class="fas fa-globe"></i> <?= te('orders_tab_online') ?></a>
+            <a href="/admin/orders.php?ch=counter" class="sub <?= $ordCh === 'counter' ? 'active' : '' ?>"><i class="fas fa-cash-register"></i> <?= te('orders_tab_counter') ?></a>
             <a href="/admin/reports.php" class="<?= $currentPage === 'reports' ? 'active' : '' ?>"><i class="fas fa-chart-bar"></i> <?= te('reports') ?></a>
             <a href="/admin/customers.php" class="<?= $currentPage === 'customers' ? 'active' : '' ?>"><i class="fas fa-address-book"></i> <?= te('customers_title') ?></a>
             <a href="/admin/online-customers.php" class="<?= $currentPage === 'online-customers' ? 'active' : '' ?>"><i class="fas fa-globe"></i> <?= te('online_customers_title') ?></a>
