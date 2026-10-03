@@ -1513,4 +1513,7 @@ return [
     'online_err_birth' => 'The date of birth is not valid.',
     'mc_birthdays' => 'This month\'s birthdays',
     'mc_birthdays_hint' => 'Select the customers whose birthday is this month (for wishes with a gift coupon)',
+
+    // ---- Online ordering: change one of several identical dishes ----
+    'online_customize_how_many' => 'How many to change (of {n})',
 ];

@@ -1513,4 +1513,7 @@ return [
     'online_err_birth' => 'La data di nascita non è valida.',
     'mc_birthdays' => 'Compleanni di questo mese',
     'mc_birthdays_hint' => 'Seleziona i clienti che compiono gli anni questo mese (per gli auguri con un coupon regalo)',
+
+    // ---- Online ordering: change one of several identical dishes ----
+    'online_customize_how_many' => 'Quanti modificare (su {n})',
 ];

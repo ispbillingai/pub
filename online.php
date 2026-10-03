@@ -27,6 +27,8 @@ $L = [
     'custom_btn'    => t('online_customize'),
     'custom_edit'   => t('online_customize_edit'),
     'custom_save'   => t('online_customize_save'),
+    'qty_label'     => t('quantity'),
+    'qty_change_of' => t('online_customize_how_many'),
     'added_custom'  => t('online_added_custom'),
     'self_dishes'   => t('self_cart_dishes'),
     'self_note_ph'  => t('self_note_ph'),
@@ -299,7 +301,7 @@ $footHtml = ob_get_clean(); ?>
         <h3 id="customTitle"></h3>
         <p class="hint-small" style="margin-top:-6px;"><?= te('self_custom_hint') ?></p>
         <div id="customList"></div>
-        <div class="custom-qty"><span><?= te('quantity') ?></span>
+        <div class="custom-qty"><span id="customQtyLabel"><?= te('quantity') ?></span>
             <div class="qty"><button type="button" onclick="customQtyStep(-1)">−</button><span id="customQty">1</span><button type="button" class="plus" onclick="customQtyStep(1)">+</button></div></div>
         <div class="row">
             <button class="btn-no" onclick="$('customSheet').classList.remove('on')"><?= te('cancel') ?></button>
@@ -587,7 +589,11 @@ function openCustomize(id, editIdx = null) {
     const it = itemOf(id);
     if (!it) return;
     const line = editIdx !== null ? cart[editIdx] : null;
-    customId = id; customEditIdx = line ? editIdx : null; customQty = line ? line.qty : 1;
+    // "Modifica" on a line of several identical dishes changes one of them (more if
+    // asked, up to all): the changed ones become a line of their own.
+    customId = id; customEditIdx = line ? editIdx : null; customQty = 1;
+    customMax = line ? line.qty : 20;
+    $('customQtyLabel').textContent = line && line.qty > 1 ? L.qty_change_of.replace('{n}', line.qty) : L.qty_label;
     const on = c => line ? (c.default ? !(line.remove || []).includes(c.id) : (line.add || []).includes(c.id)) : c.default;
     $('customTitle').textContent = it.name;
     $('customList').innerHTML = it.components.map(c => `
@@ -609,7 +615,8 @@ function customChoice() {
     });
     return { add, remove };
 }
-function customQtyStep(d) { customQty = Math.max(1, Math.min(20, customQty + d)); customPrice(); }
+let customMax = 20;
+function customQtyStep(d) { customQty = Math.max(1, Math.min(customMax, customQty + d)); customPrice(); }
 function customPrice() {
     const { add } = customChoice();
     $('customQty').textContent = customQty;
@@ -618,12 +625,18 @@ function customPrice() {
 function customAdd() {
     const { add, remove } = customChoice();
     if (customEditIdx !== null && cart[customEditIdx]) {
-        // Change that cart line; if it now equals another line, they become one.
+        // Only the pieces being changed leave the line (the others stay as they
+        // were); if they now equal another line, they join it.
         const line = cart[customEditIdx];
         const key = customId + '|' + [...add].sort().join('.') + '|' + [...remove].sort().join('.');
-        const twin = cart.find((l, i) => i !== customEditIdx && l.key === key);
-        if (twin) { twin.qty = Math.min(20, twin.qty + customQty); cart.splice(customEditIdx, 1); }
-        else Object.assign(line, { key, add, remove, qty: customQty });
+        const n = Math.min(customQty, line.qty);
+        if (key !== line.key) {
+            const twin = cart.find((l, i) => i !== customEditIdx && l.key === key);
+            if (twin) twin.qty = Math.min(20, twin.qty + n);
+            else cart.splice(customEditIdx + 1, 0, { key, id: customId, qty: n, note: line.note || '', add, remove });
+            line.qty -= n;
+            if (line.qty <= 0) cart.splice(customEditIdx, 1);
+        }
         saveCart();
     } else {
         addLine(customId, add, remove, customQty);
