@@ -6,8 +6,9 @@
  *
  * GET  /api/online.php                         → signed in: their order; otherwise {signed_in: false, pending}
  * GET  /api/online.php?menu=1                  → the Menu online (signed in only)
- * POST {action: 'request_code', mode: 'register', first_name, last_name, address, street_number,
- *       country, mobile, landline, intolerances, consent}  → new customer: code on WhatsApp
+ * POST {action: 'request_code', mode: 'register', name, country, mobile, consent}  → new customer: code on WhatsApp
+ *       (intolerances come with the first order: send {…, intol: {choices: [...], other}};
+ *        address, landline, birthday in the profile: {action: 'profile', name, address, landline, birth_date, intol: [...], intol_other})
  * POST {action: 'request_code', mode: 'login', country, mobile} → returning customer: code on WhatsApp
  * POST {action: 'verify', code}                → the code signs them in
  * POST {action: 'send', cart: [{id, qty, note, add, remove}]} → dishes to the kitchen
@@ -53,9 +54,15 @@ if (!$customer) {
 }
 
 if ($action === 'send') {
-    $res = onlineSendCart($customer, (array) ($input['cart'] ?? []));
+    $res = onlineSendCart($customer, (array) ($input['cart'] ?? []), isset($input['intol']) ? (array) $input['intol'] : null);
     if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
     jsonResponse(onlineOrderState($customer) + ['signed_in' => true, 'sent' => $res['ok']]);
+}
+
+if ($action === 'profile') {
+    $res = onlineSaveProfile($customer, $input);
+    if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    jsonResponse(onlineOrderState($res['ok']) + ['signed_in' => true, 'profile_saved' => true]);
 }
 
 if (!empty($_GET['menu'])) {

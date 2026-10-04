@@ -14,10 +14,16 @@ require_once __DIR__ . '/includes/menu_pdf.php';
 i18n_prefer_browser('it');
 onlineDeviceId();   // this phone's device code (cookie), kept with its accesses
 
+$intolOpts = array_map(fn($slug, $value) => ['value' => $value, 'label' => t('online_intol_' . $slug)], array_keys(ONLINE_INTOL_OPTIONS), ONLINE_INTOL_OPTIONS);
 $ws    = getDBConnection()->query("SELECT name FROM workspaces LIMIT 1")->fetch();
 $brand = $ws['name'] ?? t('app_name');
 
 $L = [
+    'intol_opts'    => $intolOpts,
+    'intol_none'    => t('online_intol_none'),
+    'err_intol'     => t('online_err_intol'),
+    'profile_saved' => t('online_profile_saved'),
+    'shop_bias'     => restaurantAddressLine(),
     'failed'        => t('guest_failed'),
     'ready_title'   => t('online_ready_title'),
     'ready_body'    => t('online_ready_body'),
@@ -177,6 +183,25 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 #payQr img, #payQr canvas { width: 220px; height: 220px; }
 .ready-banner strong { display: block; font-size: 1.05rem; }
 .ready-banner button { margin-left: auto; background: rgba(255,255,255,.2); border: 0; color: #fff; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 700; }
+
+/* quick sign-up: intolerances chips, birthday banner, address suggestions */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
+.chip { border: 1.5px solid #e5e2dc; background: #fff; color: #1f2937; border-radius: 999px; padding: 9px 14px; font: inherit; font-size: .95rem; cursor: pointer; }
+.chip.on { background: #fff4ec; border-color: var(--p); color: var(--p); font-weight: 700; }
+.chip.none.on { background: #ecfdf5; border-color: #16a34a; color: #15803d; }
+.intol-ask { margin: 14px 0 6px; padding: 14px; border-radius: 14px; background: #fffbeb; border: 1px solid #fde68a; }
+.intol-ask strong { color: #92400e; }
+.intol-ask input, #pfIntolOther { width: 100%; }
+.intol-err { color: #b91c1c; font-weight: 600; margin: 8px 0 0; }
+.bday-banner { display: flex; align-items: center; gap: 12px; justify-content: space-between; background: #fff4ec; border: 1px solid #fed7aa; border-radius: 14px; padding: 12px 14px; margin: 0 0 14px; font-size: .95rem; }
+.bday-banner[hidden] { display: none; }
+.bday-banner button { border: 0; background: var(--p); color: #fff; font: inherit; font-weight: 700; border-radius: 10px; padding: 8px 14px; cursor: pointer; white-space: nowrap; }
+.addr-wrap { position: relative; }
+.addr-sugg { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; background: #fff; border: 1px solid #e5e2dc; border-radius: 12px; box-shadow: 0 10px 30px #0002; overflow: hidden; margin-top: 4px; }
+.addr-sugg button { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid #f1efe9; background: #fff; padding: 12px 14px; font: inherit; cursor: pointer; }
+.addr-sugg button:last-child { border-bottom: 0; }
+#profile .row { display: flex; gap: 10px; margin-top: 16px; }
+#profile .row > * { flex: 1; }
 </style>
 </head>
 <body>
@@ -219,7 +244,7 @@ $footHtml = ob_get_clean(); ?>
                 <select id="lgCountry" aria-label="<?= te('cust_prefix') ?>">
                     <?php foreach ($countries as $c): ?><option value="<?= $c['iso'] ?>"><?= $c['flag'] ?> <?= $c['dial'] ?></option><?php endforeach; ?>
                 </select>
-                <input id="lgMobile" type="tel" inputmode="tel" maxlength="20" autocomplete="tel-national" placeholder="333 123 4567" required>
+                <input id="lgMobile" name="tel" type="tel" inputmode="tel" maxlength="20" autocomplete="tel-national" placeholder="333 123 4567" required>
             </div>
             <button class="btn-go" type="submit"><i class="fab fa-whatsapp"></i> <?= te('online_login_btn') ?></button>
         </form>
@@ -231,27 +256,15 @@ $footHtml = ob_get_clean(); ?>
         <h2><i class="fas fa-user-plus"></i> <?= te('online_register_title') ?></h2>
         <p class="sub"><?= te('online_register_text') ?></p>
         <form class="form" onsubmit="requestCode(event, 'register')">
-            <div class="two">
-                <div><label for="rgFirst"><?= te('self_name') ?></label><input id="rgFirst" maxlength="60" autocomplete="given-name" required></div>
-                <div><label for="rgLast"><?= te('self_surname') ?></label><input id="rgLast" maxlength="60" autocomplete="family-name" required></div>
-            </div>
-            <div class="addr">
-                <div><label for="rgAddress"><?= te('online_address') ?></label><input id="rgAddress" maxlength="150" autocomplete="address-line1" placeholder="<?= te('online_address_ph') ?>" required></div>
-                <div><label for="rgNumber"><?= te('online_street_number') ?></label><input id="rgNumber" maxlength="15" required></div>
-            </div>
+            <label for="rgName"><?= te('online_full_name') ?></label>
+            <input id="rgName" name="name" maxlength="120" autocomplete="name" autocapitalize="words" placeholder="<?= te('online_full_name_ph') ?>" required>
             <label for="rgMobile"><?= te('online_mobile') ?></label>
             <div class="phone">
                 <select id="rgCountry" aria-label="<?= te('cust_prefix') ?>">
                     <?php foreach ($countries as $c): ?><option value="<?= $c['iso'] ?>"><?= $c['flag'] ?> <?= $c['dial'] ?></option><?php endforeach; ?>
                 </select>
-                <input id="rgMobile" type="tel" inputmode="tel" maxlength="20" autocomplete="tel-national" placeholder="333 123 4567" required>
+                <input id="rgMobile" name="tel" type="tel" inputmode="tel" maxlength="20" autocomplete="tel-national" placeholder="333 123 4567" required>
             </div>
-            <label for="rgLandline"><?= te('online_landline') ?> <small class="opt">(<?= te('self_consent_optional') ?>)</small></label>
-            <input id="rgLandline" type="tel" inputmode="tel" maxlength="25" placeholder="081 123 4567">
-            <label for="rgBirth"><?= te('online_birth_date') ?> <small class="opt">(<?= te('online_birth_hint') ?>)</small></label>
-            <input id="rgBirth" type="date" min="1900-01-01" max="<?= date('Y-m-d') ?>" autocomplete="bday">
-            <label for="rgIntol"><?= te('online_intolerances') ?> <small class="opt">(<?= te('self_consent_optional') ?>)</small></label>
-            <textarea id="rgIntol" maxlength="500" placeholder="<?= te('online_intolerances_ph') ?>"></textarea>
             <label class="consent">
                 <input type="checkbox" id="rgConsent">
                 <span><strong><?= te('self_consent_label') ?></strong> (<?= te('self_consent_optional') ?>)<br><?= htmlspecialchars(consentText('prompt_online', currentLang())) ?></span>
@@ -289,9 +302,40 @@ $footHtml = ob_get_clean(); ?>
         <p class="sub"><?= te('online_shop_intro') ?></p>
         <button class="link-btn" id="shopBack" hidden onclick="closeShop()" style="padding-left:0;"><i class="fas fa-arrow-left"></i> <?= te('online_back_to_order') ?></button>
     </div>
+    <div class="bday-banner" hidden><span>🎂 <?= te('online_bday_banner') ?></span><button type="button" onclick="openProfile()"><?= te('online_bday_add') ?></button></div>
     <div class="shop-cats" id="shopCats"></div>
     <div id="shopMenu"><div class="card"><div class="empty"><?= te('loading') ?></div></div></div>
-    <p class="whoami"><button class="link-btn" onclick="logout()"><?= te('online_not_you') ?></button></p>
+    <p class="whoami"><button class="link-btn" onclick="openProfile()"><i class="fas fa-user-pen"></i> <?= te('online_profile') ?></button> · <button class="link-btn" onclick="logout()"><?= te('online_not_you') ?></button></p>
+</main>
+
+<!-- "Il mio profilo": what was not asked at sign-up -->
+<main id="profile" hidden>
+    <div class="card">
+        <h2><i class="fas fa-user-pen"></i> <?= te('online_profile') ?></h2>
+        <p class="sub"><?= te('online_profile_intro') ?></p>
+        <form class="form" onsubmit="saveProfile(event)" autocomplete="on">
+            <label for="pfName"><?= te('online_full_name') ?></label>
+            <input id="pfName" name="name" maxlength="120" autocomplete="name" autocapitalize="words" required>
+            <label><?= te('online_mobile') ?></label>
+            <input id="pfMobile" disabled>
+            <label for="pfBirth"><?= te('online_birth_date') ?> <small class="opt">(<?= te('online_birth_hint') ?>)</small></label>
+            <input id="pfBirth" name="bday" type="date" min="1900-01-01" max="<?= date('Y-m-d') ?>" autocomplete="bday">
+            <label><?= te('online_intolerances') ?></label>
+            <div class="chips" id="pfIntol"></div>
+            <input id="pfIntolOther" maxlength="200" placeholder="<?= te('online_intol_other_ph') ?>">
+            <label for="pfAddress"><?= te('online_addr_single') ?> <small class="opt">(<?= te('self_consent_optional') ?>)</small></label>
+            <div class="addr-wrap">
+                <input id="pfAddress" name="street-address" maxlength="150" autocomplete="street-address" placeholder="<?= te('online_addr_single_ph') ?>" oninput="addrSuggest()">
+                <div class="addr-sugg" id="pfAddrSugg" hidden></div>
+            </div>
+            <label for="pfLandline"><?= te('online_landline') ?> <small class="opt">(<?= te('self_consent_optional') ?>)</small></label>
+            <input id="pfLandline" type="tel" inputmode="tel" maxlength="25" autocomplete="off" placeholder="081 123 4567">
+            <div class="row">
+                <button type="button" class="btn-no" onclick="closeProfile()"><?= te('cancel') ?></button>
+                <button class="btn-go" type="submit" id="pfSave"><i class="fas fa-check"></i> <?= te('save') ?></button>
+            </div>
+        </form>
+    </div>
 </main>
 <div class="cart-bar" id="cartBar" hidden>
     <div class="sum"><small id="cartCount"></small><strong id="cartTotal"></strong></div>
@@ -322,6 +366,13 @@ $footHtml = ob_get_clean(); ?>
         <h3><i class="fas fa-basket-shopping" style="color:var(--p);"></i> <?= te('self_cart_title') ?></h3>
         <div id="cartLines"></div>
         <div class="total" style="padding-top:12px;"><span><?= te('total') ?></span><span id="cartSheetTotal"></span></div>
+        <div class="intol-ask" id="intolAsk" hidden>
+            <strong><i class="fas fa-triangle-exclamation"></i> <?= te('online_intol_ask_title') ?></strong>
+            <p class="hint-small"><?= te('online_intol_ask_hint') ?></p>
+            <div class="chips" id="askIntol"></div>
+            <input id="askIntolOther" maxlength="200" placeholder="<?= te('online_intol_other_ph') ?>" oninput="intolAnswered()">
+            <p class="intol-err" id="intolErr" hidden></p>
+        </div>
         <p class="hint-small"><?= te('online_cart_hint') ?></p>
         <div class="row">
             <button class="btn-no" onclick="$('cartSheet').classList.remove('on')"><?= te('self_keep_ordering') ?></button>
@@ -346,8 +397,9 @@ $footHtml = ob_get_clean(); ?>
         <p class="sub"><?= te('online_pay_qr_text') ?></p>
         <div id="payQr"></div>
     </div>
+    <div class="bday-banner" hidden><span>🎂 <?= te('online_bday_banner') ?></span><button type="button" onclick="openProfile()"><?= te('online_bday_add') ?></button></div>
     <?= $footHtml ?>
-    <p class="whoami"><button class="link-btn" onclick="logout()"><?= te('online_not_you') ?></button></p>
+    <p class="whoami"><button class="link-btn" onclick="openProfile()"><i class="fas fa-user-pen"></i> <?= te('online_profile') ?></button> · <button class="link-btn" onclick="logout()"><?= te('online_not_you') ?></button></p>
 </main>
 
 <div class="toast" id="toast"></div>
@@ -370,7 +422,7 @@ function toast(msg) {
     clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 3500);
 }
 function show(id) {
-    ['off', 'gate', 'codeStep', 'shop', 'app'].forEach(m => { $(m).hidden = m !== id; });
+    ['off', 'gate', 'codeStep', 'shop', 'app', 'profile'].forEach(m => { $(m).hidden = m !== id; });
     if (id !== 'shop') $('cartBar').hidden = true;
 }
 
@@ -395,6 +447,8 @@ function render(s) {
     if (!s.signed_in) return renderSignedOut(s);
     state = s;
     document.querySelectorAll('.hello').forEach(el => { el.textContent = L.hello.replace('{name}', s.customer.first_name); });
+    document.querySelectorAll('.bday-banner').forEach(el => { el.hidden = !!s.customer.birth_date || bdayDismissed(); });
+    if (profileOpen) { show('profile'); return; }   // (the form is filled once, on opening)
     if (!s.enabled && !s.items.length) { show('off'); return; }
     // The menu first (nothing ordered yet) or when asked for more.
     renderPaid(s.paid);
@@ -456,9 +510,7 @@ function renderSignedOut(s) {
 }
 function formData(mode) {
     if (mode === 'login') return { mode, country: $('lgCountry').value, mobile: $('lgMobile').value };
-    return { mode, first_name: $('rgFirst').value, last_name: $('rgLast').value, address: $('rgAddress').value,
-             street_number: $('rgNumber').value, country: $('rgCountry').value, mobile: $('rgMobile').value,
-             landline: $('rgLandline').value, intolerances: $('rgIntol').value, birth_date: $('rgBirth').value, consent: $('rgConsent').checked };
+    return { mode, name: $('rgName').value, country: $('rgCountry').value, mobile: $('rgMobile').value, consent: $('rgConsent').checked };
 }
 async function requestCode(e, mode) {
     e.preventDefault();
@@ -652,7 +704,14 @@ function renderCartBar() {
     $('cartCount').textContent = L.self_dishes.replace('{n}', n);
     $('cartTotal').textContent = money(cartSum());
 }
-function openCart() { renderCartLines(); $('cartSheet').classList.add('on'); }
+function openCart() {
+    renderCartLines();
+    // First order: "any intolerances or allergies?" (asked once, the kitchen sees it on every order).
+    const ask = state && state.customer && !state.customer.intolerances_asked;
+    $('intolAsk').hidden = !ask;
+    if (ask && !$('askIntol').children.length) renderChips('askIntol', [], true);
+    $('cartSheet').classList.add('on');
+}
 function renderCartLines() {
     const lines = cartItems();
     if (!lines.length) { $('cartSheet').classList.remove('on'); return; }
@@ -668,9 +727,19 @@ function renderCartLines() {
 async function sendCart() {
     const lines = cartItems().map(l => ({ id: l.id, qty: l.qty, note: l.note || '', add: l.add || [], remove: l.remove || [] }));
     if (!lines.length) return;
+    const body = { action: 'send', cart: lines };
+    if (!$('intolAsk').hidden) {
+        const picked = chipValues('askIntol'), other = $('askIntolOther').value.trim();
+        if (!picked.length && !other && !chipNone('askIntol')) {
+            $('intolErr').textContent = L.err_intol; $('intolErr').hidden = false;
+            $('intolAsk').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        body.intol = { choices: picked, other };
+    }
     $('cartSend').disabled = true;
     shopOpen = false;
-    const ok = await send({ action: 'send', cart: lines });
+    const ok = await send(body);
     $('cartSend').disabled = false;
     if (!ok) { shopOpen = true; return; }
     cart = []; saveCart();
@@ -678,6 +747,94 @@ async function sendCart() {
     window.scrollTo(0, 0);
     toast(L.self_sent);
 }
+
+/* ---- Intolerances: one-tap choices ("Nessuna" clears the others) ---- */
+function renderChips(boxId, selected, withNone) {
+    const sel = new Set(selected);
+    $(boxId).innerHTML = L.intol_opts.map(o => `<button type="button" class="chip${sel.has(o.value) ? ' on' : ''}" data-v="${esc(o.value)}" onclick="chipToggle(this)">${esc(o.label)}</button>`).join('')
+        + (withNone ? `<button type="button" class="chip none" data-none="1" onclick="chipToggle(this)">${esc(L.intol_none)}</button>` : '');
+}
+function chipToggle(b) {
+    const box = b.parentNode;
+    b.classList.toggle('on');
+    if (b.dataset.none && b.classList.contains('on')) box.querySelectorAll('.chip:not([data-none])').forEach(c => c.classList.remove('on'));
+    if (!b.dataset.none && b.classList.contains('on')) box.querySelectorAll('.chip[data-none]').forEach(c => c.classList.remove('on'));
+    intolAnswered();
+}
+const chipValues = boxId => [...$(boxId).querySelectorAll('.chip.on[data-v]')].map(c => c.dataset.v);
+const chipNone = boxId => !!$(boxId).querySelector('.chip.on[data-none]');
+function intolAnswered() { $('intolErr').hidden = true; }
+
+/* ---- "Il mio profilo" ---- */
+let profileOpen = false, profileBack = null;
+const BDAY_KEY = 'online-bday-later';
+const bdayDismissed = () => { try { return localStorage.getItem(BDAY_KEY) === '1'; } catch (e) { return false; } };
+function openProfile() {
+    if (!state) return;
+    const c = state.customer;
+    profileBack = shopOpen; profileOpen = true;
+    $('pfName').value = c.name; $('pfMobile').value = c.mobile; $('pfBirth').value = c.birth_date || '';
+    $('pfAddress').value = c.address || ''; $('pfLandline').value = c.landline || '';
+    // Split the stored intolerances into the chips and the free text.
+    const known = new Set(L.intol_opts.map(o => o.value));
+    const parts = (c.intolerances || '').split(',').map(s => s.trim()).filter(Boolean);
+    renderChips('pfIntol', parts.filter(p => known.has(p)), false);
+    $('pfIntolOther').value = parts.filter(p => !known.has(p)).join(', ');
+    show('profile'); window.scrollTo(0, 0);
+}
+function closeProfile() { profileOpen = false; shopOpen = !!profileBack; render(state); window.scrollTo(0, 0); }
+async function saveProfile(e) {
+    e.preventDefault();
+    $('pfSave').disabled = true;
+    const ok = await send({ action: 'profile', name: $('pfName').value, birth_date: $('pfBirth').value, address: $('pfAddress').value,
+                            landline: $('pfLandline').value, intol: chipValues('pfIntol'), intol_other: $('pfIntolOther').value });
+    $('pfSave').disabled = false;
+    if (ok) { toast(L.profile_saved); closeProfile(); }
+}
+// Address suggestions while typing (OpenStreetMap, via Photon), nearest to the shop first.
+let shopPos = undefined;
+async function shopPosition() {
+    if (shopPos !== undefined) return shopPos;
+    shopPos = null;
+    try {
+        const r = await fetch('https://photon.komoot.io/api/?limit=1&q=' + encodeURIComponent(L.shop_bias));
+        const f = (await r.json()).features?.[0];
+        if (f) shopPos = f.geometry.coordinates;   // [lon, lat]
+    } catch (e) {}
+    return shopPos;
+}
+function addrSuggest() {
+    clearTimeout(addrSuggest.h);
+    const q = $('pfAddress').value.trim();
+    if (q.length < 4) { $('pfAddrSugg').hidden = true; return; }
+    addrSuggest.h = setTimeout(async () => {
+        try {
+            const pos = await shopPosition();
+            const url = 'https://photon.komoot.io/api/?limit=5&q=' + encodeURIComponent(q) + (pos ? `&lon=${pos[0]}&lat=${pos[1]}` : '');
+            const feats = (await (await fetch(url)).json()).features || [];
+            const seen = new Set();
+            const items = feats.map(f => {
+                const p = f.properties || {};
+                const street = p.street || (p.osm_key === 'highway' ? p.name : '');
+                if (!street) return null;
+                const line = [street + (p.housenumber ? ' ' + p.housenumber : ''), p.city || p.town || p.village || p.county].filter(Boolean).join(', ');
+                if (seen.has(line)) return null;
+                seen.add(line); return line;
+            }).filter(Boolean);
+            if ($('pfAddress').value.trim() !== q) return;   // typed on meanwhile
+            $('pfAddrSugg').innerHTML = items.map(t => `<button type="button" onclick="addrPick(this)">${esc(t)}</button>`).join('');
+            $('pfAddrSugg').hidden = !items.length;
+        } catch (e) { $('pfAddrSugg').hidden = true; }
+    }, 350);
+}
+function addrPick(b) {
+    const v = b.textContent;
+    // No house number in the suggestion: leave the cursor where the number goes.
+    $('pfAddress').value = v; $('pfAddrSugg').hidden = true;
+    const comma = v.indexOf(',');
+    if (!/\d/.test(comma > 0 ? v.slice(0, comma) : v)) { const at = comma > 0 ? comma : v.length; $('pfAddress').focus(); $('pfAddress').value = v.slice(0, at) + ' ' + v.slice(at); $('pfAddress').setSelectionRange(at + 1, at + 1); }
+}
+document.addEventListener('click', e => { if (!e.target.closest('.addr-wrap')) $('pfAddrSugg').hidden = true; });
 
 /* ---- "Your order is ready": banner, chime, vibration, system notification ---- */
 let wasReady = null;

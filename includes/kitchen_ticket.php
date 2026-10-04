@@ -272,7 +272,8 @@ function printStationTicket(
         $cs->execute([(int) $order['online_customer_id']]);
         if ($c = $cs->fetch()) {
             $customer[] = 'CLIENTE: ' . trim($c['first_name'] . ' ' . $c['last_name']);
-            $customer[] = trim($c['address'] . ', ' . $c['street_number']);
+            $addr = implode(', ', array_filter([trim((string) $c['address']), trim((string) $c['street_number'])], fn($v) => $v !== ''));
+            if ($addr !== '') $customer[] = $addr;
             $customer[] = 'Cell: ' . $c['mobile'];
             if (!empty($c['landline'])) $customer[] = 'Tel: ' . $c['landline'];
         }

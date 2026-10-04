@@ -37,7 +37,7 @@ $ooAddToTicket = $ooAddToTicket ?? false;
                     <div class="oo-sub"><?= htmlspecialchars($o['order_number']) ?> · <?= date('H:i', strtotime($o['created_at'])) ?> (<?= $min ?> <?= te('minutes_short') ?>)</div>
                     <div class="oo-sub"><i class="fas fa-mobile-screen"></i> <?= htmlspecialchars((string) $o['customer_phone']) ?>
                         <?php if (!empty($o['landline'])): ?> · <i class="fas fa-phone"></i> <?= htmlspecialchars($o['landline']) ?><?php endif; ?></div>
-                    <?php if (!empty($o['address'])): ?><div class="oo-sub"><i class="fas fa-location-dot"></i> <?= htmlspecialchars($o['address'] . ', ' . $o['street_number']) ?></div><?php endif; ?>
+                    <?php if (!empty($o['address'])): ?><div class="oo-sub"><i class="fas fa-location-dot"></i> <?= htmlspecialchars(onlineAddressLine($o['address'], $o['street_number'])) ?></div><?php endif; ?>
                 </div>
                 <span class="oo-state <?= $o['ready'] ? 'ready' : 'cooking' ?>"><?= te($o['ready'] ? 'cash_online_st_ready' : 'cash_online_st_cooking') ?></span>
             </div>

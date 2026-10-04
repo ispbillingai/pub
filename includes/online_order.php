@@ -45,6 +45,11 @@ const ONLINE_CODE_GAP      = 60;    // a new code at most once a minute
 const ONLINE_CODE_MAX_SENDS = 5;    // codes per browser session
 const ONLINE_CODE_MAX_TRIES = 5;    // wrong codes before a new one is needed
 const ONLINE_DEVICE_COOKIE = 'online_device';
+/** The intolerances offered as one-tap choices (stored in Italian, for the kitchen). */
+const ONLINE_INTOL_OPTIONS = [
+    'glutine' => 'Glutine', 'lattosio' => 'Lattosio', 'frutta_guscio' => 'Frutta a guscio', 'arachidi' => 'Arachidi',
+    'uova' => 'Uova', 'pesce' => 'Pesce', 'crostacei' => 'Crostacei e molluschi', 'soia' => 'Soia', 'sesamo' => 'Sesamo',
+];
 const ONLINE_DEVICE_DAYS   = 730;   // the device code lasts 2 years
 
 /** ['enabled' => bool, 'thanks_it' / 'thanks_en' => the "paid, thank you" text ('' = default)] */
@@ -291,17 +296,17 @@ function onlineRequestCode(array $in): array
     } else {
         if ($known) return ['error' => 'online_err_already'];
         $f = fn($k, $max) => mb_substr(trim((string) ($in[$k] ?? '')), 0, $max);
+        // One "Nome e cognome" field (first name and surname are split from it).
+        [$first, $last] = onlineSplitName(isset($in['name']) ? (string) $in['name'] : $f('first_name', 60) . ' ' . $f('last_name', 60));
         $data += [
-            'first_name' => $f('first_name', 60), 'last_name' => $f('last_name', 60),
+            'first_name' => $first, 'last_name' => $last,
             'address' => $f('address', 150), 'street_number' => $f('street_number', 15),
             'landline' => $f('landline', 25), 'intolerances' => $f('intolerances', 500),
             'consent' => !empty($in['consent']),
             'birth_date' => birthDateValue($in['birth_date'] ?? ''),   // optional: birthday wishes and a gift
         ];
         if ($data['birth_date'] === null) return ['error' => 'online_err_birth'];
-        if ($data['first_name'] === '' || $data['last_name'] === '' || $data['address'] === '' || $data['street_number'] === '') {
-            return ['error' => 'online_err_fields'];
-        }
+        if (mb_strlen($data['first_name']) < 2) return ['error' => 'online_err_name'];
         if ($data['landline'] !== '' && !preg_match('/^\+?[\d\s\/.-]{5,25}$/', $data['landline'])) {
             return ['error' => 'online_err_landline'];
         }
@@ -417,7 +422,60 @@ function onlineOpenOrdersWithItems(): array
 /** "ONLINE · Mario R." — what the kitchen, the slips and the till show instead of a table. */
 function onlineOrderLabel(array $customer): string
 {
-    return mb_substr('ONLINE · ' . $customer['first_name'] . ' ' . mb_substr($customer['last_name'], 0, 1) . '.', 0, 100);
+    $last = trim((string) $customer['last_name']);
+    return mb_substr('ONLINE · ' . $customer['first_name'] . ($last !== '' ? ' ' . mb_substr($last, 0, 1) . '.' : ''), 0, 100);
+}
+
+/** "Mario De Luca" → ['Mario', 'De Luca'] (one word: no surname). */
+function onlineSplitName(string $full): array
+{
+    $full  = mb_substr(trim(preg_replace('/\s+/u', ' ', $full)), 0, 120);
+    $parts = explode(' ', $full, 2);
+    return [mb_substr($parts[0], 0, 60), mb_substr($parts[1] ?? '', 0, 60)];
+}
+
+/** The address as one line ("Via Roma 12"), whether it came in one field or two. */
+function onlineAddressLine(?string $address, ?string $number = ''): string
+{
+    return implode(', ', array_filter([trim((string) $address), trim((string) $number)], fn($v) => $v !== ''));
+}
+
+/** Intolerances from the one-tap choices plus free text, as stored: "Glutine, Lattosio, senza cipolla". */
+function onlineIntolText($choices, $other): string
+{
+    $picked = array_values(array_intersect(ONLINE_INTOL_OPTIONS, array_map('strval', (array) $choices)));
+    $other  = trim(preg_replace('/\s+/u', ' ', (string) $other));
+    return mb_substr(implode(', ', array_filter([...$picked, $other], fn($v) => $v !== '')), 0, 500);
+}
+
+/** Save the intolerances (asked once, with the first order; then in the profile). */
+function onlineSaveIntolerances(int $customerId, string $text): void
+{
+    getDBConnection()->prepare("UPDATE online_customers SET intolerances = ?, intolerances_asked = 1 WHERE id = ?")
+        ->execute([$text !== '' ? $text : null, $customerId]);
+}
+
+/**
+ * "Il mio profilo": name, address (one line, optional), landline, birthday,
+ * intolerances. The mobile can't change (it is how they sign in).
+ * Returns ['ok' => customer] or ['error' => lang key].
+ */
+function onlineSaveProfile(array $customer, array $in): array
+{
+    [$first, $last] = onlineSplitName((string) ($in['name'] ?? ''));
+    if (mb_strlen($first) < 2) return ['error' => 'online_err_name'];
+    $landline = mb_substr(trim((string) ($in['landline'] ?? '')), 0, 25);
+    if ($landline !== '' && !preg_match('/^\+?[\d\s\/.-]{5,25}$/', $landline)) return ['error' => 'online_err_landline'];
+    $birth = birthDateValue($in['birth_date'] ?? '');
+    if ($birth === null) return ['error' => 'online_err_birth'];
+    $address = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) ($in['address'] ?? ''))), 0, 150);
+    getDBConnection()->prepare("
+        UPDATE online_customers SET first_name = ?, last_name = ?, address = ?, street_number = '', landline = ?, birth_date = ?,
+               intolerances = ?, intolerances_asked = 1 WHERE id = ?
+    ")->execute([$first, $last, $address, $landline !== '' ? $landline : null, $birth !== '' ? $birth : null,
+                 ($t = onlineIntolText($in['intol'] ?? [], $in['intol_other'] ?? '')) !== '' ? $t : null, (int) $customer['id']]);
+    logActivity('online_profile_saved', 'online_customers', (int) $customer['id']);
+    return ['ok' => onlineCustomerById((int) $customer['id'])];
 }
 
 /**
@@ -425,9 +483,15 @@ function onlineOrderLabel(array $customer): string
  * The intolerances go in the order notes (printed on every slip). The order
  * then waits at the till as a bill to collect. Returns ['ok' => dishes] or ['error' => lang key].
  */
-function onlineSendCart(array $customer, array $cart): array
+function onlineSendCart(array $customer, array $cart, ?array $intol = null): array
 {
     if (!onlineOrderEnabled()) return ['error' => 'online_err_off'];
+    // First order: the intolerances are asked once (an answer — even "none" — is needed).
+    if (empty($customer['intolerances_asked'])) {
+        if ($intol === null) return ['error' => 'online_err_intol'];
+        onlineSaveIntolerances((int) $customer['id'], onlineIntolText($intol['choices'] ?? [], $intol['other'] ?? ''));
+        $customer = onlineCustomerById((int) $customer['id']);
+    }
     $pdo   = getDBConnection();
     $order = onlineOpenOrder($customer);
     $new   = !$order;
@@ -593,7 +657,16 @@ function onlineOrderState(array $customer): array
         'success'  => true,
         'enabled'  => onlineOrderEnabled(),
         'paid'     => $paid,
-        'customer' => ['first_name' => $customer['first_name']],
+        'customer' => [
+            'first_name' => $customer['first_name'],
+            'name'       => trim($customer['first_name'] . ' ' . $customer['last_name']),
+            'mobile'     => $customer['mobile'],
+            'address'    => onlineAddressLine($customer['address'], $customer['street_number']),
+            'landline'   => (string) $customer['landline'],
+            'birth_date' => (string) $customer['birth_date'],
+            'intolerances'       => (string) $customer['intolerances'],
+            'intolerances_asked' => !empty($customer['intolerances_asked']),
+        ],
         'order'    => $order ? ['number' => $order['order_number'], 'pay_url' => onlinePayUrl(onlinePayToken($order))] : null,
         'items'    => $items,
         'all_ready'=> $items && !array_filter($items, fn($i) => !in_array($i['status'], ['ready', 'served'], true)),

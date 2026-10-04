@@ -291,7 +291,7 @@ include __DIR__ . '/../includes/header.php';
                         <span class="text-muted"><?= date('H:i', strtotime($r['created_at'])) ?></span></td>
                     <td><strong><?= htmlspecialchars($r['first_name'] . ' ' . $r['last_name']) ?></strong><?php if (!empty($r['birth_date'])): ?><br><small class="text-muted" title="<?= te('online_birth_date') ?>">🎂 <?= birthDateLabel($r['birth_date']) ?></small><?php endif; ?>
                         <?php if (!$r['active']): ?><span class="badge badge-danger"><?= te('online_disabled') ?></span><?php endif; ?></td>
-                    <td><?= htmlspecialchars($r['address'] . ', ' . $r['street_number']) ?></td>
+                    <td><?= ($a1 = onlineAddressLine($r['address'], $r['street_number'])) !== '' ? htmlspecialchars($a1) : '<span class="text-muted">—</span>' ?></td>
                     <td class="flag-font" style="white-space:nowrap;"><?= countryFlag($r['mobile_country'] ?: 'IT') ?> <?= htmlspecialchars($r['mobile']) ?></td>
                     <td style="white-space:nowrap;"><?= htmlspecialchars($r['landline'] ?: '—') ?></td>
                     <td class="intol cell-small"><?= $r['intolerances'] ? '<i class="fas fa-triangle-exclamation" style="color:#dc2626;"></i> ' . htmlspecialchars($r['intolerances']) : '<span class="text-muted">—</span>' ?></td>
