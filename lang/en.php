@@ -1520,4 +1520,19 @@ return [
     // ---- Marketing consent: the online customers' clause ----
     'consent_default_prompt_online' => 'I agree that {restaurant} may use my phone number to send me marketing and promotional messages on WhatsApp: invitations to events and initiatives, offers and coupons.'."\n".'Consent is optional: without it I can keep shopping online. I can withdraw it at any time with the link I will get on WhatsApp.',
     'consent_field_prompt_online' => 'Consent text (online customers)',
+
+    // ---- Online customers: device code (no MAC address on the web) ----
+    'online_col_devices' => 'Devices',
+    'online_col_reg_device' => 'Sign-up device',
+    'online_device_shared_col' => 'Other customers on the same device',
+    'online_devices_one' => '1 device',
+    'online_devices_n' => '{n} devices',
+    'online_device_shared_one' => 'shared with 1 other customer',
+    'online_device_shared_n' => 'shared with {n} other customers',
+    'online_devices_title' => 'Devices used',
+    'online_device_none' => 'No device code yet: it is recorded from the next access or order.',
+    'online_device_reg' => 'sign-up',
+    'online_device_used' => '{n} accesses · from {from} to {to}',
+    'online_device_also' => 'Also used by:',
+    'online_device_code' => 'Device code',
 ];

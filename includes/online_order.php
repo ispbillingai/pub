@@ -44,6 +44,8 @@ const ONLINE_CODE_TTL      = 900;   // the WhatsApp code lasts 15 minutes
 const ONLINE_CODE_GAP      = 60;    // a new code at most once a minute
 const ONLINE_CODE_MAX_SENDS = 5;    // codes per browser session
 const ONLINE_CODE_MAX_TRIES = 5;    // wrong codes before a new one is needed
+const ONLINE_DEVICE_COOKIE = 'online_device';
+const ONLINE_DEVICE_DAYS   = 730;   // the device code lasts 2 years
 
 /** ['enabled' => bool, 'thanks_it' / 'thanks_en' => the "paid, thank you" text ('' = default)] */
 function onlineOrderSettings(): array
@@ -117,6 +119,64 @@ function onlineClientIp(): ?string
 }
 
 /**
+ * This browser's device code. A web page can't read the phone's MAC address,
+ * so the first visit gets a random code in a cookie (2 years) and it comes back
+ * with every request: the same phone keeps it across networks and IPs, until
+ * its browser data is cleared (or in a private window).
+ */
+function onlineDeviceId(): string
+{
+    static $id = null;
+    if ($id !== null) return $id;
+    $id = strtolower((string) ($_COOKIE[ONLINE_DEVICE_COOKIE] ?? ''));
+    if (!preg_match('/^[a-f0-9]{32}$/', $id)) $id = bin2hex(random_bytes(16));
+    if (!headers_sent()) {   // (re)set every time: the 2 years run from the last visit
+        setcookie(ONLINE_DEVICE_COOKIE, $id, [
+            'expires' => time() + ONLINE_DEVICE_DAYS * 86400, 'path' => '/',
+            'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax',
+        ]);
+    }
+    $_COOKIE[ONLINE_DEVICE_COOKIE] = $id;
+    return $id;
+}
+
+/** The device code as shown to staff: 3F9A-0C21 (the first 8 of its 32 characters). */
+function onlineDeviceShort(?string $id): string
+{
+    if (!$id) return '';
+    return strtoupper(substr($id, 0, 4) . '-' . substr($id, 4, 4));
+}
+
+/** A readable device from the browser's user agent: "iPhone · Safari", "Android · Chrome". */
+function onlineDeviceLabel(?string $ua): string
+{
+    $ua = (string) $ua;
+    if ($ua === '') return '';
+    $os = match (true) {
+        str_contains($ua, 'iPhone')                                  => 'iPhone',
+        str_contains($ua, 'iPad')                                    => 'iPad',
+        (bool) preg_match('/Android[^;)]*;\s*([^;)]+?)(?:\s+Build|\))/', $ua, $m) && !in_array(trim($m[1]), ['K', 'wv'], true)
+                                                                     => 'Android · ' . trim($m[1]),
+        str_contains($ua, 'Android')                                 => 'Android',
+        str_contains($ua, 'Windows')                                 => 'Windows',
+        str_contains($ua, 'Macintosh')                               => 'Mac',
+        str_contains($ua, 'CrOS')                                    => 'Chromebook',
+        str_contains($ua, 'Linux')                                   => 'Linux',
+        default                                                      => '',
+    };
+    $browser = match (true) {
+        str_contains($ua, 'SamsungBrowser') => 'Samsung Internet',
+        str_contains($ua, 'Edg/')           => 'Edge',
+        str_contains($ua, 'OPR/')           => 'Opera',
+        str_contains($ua, 'FxiOS'), str_contains($ua, 'Firefox/') => 'Firefox',
+        str_contains($ua, 'CriOS'), str_contains($ua, 'Chrome/')  => 'Chrome',
+        str_contains($ua, 'Safari/')        => 'Safari',
+        default                             => '',
+    };
+    return implode(' · ', array_filter([$os, $browser])) ?: mb_substr($ua, 0, 40);
+}
+
+/**
  * Hidden room / table / user every online order hangs off (system_place.php).
  *
  * @return array{room_id:int, table_id:int, user_id:int}
@@ -157,14 +217,15 @@ function onlineCustomerDelete(int $id): bool
     return true;
 }
 
-/** Sign-up, login, order: with the IP it came from. */
+/** Sign-up, login, order: with the IP and the device code it came from. */
 function onlineLogAccess(int $customerId, string $event, ?int $orderId = null): void
 {
     $pdo = getDBConnection();
     $ip  = onlineClientIp();
-    $pdo->prepare("INSERT INTO online_customer_access (customer_id, event, ip_address, user_agent, order_id) VALUES (?, ?, ?, ?, ?)")
-        ->execute([$customerId, $event, $ip, mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255), $orderId]);
-    $pdo->prepare("UPDATE online_customers SET last_ip = ?, last_seen_at = NOW() WHERE id = ?")->execute([$ip, $customerId]);
+    $dev = onlineDeviceId();
+    $pdo->prepare("INSERT INTO online_customer_access (customer_id, event, ip_address, device_id, user_agent, order_id) VALUES (?, ?, ?, ?, ?, ?)")
+        ->execute([$customerId, $event, $ip, $dev, mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255), $orderId]);
+    $pdo->prepare("UPDATE online_customers SET last_ip = ?, last_device = ?, last_seen_at = NOW() WHERE id = ?")->execute([$ip, $dev, $customerId]);
 }
 
 /* ---- Staying signed in: the session, plus a signed cookie so the phone
@@ -296,12 +357,12 @@ function onlineVerifyCode(string $code): array
     if ($r['mode'] === 'register' && !$customer) {
         $pdo->prepare("
             INSERT INTO online_customers (first_name, last_name, address, street_number, mobile, mobile_country, landline,
-                                          intolerances, birth_date, marketing_consent, registration_ip)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                          intolerances, birth_date, marketing_consent, registration_ip, registration_device)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ")->execute([
             $r['first_name'], $r['last_name'], $r['address'], $r['street_number'], $r['mobile'], $r['country'],
             $r['landline'] !== '' ? $r['landline'] : null, $r['intolerances'] !== '' ? $r['intolerances'] : null,
-            ($r['birth_date'] ?? '') !== '' ? $r['birth_date'] : null, $r['consent'] ? 1 : 0, onlineClientIp(),
+            ($r['birth_date'] ?? '') !== '' ? $r['birth_date'] : null, $r['consent'] ? 1 : 0, onlineClientIp(), onlineDeviceId(),
         ]);
         $customer = onlineCustomerById((int) $pdo->lastInsertId());
         onlineLogAccess((int) $customer['id'], 'register');

@@ -12,6 +12,7 @@ require_once __DIR__ . '/includes/online_order.php';
 require_once __DIR__ . '/includes/restaurant.php';
 require_once __DIR__ . '/includes/menu_pdf.php';
 i18n_prefer_browser('it');
+onlineDeviceId();   // this phone's device code (cookie), kept with its accesses
 
 $ws    = getDBConnection()->query("SELECT name FROM workspaces LIMIT 1")->fetch();
 $brand = $ws['name'] ?? t('app_name');

@@ -3,8 +3,10 @@
  * Admin — Clienti online: the shop with no tables. Turns online ordering on,
  * shows the one QR everybody scans (online.php, to print), and lists the
  * customers who signed up there with everything they gave (address, mobile,
- * landline, intolerances, marketing consent) and the IP they signed up from;
- * ?id= shows one customer's accesses (sign-up, logins, orders) with their IP.
+ * landline, intolerances, marketing consent), the IP they signed up from and
+ * the devices they used (a device code per browser: onlineDeviceId(), flagged
+ * when another customer used the same device); ?id= shows one customer's
+ * accesses (sign-up, logins, orders) with IP and device.
  * Customers can be disabled (they can't sign in or order) or deleted (their
  * details are then taken off their orders too).
  */
@@ -48,13 +50,20 @@ $params = [];
 if ($q !== '') {
     $like   = '%' . $q . '%';
     $digits = preg_replace('/\D/', '', $q);             // "333 123" matches +39333123…
-    $where  = "WHERE CONCAT(c.first_name, ' ', c.last_name) LIKE ? OR c.address LIKE ? OR c.mobile LIKE ? OR c.landline LIKE ? OR c.registration_ip LIKE ?";
-    $params = [$like, $like, $digits !== '' ? '%' . $digits . '%' : $like, $like, $like];
+    $devq   = strtolower(str_replace('-', '', $q));      // a device code: 3F9A-0C21
+    $where  = "WHERE CONCAT(c.first_name, ' ', c.last_name) LIKE ? OR c.address LIKE ? OR c.mobile LIKE ? OR c.landline LIKE ? OR c.registration_ip LIKE ?
+               OR EXISTS (SELECT 1 FROM online_customer_access da WHERE da.customer_id = c.id AND da.device_id LIKE ?)";
+    $params = [$like, $like, $digits !== '' ? '%' . $digits . '%' : $like, $like, $like,
+               preg_match('/^[a-f0-9]{4,32}$/', $devq) ? $devq . '%' : '-'];
 }
 $stmt = $pdo->prepare("
     SELECT c.*,
            (SELECT COUNT(*) FROM orders o WHERE o.online_customer_id = c.id AND o.status <> 'cancelled') AS orders_count,
-           (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.online_customer_id = c.id AND o.status = 'paid') AS spent
+           (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.online_customer_id = c.id AND o.status = 'paid') AS spent,
+           (SELECT COUNT(DISTINCT a.device_id) FROM online_customer_access a WHERE a.customer_id = c.id AND a.device_id IS NOT NULL) AS devices,
+           (SELECT COUNT(DISTINCT o2.customer_id) FROM online_customer_access o2
+             WHERE o2.customer_id <> c.id AND o2.device_id IN
+                   (SELECT a3.device_id FROM online_customer_access a3 WHERE a3.customer_id = c.id AND a3.device_id IS NOT NULL)) AS shared_with
     FROM online_customers c $where
     ORDER BY c.created_at DESC LIMIT 2000
 ");
@@ -69,12 +78,14 @@ if (($_GET['export'] ?? '') === 'csv') {
     fwrite($out, "\xEF\xBB\xBF"); // Excel: UTF-8
     fputcsv($out, [t('online_col_registered'), t('self_name'), t('self_surname'), t('online_address'), t('online_street_number'),
                    t('online_mobile'), t('online_landline'), t('online_intolerances'), t('consent_col'), t('online_col_reg_ip'),
-                   t('online_col_last_seen'), t('online_col_last_ip'), t('orders'), t('online_col_active'), t('online_birth_date')], ';');
+                   t('online_col_last_seen'), t('online_col_last_ip'), t('orders'), t('online_col_active'), t('online_birth_date'),
+                   t('online_col_reg_device'), t('online_col_devices'), t('online_device_shared_col')], ';');
     foreach ($rows as $r) {
         fputcsv($out, [date('d/m/Y H:i', strtotime($r['created_at'])), $r['first_name'], $r['last_name'], $r['address'], $r['street_number'],
                        $r['mobile'], $r['landline'], $r['intolerances'], t('consent_st_' . consentStatusOf($r['mobile'])), $r['registration_ip'],
                        $r['last_seen_at'] ? date('d/m/Y H:i', strtotime($r['last_seen_at'])) : '', $r['last_ip'], $r['orders_count'],
-                       $r['active'] ? t('yes') : t('no'), birthDateLabel($r['birth_date'])], ';');
+                       $r['active'] ? t('yes') : t('no'), birthDateLabel($r['birth_date']),
+                       onlineDeviceShort($r['registration_device']), (int) $r['devices'], (int) $r['shared_with']], ';');
     }
     exit;
 }
@@ -89,8 +100,22 @@ if (!empty($_GET['id'])) {
                              WHERE a.customer_id = ? ORDER BY a.id DESC LIMIT 300");
         $st->execute([(int) $detail['id']]);
         $access = $st->fetchAll();
+        // The devices this customer used, and who else used each of them.
+        $st = $pdo->prepare("
+            SELECT a.device_id, MIN(a.created_at) AS first_at, MAX(a.created_at) AS last_at, COUNT(*) AS n,
+                   SUBSTRING_INDEX(GROUP_CONCAT(a.user_agent ORDER BY a.id DESC SEPARATOR '\n'), '\n', 1) AS user_agent,
+                   (SELECT GROUP_CONCAT(DISTINCT CONCAT(oc.id, ':', oc.first_name, ' ', oc.last_name) SEPARATOR '|')
+                      FROM online_customer_access ox JOIN online_customers oc ON oc.id = ox.customer_id
+                     WHERE ox.device_id = a.device_id AND ox.customer_id <> a.customer_id) AS others
+            FROM online_customer_access a
+            WHERE a.customer_id = ? AND a.device_id IS NOT NULL
+            GROUP BY a.device_id ORDER BY last_at DESC
+        ");
+        $st->execute([(int) $detail['id']]);
+        $devices = $st->fetchAll();
     }
 }
+$devices = $devices ?? [];
 
 $settings = onlineOrderSettings();
 $waOn     = guestWhatsappEnabled();
@@ -112,6 +137,12 @@ include __DIR__ . '/../includes/header.php';
 .qr-url { font-size: .8rem; word-break: break-all; color: var(--text-secondary); margin-top: 8px; }
 .cell-small { font-size: .82rem; }
 .intol { max-width: 220px; white-space: pre-wrap; }
+.dev-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.dev-item { border: 1px solid var(--border-color, #e5e7eb); border-radius: 10px; padding: 10px 12px; }
+.dev-item.shared { border-color: #f59e0b; background: rgba(245,158,11,.07); }
+.dev-code { font-weight: 700; margin-right: 6px; }
+.dev-others { color: #b45309; margin-top: 4px; }
+.dev-flag { color: #b45309; font-weight: 600; }
 @media print {
     .main-nav, .admin-sidebar, .page-header, .no-print, .main-footer, .table-requests-bar { display: none !important; }
     .online-top { display: block; }
@@ -182,20 +213,42 @@ include __DIR__ . '/../includes/header.php';
         <h2><i class="fas fa-clock-rotate-left"></i> <?= te('online_access_title', ['name' => $detail['first_name'] . ' ' . $detail['last_name']]) ?></h2>
         <a class="btn btn-sm btn-outline" href="?<?= htmlspecialchars(http_build_query(array_filter(['q' => $q]))) ?>"><i class="fas fa-xmark"></i> <?= te('close') ?></a>
     </div>
+    <div class="card-body" style="padding-bottom:0;">
+        <h3 style="font-size:.95rem;margin:0 0 8px;"><i class="fas fa-mobile-screen"></i> <?= te('online_devices_title') ?></h3>
+        <?php if (!$devices): ?>
+            <p class="text-muted cell-small"><?= te('online_device_none') ?></p>
+        <?php endif; ?>
+        <div class="dev-list">
+        <?php foreach ($devices as $d): ?>
+            <div class="dev-item<?= $d['others'] ? ' shared' : '' ?>">
+                <div><code class="dev-code"><?= htmlspecialchars(onlineDeviceShort($d['device_id'])) ?></code>
+                    <strong><?= htmlspecialchars(onlineDeviceLabel($d['user_agent'])) ?></strong>
+                    <?php if ($d['device_id'] === $detail['registration_device']): ?><span class="badge badge-light"><?= te('online_device_reg') ?></span><?php endif; ?></div>
+                <div class="cell-small text-muted"><?= te('online_device_used', ['n' => (int) $d['n'], 'from' => date('d/m/Y', strtotime($d['first_at'])), 'to' => date('d/m/Y H:i', strtotime($d['last_at']))]) ?></div>
+                <?php if ($d['others']): ?>
+                    <div class="cell-small dev-others"><i class="fas fa-triangle-exclamation"></i> <?= te('online_device_also') ?>
+                        <?php foreach (explode('|', $d['others']) as $j => $o): [$oid, $oname] = explode(':', $o, 2); ?><?= $j ? ', ' : '' ?><a href="?id=<?= (int) $oid ?>"><?= htmlspecialchars($oname) ?></a><?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
+        </div>
+    </div>
     <div style="overflow-x:auto;">
     <table class="data-table">
-        <thead><tr><th><?= te('online_col_when') ?></th><th><?= te('online_col_event') ?></th><th>IP</th><th><?= te('orders') ?></th><th><?= te('online_col_device') ?></th></tr></thead>
+        <thead><tr><th><?= te('online_col_when') ?></th><th><?= te('online_col_event') ?></th><th>IP</th><th><?= te('online_device_code') ?></th><th><?= te('orders') ?></th><th><?= te('online_col_device') ?></th></tr></thead>
         <tbody>
         <?php foreach ($access as $a): ?>
             <tr>
                 <td style="white-space:nowrap;"><?= date('d/m/Y H:i:s', strtotime($a['created_at'])) ?></td>
                 <td><?= te('online_ev_' . $a['event']) ?></td>
                 <td><code><?= htmlspecialchars((string) $a['ip_address']) ?></code></td>
+                <td><code><?= htmlspecialchars(onlineDeviceShort($a['device_id']) ?: '—') ?></code></td>
                 <td><?= $a['order_id'] ? '<a href="/admin/order-pdf.php?order=' . (int) $a['order_id'] . '">' . htmlspecialchars((string) $a['order_number']) . '</a>' : '—' ?></td>
-                <td class="cell-small text-muted"><?= htmlspecialchars((string) $a['user_agent']) ?></td>
+                <td class="cell-small" title="<?= htmlspecialchars((string) $a['user_agent']) ?>"><?= htmlspecialchars(onlineDeviceLabel($a['user_agent'])) ?></td>
             </tr>
         <?php endforeach; ?>
-        <?php if (!$access): ?><tr><td colspan="5" class="text-center text-muted"><?= te('online_none') ?></td></tr><?php endif; ?>
+        <?php if (!$access): ?><tr><td colspan="6" class="text-center text-muted"><?= te('online_none') ?></td></tr><?php endif; ?>
         </tbody>
     </table>
     </div>
@@ -226,6 +279,7 @@ include __DIR__ . '/../includes/header.php';
                 <th><?= te('consent_col') ?></th>
                 <th><?= te('online_col_reg_ip') ?></th>
                 <th><?= te('online_col_last_seen') ?></th>
+                <th><?= te('online_col_devices') ?></th>
                 <th><?= te('orders') ?></th>
                 <th></th>
             </tr>
@@ -245,6 +299,13 @@ include __DIR__ . '/../includes/header.php';
                     <td><code class="cell-small"><?= htmlspecialchars((string) $r['registration_ip']) ?></code></td>
                     <td class="cell-small" style="white-space:nowrap;"><?= $r['last_seen_at'] ? date('d/m/Y H:i', strtotime($r['last_seen_at'])) : '—' ?><br>
                         <code><?= htmlspecialchars((string) $r['last_ip']) ?></code></td>
+                    <td class="cell-small" style="white-space:nowrap;">
+                        <?php if ((int) $r['devices'] > 0): ?>
+                            <a href="?<?= htmlspecialchars(http_build_query(array_filter(['q' => $q, 'id' => $r['id']]))) ?>"><?= te((int) $r['devices'] === 1 ? 'online_devices_one' : 'online_devices_n', ['n' => (int) $r['devices']]) ?></a>
+                            <?php if ($r['last_device']): ?><br><code><?= htmlspecialchars(onlineDeviceShort($r['last_device'])) ?></code><?php endif; ?>
+                            <?php if ((int) $r['shared_with'] > 0): ?><br><span class="dev-flag"><i class="fas fa-triangle-exclamation"></i> <?= te((int) $r['shared_with'] === 1 ? 'online_device_shared_one' : 'online_device_shared_n', ['n' => (int) $r['shared_with']]) ?></span><?php endif; ?>
+                        <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                    </td>
                     <td style="white-space:nowrap;"><?= (int) $r['orders_count'] ?><?php if ((float) $r['spent'] > 0): ?> <span class="text-muted cell-small">· <?= formatCurrency($r['spent']) ?></span><?php endif; ?></td>
                     <td style="white-space:nowrap;">
                         <a class="btn btn-sm btn-outline" href="?<?= htmlspecialchars(http_build_query(array_filter(['q' => $q, 'id' => $r['id']]))) ?>"><i class="fas fa-clock-rotate-left"></i> <?= te('online_accesses') ?></a>
@@ -266,7 +327,7 @@ include __DIR__ . '/../includes/header.php';
                 </tr>
             <?php endforeach; ?>
             <?php if (!$rows): ?>
-                <tr><td colspan="11" class="text-center text-muted" style="padding:40px;"><?= te('online_none') ?></td></tr>
+                <tr><td colspan="12" class="text-center text-muted" style="padding:40px;"><?= te('online_none') ?></td></tr>
             <?php endif; ?>
         </tbody>
     </table>
