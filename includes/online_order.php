@@ -36,6 +36,7 @@ require_once __DIR__ . '/self_order.php';
 require_once __DIR__ . '/restaurant.php';
 require_once __DIR__ . '/system_place.php';
 require_once __DIR__ . '/qr.php';
+require_once __DIR__ . '/whatsapp_inbound.php';
 
 const ONLINE_CHANNEL       = 'online';
 const ONLINE_COOKIE        = 'online_customer';
@@ -45,6 +46,8 @@ const ONLINE_CODE_GAP      = 60;    // a new code at most once a minute
 const ONLINE_CODE_MAX_SENDS = 5;    // codes per browser session
 const ONLINE_CODE_MAX_TRIES = 5;    // wrong codes before a new one is needed
 const ONLINE_DEVICE_COOKIE = 'online_device';
+const ONLINE_WA_TTL        = 1800;  // "Entra con WhatsApp": code and link last 30 minutes
+const ONLINE_WA_ALPHABET   = 'ACDEFHJKMNPRTUVWXY3479';   // no look-alike characters
 /** The intolerances offered as one-tap choices (stored in Italian, for the kitchen). */
 const ONLINE_INTOL_OPTIONS = [
     'glutine' => 'Glutine', 'lattosio' => 'Lattosio', 'frutta_guscio' => 'Frutta a guscio', 'arachidi' => 'Arachidi',
@@ -363,30 +366,210 @@ function onlineVerifyCode(string $code): array
     }
     unset($_SESSION['online_reg']);
 
-    $pdo      = getDBConnection();
     $customer = onlineCustomerByMobile($r['mobile']);
     if ($r['mode'] === 'register' && !$customer) {
-        $pdo->prepare("
-            INSERT INTO online_customers (first_name, last_name, address, street_number, mobile, mobile_country, landline,
-                                          intolerances, birth_date, marketing_consent, registration_ip, registration_device)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ")->execute([
-            $r['first_name'], $r['last_name'], $r['address'], $r['street_number'], $r['mobile'], $r['country'],
-            $r['landline'] !== '' ? $r['landline'] : null, $r['intolerances'] !== '' ? $r['intolerances'] : null,
-            ($r['birth_date'] ?? '') !== '' ? $r['birth_date'] : null, $r['consent'] ? 1 : 0, onlineClientIp(), onlineDeviceId(),
-        ]);
-        $customer = onlineCustomerById((int) $pdo->lastInsertId());
-        onlineLogAccess((int) $customer['id'], 'register');
-        logActivity('online_customer_registered', 'online_customers', (int) $customer['id'], ['phone_end' => substr($r['mobile'], -4)]);
-        // The marketing consent as they gave it (with its text, as proof), in
-        // the same register the campaigns read.
-        setConsent($r['mobile'], $r['consent'] ? 'granted' : 'declined', 'online', consentText('prompt_online', $r['lang']), null, $r['lang']);
-        if ($r['consent']) sendConsentConfirmation($r['mobile']);
+        $customer = onlineCreateCustomer($r);
     } elseif (!$customer || !$customer['active']) {
         return ['error' => 'online_err_disabled'];
     } else {
         onlineLogAccess((int) $customer['id'], 'login');
     }
+    onlineSignIn($customer);
+    return ['ok' => $customer];
+}
+
+/**
+ * A new online customer (their mobile already verified: code or WhatsApp),
+ * with IP, device and the marketing consent as given. $r: first_name,
+ * last_name, mobile, country, consent, lang (+ address, street_number,
+ * landline, intolerances, birth_date when given).
+ */
+function onlineCreateCustomer(array $r): array
+{
+    $pdo = getDBConnection();
+    $opt = fn($k) => trim((string) ($r[$k] ?? '')) !== '' ? trim((string) $r[$k]) : null;
+    $pdo->prepare("
+        INSERT INTO online_customers (first_name, last_name, address, street_number, mobile, mobile_country, landline,
+                                      intolerances, birth_date, marketing_consent, registration_ip, registration_device)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ")->execute([
+        $r['first_name'], $r['last_name'], (string) ($r['address'] ?? ''), (string) ($r['street_number'] ?? ''), $r['mobile'], $r['country'],
+        $opt('landline'), $opt('intolerances'), $opt('birth_date'), !empty($r['consent']) ? 1 : 0, onlineClientIp(), onlineDeviceId(),
+    ]);
+    $customer = onlineCustomerById((int) $pdo->lastInsertId());
+    onlineLogAccess((int) $customer['id'], 'register');
+    logActivity('online_customer_registered', 'online_customers', (int) $customer['id'], ['phone_end' => substr($r['mobile'], -4)]);
+    // The marketing consent as they gave it (with its text, as proof), in
+    // the same register the campaigns read.
+    setConsent($r['mobile'], !empty($r['consent']) ? 'granted' : 'declined', 'online', consentText('prompt_online', $r['lang']), null, $r['lang']);
+    if (!empty($r['consent'])) sendConsentConfirmation($r['mobile']);
+    return $customer;
+}
+
+/* ---- "Entra con WhatsApp": the page's button opens WhatsApp with a message
+ * carrying a code; the message reaches us (whatsapp_inbound.php), which proves
+ * the number. The page waiting with that code lets them in by itself, and the
+ * answer on WhatsApp carries a one-time link (for a closed page, or the word
+ * ORDINA sent without the button). New customers then give only their name. ---- */
+
+/** The country of a +number (Italy for +39). */
+function phoneCountryIso(string $e164): string
+{
+    if (str_starts_with($e164, '+39')) return 'IT';
+    $best = 'IT'; $len = 0;
+    foreach (PHONE_COUNTRIES as $iso => $c) {
+        if (str_starts_with($e164, $c[0]) && strlen($c[0]) > $len) { $best = $iso; $len = strlen($c[0]); }
+    }
+    return $best;
+}
+
+function onlineWaNewCode(): string
+{
+    $a = ONLINE_WA_ALPHABET;
+    $c = '';
+    for ($i = 0; $i < 6; $i++) $c .= $a[random_int(0, strlen($a) - 1)];
+    return $c;
+}
+
+/** This browser's wa.me link (its code is made once and kept while valid), or null when off. */
+function onlineWaUrl(): ?string
+{
+    if (!waInboundActive() || !onlineOrderEnabled()) return null;
+    $pdo = getDBConnection();
+    $row = null;
+    if (!empty($_SESSION['online_wa'])) {
+        $st = $pdo->prepare("SELECT * FROM online_wa_logins WHERE id = ? AND verified_at IS NULL AND created_at > NOW() - INTERVAL ? SECOND");
+        $st->execute([(int) $_SESSION['online_wa'], ONLINE_WA_TTL - 300]);
+        $row = $st->fetch() ?: null;
+    }
+    if (!$row) {
+        $pdo->exec("DELETE FROM online_wa_logins WHERE created_at < NOW() - INTERVAL 2 DAY");
+        $lang = currentLang() === 'it' ? 'it' : 'en';
+        for ($try = 0; $try < 5 && !$row; $try++) {
+            try {
+                $pdo->prepare("INSERT INTO online_wa_logins (code, lang) VALUES (?, ?)")->execute([onlineWaNewCode(), $lang]);
+                $st = $pdo->prepare("SELECT * FROM online_wa_logins WHERE id = ?");
+                $st->execute([(int) $pdo->lastInsertId()]);
+                $row = $st->fetch();
+            } catch (PDOException $e) { /* same code drawn: again */ }
+        }
+        if (!$row) return null;
+        $_SESSION['online_wa'] = (int) $row['id'];
+    }
+    $text = tIn($row['lang'], 'online_wa_prefill', ['restaurant' => restaurantName(), 'code' => $row['code']]);
+    return 'https://wa.me/' . preg_replace('/\D/', '', waInboundSettings()['shop_phone']) . '?text=' . rawurlencode($text);
+}
+
+/**
+ * A WhatsApp came in (whatsapp_inbound.php): ours when it carries a code a page
+ * is waiting with, or is just the word ORDINA. The number is then proven: the
+ * answer carries a one-time link. Returns what it was ('login_code' |
+ * 'keyword') or null (not ours: it goes on to the chatbot).
+ */
+function onlineWaInbound(string $phone, string $name, string $message): ?string
+{
+    $pdo = getDBConnection();
+    $row = null;
+    $kind = null;
+    if (preg_match_all('/\b([' . ONLINE_WA_ALPHABET . ']{6})\b/u', mb_strtoupper($message), $m)) {
+        $st = $pdo->prepare("SELECT * FROM online_wa_logins WHERE code = ? AND verified_at IS NULL AND created_at > NOW() - INTERVAL ? SECOND");
+        foreach (array_unique($m[1]) as $code) {
+            $st->execute([$code, ONLINE_WA_TTL]);
+            if ($row = $st->fetch()) { $kind = 'login_code'; break; }
+        }
+    }
+    if (!$row) {
+        $word = trim(preg_replace('/[^a-z ]+/', '', strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $message) ?: $message)));
+        if (!in_array($word, ['ordina', 'ordina online', 'ordinare', 'order', 'order online'], true)) return null;
+        $lang = str_starts_with($phone, '+39') ? 'it' : 'en';
+        for ($try = 0; $try < 5 && !$row; $try++) {
+            try {
+                $pdo->prepare("INSERT INTO online_wa_logins (code, lang) VALUES (?, ?)")->execute([onlineWaNewCode(), $lang]);
+                $st = $pdo->prepare("SELECT * FROM online_wa_logins WHERE id = ?");
+                $st->execute([(int) $pdo->lastInsertId()]);
+                $row = $st->fetch();
+            } catch (PDOException $e) {}
+        }
+        if (!$row) return null;
+        $kind = 'keyword';
+    }
+    $token = bin2hex(random_bytes(16));
+    $pdo->prepare("UPDATE online_wa_logins SET phone = ?, from_name = ?, verified_at = NOW(), link_token = ? WHERE id = ?")
+        ->execute([$phone, $name !== '' ? $name : null, $token, (int) $row['id']]);
+
+    $known = onlineCustomerByMobile($phone);
+    $hello = $known ? $known['first_name'] : ($name !== '' ? $name : '');
+    $text  = tIn($row['lang'], $kind === 'login_code' ? 'online_wa_reply' : 'online_wa_reply_link', [
+        'name' => $hello, 'restaurant' => restaurantName(), 'link' => publicUrl('online.php?wa=' . $token),
+    ]);
+    queueGuestWhatsapp(null, null, 'online_wa_link', $phone, preg_replace('/^(Ciao|Hi) ([,!])/u', '$1$2', $text), null, null, 20);
+    return $kind;
+}
+
+/**
+ * Let in the number a WhatsApp proved: a known customer is signed in
+ * (['ok' => customer]); a new one is asked only their name (['new' => true]).
+ */
+function onlineWaConsume(array $row): array
+{
+    $pdo = getDBConnection();
+    $st  = $pdo->prepare("UPDATE online_wa_logins SET used_at = NOW() WHERE id = ? AND used_at IS NULL");
+    $st->execute([(int) $row['id']]);
+    if ($st->rowCount() !== 1) return ['error' => 'self_err_expired'];
+    unset($_SESSION['online_wa']);
+    $customer = onlineCustomerByMobile($row['phone']);
+    if ($customer) {
+        if (!$customer['active']) return ['error' => 'online_err_disabled'];
+        onlineLogAccess((int) $customer['id'], 'login');
+        onlineSignIn($customer);
+        return ['ok' => $customer];
+    }
+    $_SESSION['online_wa_new'] = ['phone' => $row['phone'], 'name' => (string) $row['from_name'], 'lang' => $row['lang'], 'at' => time()];
+    return ['new' => true];
+}
+
+/** The page waiting with its code: once the WhatsApp has come in, let them in. */
+function onlineWaPoll(): ?array
+{
+    if (empty($_SESSION['online_wa'])) return null;
+    $st = getDBConnection()->prepare("SELECT * FROM online_wa_logins WHERE id = ?");
+    $st->execute([(int) $_SESSION['online_wa']]);
+    $row = $st->fetch();
+    if (!$row || !$row['verified_at'] || $row['used_at']) return null;
+    return onlineWaConsume($row);
+}
+
+/** online.php?wa=<token>: the link in the WhatsApp answer. */
+function onlineWaLink(string $token): array
+{
+    if (!preg_match('/^[a-f0-9]{32}$/', $token)) return ['error' => 'self_err_expired'];
+    $st = getDBConnection()->prepare("SELECT * FROM online_wa_logins WHERE link_token = ? AND used_at IS NULL AND verified_at > NOW() - INTERVAL ? SECOND");
+    $st->execute([$token, ONLINE_WA_TTL]);
+    $row = $st->fetch();
+    return $row ? onlineWaConsume($row) : ['error' => 'online_wa_link_used'];
+}
+
+/** A number proven by WhatsApp, still to give its name (or null). */
+function onlineWaNew(): ?array
+{
+    $n = $_SESSION['online_wa_new'] ?? null;
+    if (!$n || time() - $n['at'] > ONLINE_WA_TTL) return null;
+    return $n;
+}
+
+/** The new customer's name (+ the optional marketing consent): they're in. */
+function onlineWaRegister(array $in): array
+{
+    $n = onlineWaNew();
+    if (!$n) return ['error' => 'self_err_expired'];
+    [$first, $last] = onlineSplitName((string) ($in['name'] ?? ''));
+    if (mb_strlen($first) < 2) return ['error' => 'online_err_name'];
+    $customer = onlineCustomerByMobile($n['phone']) ?: onlineCreateCustomer([
+        'first_name' => $first, 'last_name' => $last, 'mobile' => $n['phone'], 'country' => phoneCountryIso($n['phone']),
+        'consent' => !empty($in['consent']), 'lang' => $n['lang'],
+    ]);
+    unset($_SESSION['online_wa_new']);
+    if (!$customer['active']) return ['error' => 'online_err_disabled'];
     onlineSignIn($customer);
     return ['ok' => $customer];
 }

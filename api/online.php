@@ -29,7 +29,10 @@ $action = $post ? (string) ($input['action'] ?? '') : '';
 /** Not signed in: whether ordering is on and whether a code is waiting. */
 function signedOutState(): array
 {
-    return ['success' => true, 'signed_in' => false, 'enabled' => onlineOrderEnabled(), 'pending' => onlineCodePending()];
+    $n = onlineWaNew();
+    return ['success' => true, 'signed_in' => false, 'enabled' => onlineOrderEnabled(), 'pending' => onlineCodePending(),
+            // "Entra con WhatsApp": the number is proven, only the name is missing
+            'wa_new' => $n ? ['phone' => nationalPhone(phoneCountryIso($n['phone']), $n['phone']), 'name' => $n['name']] : null];
 }
 
 if ($action === 'request_code') {
@@ -47,7 +50,19 @@ if ($action === 'logout') {
     jsonResponse(signedOutState());
 }
 
+if ($action === 'wa_register') {
+    $res = onlineWaRegister($input);
+    if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    jsonResponse(onlineOrderState($res['ok']) + ['signed_in' => true, 'welcome' => t('online_welcome', ['name' => $res['ok']['first_name']])]);
+}
+
 $customer = onlineCurrentCustomer();
+if (!$customer && !$post) {
+    // The page waiting after "Entra con WhatsApp": the message came in → in.
+    $wa = onlineWaPoll();
+    if (isset($wa['ok'])) $customer = $wa['ok'];
+    if (isset($wa['error'])) jsonResponse(signedOutState() + ['message' => t($wa['error'])]);
+}
 if (!$customer) {
     if ($post) jsonResponse(['success' => false, 'signed_in' => false, 'message' => t('online_err_signin')], 403);
     jsonResponse(signedOutState());

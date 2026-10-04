@@ -13,6 +13,16 @@ require_once __DIR__ . '/includes/restaurant.php';
 require_once __DIR__ . '/includes/menu_pdf.php';
 i18n_prefer_browser('it');
 onlineDeviceId();   // this phone's device code (cookie), kept with its accesses
+// The link in the WhatsApp answer ("Entra con WhatsApp"): in, or the name step.
+if (isset($_GET['wa'])) {
+    $res = onlineWaLink((string) $_GET['wa']);
+    if (isset($res['error'])) $_SESSION['online_flash'] = t($res['error']);
+    header('Location: /online.php');
+    exit;
+}
+$waUrl = onlineCurrentCustomer() ? null : onlineWaUrl();
+$flash = $_SESSION['online_flash'] ?? '';
+unset($_SESSION['online_flash']);
 
 $intolOpts = array_map(fn($slug, $value) => ['value' => $value, 'label' => t('online_intol_' . $slug)], array_keys(ONLINE_INTOL_OPTIONS), ONLINE_INTOL_OPTIONS);
 $ws    = getDBConnection()->query("SELECT name FROM workspaces LIMIT 1")->fetch();
@@ -20,6 +30,7 @@ $brand = $ws['name'] ?? t('app_name');
 
 $L = [
     'intol_opts'    => $intolOpts,
+    'flash'         => $flash,
     'code_failed'   => t('online_code_failed'),
     'intol_none'    => t('online_intol_none'),
     'err_intol'     => t('online_err_intol'),
@@ -196,6 +207,12 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .intol-ask input:focus { outline: none; border-color: var(--p); }
 #pfIntolOther { width: 100%; }
 .intol-err { color: #b91c1c; font-weight: 600; margin: 8px 0 0; }
+.wa-card { border: 2px solid #25d366; }
+.btn-wa { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; box-sizing: border-box; background: #25d366; color: #fff; text-decoration: none; font-weight: 800; font-size: 1.1rem; border-radius: 14px; padding: 15px; margin-top: 10px; }
+.wa-spin { display: flex; justify-content: center; gap: 8px; margin: 18px 0 6px; }
+.wa-spin span { width: 12px; height: 12px; border-radius: 50%; background: #25d366; animation: waDot 1.2s infinite ease-in-out; }
+.wa-spin span:nth-child(2) { animation-delay: .2s; } .wa-spin span:nth-child(3) { animation-delay: .4s; }
+@keyframes waDot { 0%, 80%, 100% { opacity: .25; transform: scale(.8); } 40% { opacity: 1; transform: none; } }
 .code-fail { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 12px; padding: 12px 14px; font-weight: 600; text-align: left; }
 .bday-banner { display: flex; align-items: center; gap: 12px; justify-content: space-between; background: #fff4ec; border: 1px solid #fed7aa; border-radius: 14px; padding: 12px 14px; margin: 0 0 14px; font-size: .95rem; }
 .bday-banner[hidden] { display: none; }
@@ -240,6 +257,14 @@ $footHtml = ob_get_clean(); ?>
 
 <!-- Not signed in: returning customer (mobile only) or new customer (sign-up) -->
 <main id="gate" hidden>
+    <?php if ($waUrl): ?>
+    <div class="card wa-card">
+        <h2><i class="fab fa-whatsapp"></i> <?= te('online_wa_title') ?></h2>
+        <p class="sub"><?= te('online_wa_text') ?></p>
+        <a class="btn-wa" href="<?= htmlspecialchars($waUrl) ?>" onclick="waWaiting()"><i class="fab fa-whatsapp"></i> <?= te('online_wa_btn') ?></a>
+    </div>
+    <p class="or"><?= te('online_wa_or') ?></p>
+    <?php endif; ?>
     <div class="card returning">
         <h2><i class="fas fa-user-check"></i> <?= te('online_returning_title') ?></h2>
         <p class="sub"><?= te('online_returning_text') ?></p>
@@ -277,6 +302,33 @@ $footHtml = ob_get_clean(); ?>
         </form>
     </div>
     <?= $footHtml ?>
+</main>
+
+<!-- "Entra con WhatsApp": waiting for the message, then (new customer) the name -->
+<main id="waWait" hidden>
+    <div class="card gate">
+        <i class="fab fa-whatsapp gate-icon" style="color:#25d366;"></i>
+        <h2><?= te('online_wa_wait_title') ?></h2>
+        <p class="sub"><?= te('online_wa_wait_text') ?></p>
+        <div class="wa-spin"><span></span><span></span><span></span></div>
+        <?php if ($waUrl): ?><a class="btn-wa" href="<?= htmlspecialchars($waUrl) ?>"><i class="fab fa-whatsapp"></i> <?= te('online_wa_reopen') ?></a><?php endif; ?>
+        <button class="link-btn" onclick="waCancel()"><?= te('cancel') ?></button>
+    </div>
+</main>
+<main id="waName" hidden>
+    <div class="card">
+        <h2><i class="fas fa-circle-check" style="color:#16a34a;"></i> <?= te('online_wa_verified') ?></h2>
+        <p class="sub" id="waPhone"></p>
+        <form class="form" onsubmit="waRegister(event)">
+            <label for="waNameInput"><?= te('online_wa_name_q') ?></label>
+            <input id="waNameInput" name="name" maxlength="120" autocomplete="name" autocapitalize="words" placeholder="<?= te('online_full_name_ph') ?>" required>
+            <label class="consent">
+                <input type="checkbox" id="waConsent">
+                <span><strong><?= te('self_consent_label') ?></strong> (<?= te('self_consent_optional') ?>)<br><?= htmlspecialchars(consentText('prompt_online', currentLang())) ?></span>
+            </label>
+            <button class="btn-go" type="submit"><?= te('online_wa_enter') ?></button>
+        </form>
+    </div>
 </main>
 
 <!-- The code from WhatsApp -->
@@ -427,7 +479,7 @@ function toast(msg) {
     clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 3500);
 }
 function show(id) {
-    ['off', 'gate', 'codeStep', 'shop', 'app', 'profile'].forEach(m => { $(m).hidden = m !== id; });
+    ['off', 'gate', 'codeStep', 'shop', 'app', 'profile', 'waWait', 'waName'].forEach(m => { $(m).hidden = m !== id; });
     if (id !== 'shop') $('cartBar').hidden = true;
 }
 
@@ -504,6 +556,17 @@ let editing = false, lastRequest = null, resendAt = 0;
 function renderSignedOut(s) {
     state = null;
     if (!s.enabled) { show('off'); return; }
+    if (s.message) toast(s.message);
+    // "Entra con WhatsApp": the number is proven, the name is missing.
+    if (s.wa_new) {
+        if ($('waName').hidden) {
+            show('waName');
+            $('waPhone').textContent = s.wa_new.phone;
+            if (!$('waNameInput').value) $('waNameInput').value = s.wa_new.name || '';
+        }
+        return;
+    }
+    if (waIsWaiting) { show('waWait'); return; }
     if (s.pending && !editing) {
         show('codeStep');
         $('codeText').textContent = L.code_sent_to.replace('{phone}', '•••• ' + s.pending.phone_end);
@@ -547,6 +610,38 @@ async function verifyCode(e) {
         if (state && state.welcome) toast(state.welcome);
     }
 }
+/* ---- "Entra con WhatsApp": the link opens WhatsApp; meanwhile this page checks
+ * every 3 s whether the message has come in. ---- */
+let waIsWaiting = false;
+function waWaiting() {
+    waIsWaiting = true;
+    try { sessionStorage.setItem('online-wa-wait', '1'); } catch (e) {}
+    setTimeout(() => { show('waWait'); waPoll(); }, 300);
+}
+function waCancel() {
+    waIsWaiting = false;
+    try { sessionStorage.removeItem('online-wa-wait'); } catch (e) {}
+    show('gate');
+}
+function waPoll() {
+    clearTimeout(waPoll.h);
+    if (!waIsWaiting) return;
+    load().finally(() => {
+        if (waIsWaiting && !state) { waPoll.h = setTimeout(waPoll, 3000); return; }
+        waIsWaiting = false;
+        try { sessionStorage.removeItem('online-wa-wait'); } catch (e) {}
+    });
+}
+async function waRegister(e) {
+    e.preventDefault();
+    if (await send({ action: 'wa_register', name: $('waNameInput').value, consent: $('waConsent').checked })) {
+        try { sessionStorage.removeItem('online-wa-wait'); } catch (e) {}
+        if (state && state.welcome) toast(state.welcome);
+    }
+}
+try { if (sessionStorage.getItem('online-wa-wait') === '1') { waIsWaiting = true; setTimeout(waPoll, 500); } } catch (e) {}
+if (L.flash) setTimeout(() => toast(L.flash), 300);
+
 async function logout() {
     cart = []; saveCart();
     shopOpen = false; editing = false;

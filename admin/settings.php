@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/settings.php';
 require_once __DIR__ . '/../includes/TextMeBot.php';
+require_once __DIR__ . '/../includes/whatsapp_inbound.php';
 require_once __DIR__ . '/../includes/Mailer.php';
 require_once __DIR__ . '/../includes/loyalty.php';
 require_once __DIR__ . '/../includes/consent.php';
@@ -222,6 +223,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Incoming WhatsApps: our webhook at TextMeBot (the chatbot's kept as forward).
+    if (in_array($action, ['wa_inbound_on', 'wa_inbound_off', 'wa_inbound_save'], true)) {
+        if ($action === 'wa_inbound_save') {
+            $s = waInboundSettings();
+            $fw = trim((string) ($_POST['forward_url'] ?? ''));
+            $s['forward_url'] = preg_match('#^https://\S+$#', $fw) ? $fw : '';
+            $s['shop_phone']  = ($p = preg_replace('/\D/', '', (string) ($_POST['shop_phone'] ?? ''))) !== '' ? '+' . $p : '';
+            waInboundSave($s);
+            $res = ['ok' => true];
+        } else {
+            $res = $action === 'wa_inbound_on' ? waInboundActivate() : waInboundDeactivate();
+        }
+        $_SESSION['wa_inbound_msg'] = isset($res['ok']) ? ['ok' => true, 'msg' => t($action === 'wa_inbound_off' ? 'wa_in_off_done' : ($action === 'wa_inbound_on' ? 'wa_in_on_done' : 'msg_settings_saved'))]
+                                                        : ['ok' => false, 'msg' => t($res['error'])];
+        header('Location: /admin/settings.php#whatsapp-in');
+        exit;
+    }
+
     if ($action === 'test_textmebot') {
         $res = (new TextMeBot())->send((string) ($_POST['tmb_test_to'] ?? ''), ($workspace['name'] ?? t('app_name')) . ' — test WhatsApp ✅');
         logActivity('textmebot_test', 'settings', null, ['ok' => $res['ok'], 'http' => $res['http']]);
@@ -399,6 +418,36 @@ include __DIR__ . '/../includes/header.php';
                 <button type="submit" class="btn btn-success" <?= $tmbKeyOn ? '' : 'disabled' ?> style="white-space:nowrap;"><i class="fab fa-whatsapp"></i> <?= te('tmb_test_btn') ?></button>
             </div>
             <small class="text-muted"><?= te('tmb_test_hint') ?></small>
+        </form>
+
+        <!-- Incoming WhatsApps (TextMeBot webhook): "Entra con WhatsApp", the rest forwarded -->
+        <?php $waIn = waInboundSettings(); $waOn = waInboundActive(); $waMsg = $_SESSION['wa_inbound_msg'] ?? null; unset($_SESSION['wa_inbound_msg']); ?>
+        <form method="POST" class="card-body" id="whatsapp-in" style="border-top:1px solid var(--border-color);">
+            <input type="hidden" name="action" value="wa_inbound_save">
+            <div class="d-flex" style="justify-content:space-between;align-items:center;gap:10px;">
+                <label class="form-label" style="margin:0;"><i class="fas fa-inbox"></i> <?= te('wa_in_title') ?></label>
+                <span class="badge badge-<?= $waOn ? 'success' : 'light' ?>"><?= $waOn ? te('tmb_active') : te('tmb_inactive') ?></span>
+            </div>
+            <p class="text-muted" style="font-size:.85rem;margin:6px 0 10px;"><?= te('wa_in_intro') ?></p>
+            <?php if ($waMsg): ?>
+                <div class="alert" style="padding:10px 14px;border-radius:8px;margin-bottom:10px;background:<?= $waMsg['ok'] ? 'rgba(39,174,96,.1)' : 'rgba(231,76,60,.1)' ?>;color:var(--<?= $waMsg['ok'] ? 'success' : 'danger' ?>);"><?= htmlspecialchars($waMsg['msg']) ?></div>
+            <?php endif; ?>
+            <div class="form-group"><label class="form-label"><?= te('wa_in_shop_phone') ?></label>
+                <input type="text" name="shop_phone" class="form-control" value="<?= htmlspecialchars($waIn['shop_phone']) ?>" placeholder="+39 328 …"></div>
+            <div class="form-group"><label class="form-label"><?= te('wa_in_our_url') ?></label>
+                <input type="text" class="form-control" readonly value="<?= htmlspecialchars(waInboundUrl()) ?>" onclick="this.select()"></div>
+            <div class="form-group"><label class="form-label"><?= te('wa_in_forward') ?></label>
+                <input type="text" name="forward_url" class="form-control" value="<?= htmlspecialchars($waIn['forward_url']) ?>" placeholder="https://…">
+                <small class="text-muted"><?= te('wa_in_forward_hint') ?></small></div>
+            <?php if ($waOn): ?><p class="text-muted" style="font-size:.8rem;"><?= te('wa_in_since', ['when' => date('d/m/Y H:i', strtotime($waIn['activated_at']))]) ?></p><?php endif; ?>
+            <div class="d-flex gap-sm" style="flex-wrap:wrap;">
+                <button type="submit" class="btn btn-outline"><i class="fas fa-save"></i> <?= te('save') ?></button>
+                <?php if (!$waOn): ?>
+                    <button type="submit" name="action" value="wa_inbound_on" class="btn btn-success" <?= $tmbKeyOn ? '' : 'disabled' ?> onclick="return confirm(<?= htmlspecialchars(json_encode(t('wa_in_on_confirm'))) ?>)"><i class="fab fa-whatsapp"></i> <?= te('wa_in_on') ?></button>
+                <?php else: ?>
+                    <button type="submit" name="action" value="wa_inbound_off" class="btn btn-outline" onclick="return confirm(<?= htmlspecialchars(json_encode(t('wa_in_off_confirm'))) ?>)"><i class="fas fa-power-off"></i> <?= te('wa_in_off') ?></button>
+                <?php endif; ?>
+            </div>
         </form>
     </div>
 
