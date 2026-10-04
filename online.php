@@ -796,11 +796,15 @@ let shopPos = undefined;
 async function shopPosition() {
     if (shopPos !== undefined) return shopPos;
     shopPos = null;
-    try {
-        const r = await fetch('https://photon.komoot.io/api/?limit=1&q=' + encodeURIComponent(L.shop_bias));
-        const f = (await r.json()).features?.[0];
-        if (f) shopPos = f.geometry.coordinates;   // [lon, lat]
-    } catch (e) {}
+    // The full address may not be found ("32/34", typos): then postcode + town, then the postcode.
+    const a = L.shop_bias || '', cap = (a.match(/\b\d{5}\b/) || [])[0];
+    const tries = [a, a.includes(',') ? a.slice(a.indexOf(',') + 1).trim() : '', cap || ''].filter(Boolean);
+    for (const q of tries) {
+        try {
+            const f = (await (await fetch('https://photon.komoot.io/api/?limit=1&q=' + encodeURIComponent(q))).json()).features?.[0];
+            if (f) { shopPos = f.geometry.coordinates; break; }   // [lon, lat]
+        } catch (e) { break; }
+    }
     return shopPos;
 }
 function addrSuggest() {
@@ -810,7 +814,7 @@ function addrSuggest() {
     addrSuggest.h = setTimeout(async () => {
         try {
             const pos = await shopPosition();
-            const url = 'https://photon.komoot.io/api/?limit=5&q=' + encodeURIComponent(q) + (pos ? `&lon=${pos[0]}&lat=${pos[1]}` : '');
+            const url = 'https://photon.komoot.io/api/?limit=5&q=' + encodeURIComponent(q) + (pos ? `&lon=${pos[0]}&lat=${pos[1]}&zoom=12&location_bias_scale=0.1` : '');
             const feats = (await (await fetch(url)).json()).features || [];
             const seen = new Set();
             const items = feats.map(f => {
