@@ -524,14 +524,19 @@ function show(id) {
     if (id !== 'shop') $('cartBar').hidden = true;
 }
 
+// A poll answered after a POST (sign-in, order…) describes the page before it:
+// such a stale answer is dropped.
+let reqSeq = 0;
 async function load() {
+    const my = ++reqSeq;
     try {
         const r = await fetch(API, { cache: 'no-store' });
         const s = await r.json();
-        if (s.success) render(s);
+        if (s.success && my === reqSeq) render(s);
     } catch (e) { /* offline for a moment — next poll retries */ }
 }
 async function send(body) {
+    ++reqSeq;
     try {
         const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const s = await r.json();
