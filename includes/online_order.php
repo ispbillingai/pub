@@ -800,9 +800,10 @@ function onlineQrImageUrl(string $token): string
 /** The pay token in what the scanner typed: the whole link or the bare token. */
 function onlinePayTokenFromScan(string $scan): ?string
 {
-    $scan = trim($scan);
-    if (preg_match('/[?&]pay=([a-f0-9]{24})(?![a-f0-9])/i', $scan, $m)) return strtolower($m[1]);
-    return preg_match('/^[a-f0-9]{24}$/i', $scan) ? strtolower($scan) : null;
+    // The token wherever it is in what was read: a scanner set to another
+    // keyboard layout mangles the rest of the link ("?pay=" arrives as "?paz="
+    // from a QWERTZ one), but not the token (only 0-9 and a-f).
+    return preg_match('/(?<![a-f0-9])([a-f0-9]{24})(?![a-f0-9])/i', trim($scan), $m) ? strtolower($m[1]) : null;
 }
 
 /** The online order with this pay token (any status), or null. */
