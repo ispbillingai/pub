@@ -1356,7 +1356,7 @@ return [
 
     // ---- Clienti cassa ----
     'till_customers_title' => 'Till customers',
-    'till_customers_intro' => 'Customers of counter sales whose details you took at the till ("Customer details" box of the payment in Till orders). Each has their own code: when they come back, type the code at the till and their details come back. Customers are not deleted: they are disabled.',
+    'till_customers_intro' => 'Customers with a card (C… code and QR): those registered at the till (the payment\'s "Customer details" box), those who sign up by themselves with the counter QR, and every online customer. At the till scan their QR in Ordini Cassa (or type the code) and their details come back. Customers are not deleted: they are disabled.',
     'till_customers_search' => 'Search code, name, address or phone',
     'till_customers_count' => '{n} till customers',
     'till_customers_none' => 'No till customers yet: they are added by saving the customer details in a Till orders payment.',

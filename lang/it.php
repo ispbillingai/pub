@@ -1356,7 +1356,7 @@ return [
 
     // ---- Clienti cassa ----
     'till_customers_title' => 'Clienti cassa',
-    'till_customers_intro' => 'I clienti delle vendite al banco di cui hai inserito i dati in cassa (riquadro "Dati cliente" del pagamento in Ordini Cassa). Ognuno ha il suo codice: quando torna, scrivi il codice in cassa e i suoi dati si richiamano da soli. I clienti non si cancellano: si disattivano.',
+    'till_customers_intro' => 'I clienti con la tessera (codice C… e QR): quelli registrati in cassa (riquadro «Dati cliente» del pagamento), quelli che si registrano da soli con il QR da banco e tutti i clienti online. Alla cassa leggi il loro QR in Ordini Cassa (o scrivi il codice) e i dati si richiamano da soli. I clienti non si cancellano: si disattivano.',
     'till_customers_search' => 'Cerca codice, nome, indirizzo o telefono',
     'till_customers_count' => '{n} clienti cassa',
     'till_customers_none' => 'Nessun cliente cassa ancora: si aggiungono salvando i dati cliente in un pagamento di Ordini Cassa.',

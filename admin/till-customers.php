@@ -94,6 +94,7 @@ include __DIR__ . '/../includes/header.php';
 .tc-edit { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; padding: 10px 0 4px; }
 .tc-off { opacity: .55; }
 .counter-qr { display: flex; gap: 20px; align-items: center; padding: 16px 18px; flex-wrap: wrap; }
+.counter-qr > div:last-child { flex: 1; min-width: 260px; }
 .counter-qr .cq-qr { background: #fff; padding: 8px; border-radius: 8px; border: 1px solid var(--border-color); }
 .tc-online { font-size: .72rem; background: rgba(37,99,235,.1); color: #1d4ed8; border-radius: 6px; padding: 1px 6px; margin-left: 4px; white-space: nowrap; }
 .tc-qr { width: 54px; height: 54px; image-rendering: pixelated; border: 1px solid var(--border-color); border-radius: 6px; background: #fff; }
