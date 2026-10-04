@@ -275,7 +275,7 @@ return [
     'tmb_clear_key'         => 'Rimuovi la chiave salvata',
     'tmb_endpoint'          => 'Indirizzo API',
     'tmb_gap'               => 'Secondi tra due messaggi',
-    'tmb_gap_hint'          => 'TextMeBot blocca i messaggi troppo ravvicinati (1 ogni 5 s): ogni invio aspetta almeno questo tempo dal precedente.',
+    'tmb_gap_hint'          => 'Per evitare il blocco del numero da parte di WhatsApp i messaggi partono uno alla volta, anche se arrivano da processi diversi (codici, conti, ordini pronti, coupon, campagne): ogni invio aspetta almeno questo tempo dal precedente. Minimo 10 secondi.',
     'tmb_test_title'        => 'Invia WhatsApp di prova',
     'tmb_test_ph'           => 'es. +39 333 123 4567',
     'tmb_test_btn'          => 'Invia prova',

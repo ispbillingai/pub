@@ -275,7 +275,7 @@ return [
     'tmb_clear_key'         => 'Remove the saved key',
     'tmb_endpoint'          => 'API address',
     'tmb_gap'               => 'Seconds between two messages',
-    'tmb_gap_hint'          => 'TextMeBot blocks messages sent too close together (1 every 5 s): every send waits at least this long after the previous one.',
+    'tmb_gap_hint'          => 'To keep WhatsApp from banning the number, messages leave one at a time even when different processes send them (codes, bills, ready orders, coupons, campaigns): every send waits at least this long after the previous one. At least 10 seconds.',
     'tmb_test_title'        => 'Send a test WhatsApp',
     'tmb_test_ph'           => 'e.g. +39 333 123 4567',
     'tmb_test_btn'          => 'Send test',

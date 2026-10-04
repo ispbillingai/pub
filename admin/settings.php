@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setSetting('textmebot', [
             'api_key'         => $key,
             'endpoint'        => trim($_POST['tmb_endpoint'] ?? '') ?: TextMeBot::DEFAULT_ENDPOINT,
-            'min_gap_seconds' => max(5, min(60, (int) ($_POST['tmb_gap'] ?? 8))),
+            'min_gap_seconds' => max(TextMeBot::MIN_GAP_SECONDS, min(60, (int) ($_POST['tmb_gap'] ?? TextMeBot::MIN_GAP_SECONDS))),
         ]);
         logActivity('textmebot_settings_saved', 'settings', null, ['key_set' => $key !== '']);
         header('Location: /admin/settings.php?success=saved#whatsapp');
@@ -377,8 +377,8 @@ include __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="form-group">
                     <label class="form-label"><?= te('tmb_gap') ?></label>
-                    <input type="number" name="tmb_gap" class="form-control" min="5" max="60"
-                           value="<?= (int) ($tmb['min_gap_seconds'] ?? 8) ?>">
+                    <input type="number" name="tmb_gap" class="form-control" min="<?= TextMeBot::MIN_GAP_SECONDS ?>" max="60"
+                           value="<?= max(TextMeBot::MIN_GAP_SECONDS, (int) ($tmb['min_gap_seconds'] ?? TextMeBot::MIN_GAP_SECONDS)) ?>">
                     <small class="text-muted"><?= te('tmb_gap_hint') ?></small>
                 </div>
             </div>

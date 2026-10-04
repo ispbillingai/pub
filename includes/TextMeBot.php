@@ -4,10 +4,13 @@
  * admin Settings (setting 'textmebot': api_key, endpoint, min_gap_seconds).
  *
  * TextMeBot rejects a message sent too soon after the previous one on the same
- * API key ("1 message per 5 seconds"), and that message is lost. send() therefore
- * spaces ALL sends app-wide: the last send time is kept in settings (shared by
- * every request) and the remainder of min_gap_seconds is waited out before
- * calling the API; a rate-limited answer is retried up to twice after another gap.
+ * API key ("1 message per 5 seconds"), and WhatsApp may ban a number that sends
+ * bursts. send() therefore spaces ALL sends app-wide, whatever process makes
+ * them (the outbox worker, the settings test, …): a database lock lets one send
+ * through at a time, and inside it the rest of min_gap_seconds (never under
+ * MIN_GAP_SECONDS) since the last send — read fresh from the database — is
+ * waited out before calling the API; a rate-limited answer is retried up to
+ * twice after another gap.
  */
 
 require_once __DIR__ . '/settings.php';
@@ -15,11 +18,15 @@ require_once __DIR__ . '/settings.php';
 class TextMeBot
 {
     public const DEFAULT_ENDPOINT = 'https://api.textmebot.com/send.php';
+    /** No two WhatsApps ever leave closer than this, whatever the settings say. */
+    public const MIN_GAP_SECONDS = 10;
     private const RETRIES = 2;
     private const LAST_SEND_KEY = 'textmebot_last_send_at';
+    private const SEND_LOCK = 'textmebot_send';
+    private const LOCK_WAIT_SECONDS = 120;
 
     private array $cfg;
-    private static int $lastSendAt = 0;
+    private static float $lastSendAt = 0;
 
     public function __construct(?array $cfg = null)
     {
@@ -27,7 +34,7 @@ class TextMeBot
         $this->cfg = [
             'api_key'         => trim((string) ($cfg['api_key'] ?? '')),
             'endpoint'        => trim((string) ($cfg['endpoint'] ?? '')) ?: self::DEFAULT_ENDPOINT,
-            'min_gap_seconds' => max(0, (int) ($cfg['min_gap_seconds'] ?? 8)),
+            'min_gap_seconds' => max(self::MIN_GAP_SECONDS, (int) ($cfg['min_gap_seconds'] ?? self::MIN_GAP_SECONDS)),
         ];
     }
 
@@ -63,35 +70,52 @@ class TextMeBot
             return ['ok' => false, 'http' => 0, 'body' => '', 'error' => 'bad_phone'];
         }
 
-        $gap = $this->cfg['min_gap_seconds'];
-        $res = [];
-        for ($attempt = 0; $attempt <= self::RETRIES; $attempt++) {
-            $this->waitForSlot($gap);
-            $res = $this->callApi($phone, $text, $mediaUrl);
-            $this->recordSend();
-            if ($res['ok'] || !self::looksRateLimited($res)) {
-                return $res;
+        $gap    = $this->cfg['min_gap_seconds'];
+        $pdo    = getDBConnection();
+        $locked = $this->lock($pdo);
+        $res    = [];
+        try {
+            for ($attempt = 0; $attempt <= self::RETRIES; $attempt++) {
+                $this->waitForSlot($pdo, $gap);
+                $res = $this->callApi($phone, $text, $mediaUrl);
+                $this->recordSend();
+                if ($res['ok'] || !self::looksRateLimited($res)) {
+                    return $res;
+                }
+                // Rate-limited despite the gap: the next try waits for a new slot.
             }
-            if ($attempt < self::RETRIES) {
-                sleep($gap); // rate-limited despite the gap: back off and retry
-            }
+            return $res;
+        } finally {
+            if ($locked) $pdo->query("SELECT RELEASE_LOCK('" . self::SEND_LOCK . "')");
         }
-        return $res;
     }
 
-    /** Wait until $gap seconds have passed since the previous send (any request). */
-    private function waitForSlot(int $gap): void
+    /** One send at a time across every process; true when the lock was taken. */
+    private function lock(PDO $pdo): bool
     {
-        if ($gap <= 0) return;
-        $last = max(self::$lastSendAt, (int) getSetting(self::LAST_SEND_KEY, 0));
-        if ($last > 0 && ($wait = $last + $gap - time()) > 0) {
-            sleep(min($wait, $gap));
+        try {
+            return (int) $pdo->query("SELECT GET_LOCK('" . self::SEND_LOCK . "', " . self::LOCK_WAIT_SECONDS . ")")->fetchColumn() === 1;
+        } catch (Throwable $e) {
+            return false; // still spaced by the last send time below
+        }
+    }
+
+    /** Wait until $gap seconds have passed since the previous send (any process). */
+    private function waitForSlot(PDO $pdo, int $gap): void
+    {
+        // Read straight from the database: getSetting() caches for the whole
+        // process, so a long-running worker would miss other processes' sends.
+        $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
+        $stmt->execute([self::LAST_SEND_KEY]);
+        $last = max(self::$lastSendAt, (float) json_decode((string) $stmt->fetchColumn()));
+        if ($last > 0 && ($wait = $last + $gap - microtime(true)) > 0) {
+            usleep((int) ceil($wait * 1e6));
         }
     }
 
     private function recordSend(): void
     {
-        self::$lastSendAt = time();
+        self::$lastSendAt = microtime(true);
         setSetting(self::LAST_SEND_KEY, self::$lastSendAt);
     }
 
