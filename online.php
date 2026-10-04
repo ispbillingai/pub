@@ -191,7 +191,9 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .chip.none.on { background: #ecfdf5; border-color: #16a34a; color: #15803d; }
 .intol-ask { margin: 14px 0 6px; padding: 14px; border-radius: 14px; background: #fffbeb; border: 1px solid #fde68a; }
 .intol-ask strong { color: #92400e; }
-.intol-ask input, #pfIntolOther { width: 100%; }
+.intol-ask input { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1.5px solid #e5e2dc; border-radius: 12px; font: inherit; font-size: 1rem; background: #fff; }
+.intol-ask input:focus { outline: none; border-color: var(--p); }
+#pfIntolOther { width: 100%; }
 .intol-err { color: #b91c1c; font-weight: 600; margin: 8px 0 0; }
 .bday-banner { display: flex; align-items: center; gap: 12px; justify-content: space-between; background: #fff4ec; border: 1px solid #fed7aa; border-radius: 14px; padding: 12px 14px; margin: 0 0 14px; font-size: .95rem; }
 .bday-banner[hidden] { display: none; }
