@@ -322,6 +322,15 @@ function resendUpdatedBill(int $orderId): int
     return $sent;
 }
 
+/** A queued WhatsApp that could not be delivered (the gateway refused the number, …). */
+function outboxFailed($outboxId): bool
+{
+    if (empty($outboxId)) return false;
+    $st = getDBConnection()->prepare("SELECT status FROM whatsapp_outbox WHERE id = ?");
+    $st->execute([(int) $outboxId]);
+    return $st->fetchColumn() === 'failed';
+}
+
 /** Start bin/whatsapp-worker.php in the background (it exits when the outbox is empty). */
 function startWhatsappWorker(): void
 {

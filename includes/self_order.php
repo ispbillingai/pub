@@ -91,6 +91,7 @@ function selfOrderRegister(array $table, array $in): array
     $people  = (int) ($in['people'] ?? 0);
     $phone   = internationalPhone($country, (string) ($in['phone'] ?? ''));
     if (!$phone) return ['error' => 'cust_bad_phone'];
+    if (!mobileLooksValid($country, $phone)) return ['error' => $country === 'IT' ? 'online_err_mobile_it' : 'cust_bad_phone'];
     if ($people < 1 || $people > 30) return ['error' => 'self_err_people'];
     if ($returning) {
         // Their details come from the archive (shown only once the code is right).
@@ -105,7 +106,8 @@ function selfOrderRegister(array $table, array $in): array
 
     $tid  = (int) $table['id'];
     $prev = $_SESSION['self_reg'][$tid] ?? null;
-    if ($prev && time() - $prev['sent_at'] < SELF_CODE_GAP) return ['error' => 'self_err_wait'];
+    // (no wait when the last code could not be delivered: the number is being corrected)
+    if ($prev && time() - $prev['sent_at'] < SELF_CODE_GAP && !outboxFailed($prev['outbox_id'] ?? null)) return ['error' => 'self_err_wait'];
     $sends = ($prev['sends'] ?? 0) + 1;
     if ($sends > SELF_CODE_MAX_SENDS) return ['error' => 'self_err_too_many'];
     // The same number can't be flooded from several browsers either.
@@ -121,7 +123,8 @@ function selfOrderRegister(array $table, array $in): array
         'lang' => currentLang() === 'it' ? 'it' : 'en',
         'code' => $code, 'sent_at' => time(), 'sends' => $sends, 'tries' => 0,
     ];
-    queueGuestWhatsapp(null, null, 'self_code', $phone, tIn(guestLang($country), 'self_code_text', [
+    // Its outbox id: if WhatsApp refuses the number, the page says so (selfOrderPending).
+    $_SESSION['self_reg'][$tid]['outbox_id'] = queueGuestWhatsapp(null, null, 'self_code', $phone, tIn(guestLang($country), 'self_code_text', [
         'restaurant' => restaurantName(), 'table' => $table['table_number'], 'code' => $code,
     ]), null, null, 20);
     logActivity('self_order_code_sent', 'tables_restaurant', $tid, ['phone_end' => substr($phone, -4)]);
@@ -133,7 +136,8 @@ function selfOrderPending(array $table): ?array
 {
     $r = $_SESSION['self_reg'][(int) $table['id']] ?? null;
     if (!$r || time() - $r['sent_at'] > SELF_CODE_TTL) return null;
-    return ['phone_end' => substr($r['phone'], -4), 'resend_in' => max(0, SELF_CODE_GAP - (time() - $r['sent_at']))];
+    return ['phone_end' => substr($r['phone'], -4), 'resend_in' => max(0, SELF_CODE_GAP - (time() - $r['sent_at'])),
+            'failed' => outboxFailed($r['outbox_id'] ?? null), 'phone' => nationalPhone($r['country'], $r['phone'])];
 }
 
 /**

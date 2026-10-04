@@ -216,6 +216,7 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padd
 .code-input { width: 100%; max-width: 240px; font: inherit; font-size: 1.8rem; letter-spacing: .35em; text-align: center; padding: 12px; border: 2px solid var(--line); border-radius: 12px; }
 .code-input:focus { outline: none; border-color: var(--p); }
 .gate-btn { display: block; width: 100%; max-width: 240px; margin: 12px auto 0; padding: 14px; border: 0; border-radius: 12px; font: inherit; font-weight: 700; }
+.code-fail { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 12px; padding: 12px 14px; font-weight: 600; text-align: left; }
 </style>
 </head>
 <body>
@@ -318,7 +319,8 @@ $contactsHtml = ob_get_clean(); ?>
         <div id="gateSelfCode" hidden>
             <h2><?= te('self_code_title') ?></h2>
             <p class="gate-text" id="sfCodeText"></p>
-            <form onsubmit="selfVerify(event)">
+            <p class="code-fail" id="sfCodeFail" hidden></p>
+            <form id="sfCodeForm" onsubmit="selfVerify(event)">
                 <input id="sfCode" class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="••••••" required>
                 <button class="btn-go gate-btn" type="submit"><?= te('self_enter') ?></button>
             </form>
@@ -484,6 +486,11 @@ function renderLocked(s) {
     $('gatePhone').hidden = self || !!s.has_phone;
     if (pending) {
         $('sfCodeText').textContent = <?= json_encode(t('self_code_sent_to')) ?>.replace('{phone}', '•••• ' + s.self_pending.phone_end);
+        // WhatsApp refused the number: say so, and offer to correct it.
+        const failed = !!s.self_pending.failed;
+        $('sfCodeFail').hidden = !failed;
+        $('sfCodeFail').textContent = <?= json_encode(t('online_code_failed')) ?>.replace('{phone}', s.self_pending.phone || '');
+        $('sfCodeForm').hidden = $('sfResend').hidden = $('sfCodeText').hidden = failed;
         selfResendAt = Date.now() + s.self_pending.resend_in * 1000;
         tickResend();
     }

@@ -132,6 +132,20 @@ function internationalPhone(string $iso, string $number): ?string
     return PHONE_COUNTRIES[$iso][0] . $digits;
 }
 
+/**
+ * A mobile that can receive a WhatsApp code: an Italian one starts with 3 and
+ * has 9-10 digits (a number typed short — "338 3265" — is refused at once, not
+ * by WhatsApp minutes later); elsewhere at least 7 digits. The 00000000xx
+ * numbers are the staff's test numbers (never real phones).
+ */
+function mobileLooksValid(string $iso, string $e164): bool
+{
+    $national = preg_replace('/\D/', '', nationalPhone($iso, $e164));
+    if (str_starts_with($national, '00000000')) return true;
+    if (strtoupper($iso) === 'IT') return (bool) preg_match('/^3\d{8,9}$/', $national);
+    return strlen($national) >= 7;
+}
+
 /** The number without its country prefix (to show it back in the form). */
 function nationalPhone(string $iso, ?string $e164): string
 {
