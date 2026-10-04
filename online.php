@@ -819,7 +819,8 @@ function addrSuggest() {
             const seen = new Set();
             const items = feats.map(f => {
                 const p = f.properties || {};
-                const street = p.street || (p.osm_key === 'highway' ? p.name : '');
+                // Streets themselves, or exact addresses (street + number): not shops or places.
+                const street = p.osm_key === 'highway' ? p.name : (p.housenumber ? p.street : '');
                 if (!street) return null;
                 const line = [street + (p.housenumber ? ' ' + p.housenumber : ''), p.city || p.town || p.village || p.county].filter(Boolean).join(', ');
                 if (seen.has(line)) return null;
