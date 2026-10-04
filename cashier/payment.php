@@ -188,6 +188,17 @@ include __DIR__ . '/../includes/header.php';
                     </div>
                     <small class="text-muted"><?= te('till_cust_code_hint') ?></small>
                 </div>
+                <!-- The tessera sanitaria's barcode: date and place of birth, or the customer already known -->
+                <div class="form-group" style="border-bottom:1px dashed var(--border-color);padding-bottom:12px;">
+                    <label class="form-label"><i class="fas fa-id-card-clip"></i> <?= te('till_cf_label') ?></label>
+                    <div class="d-flex gap-sm">
+                        <input id="tcCf" class="form-control" maxlength="20" placeholder="RSSMRA80A01F839X" style="max-width:260px;text-transform:uppercase;font-family:monospace;" autocomplete="off"
+                               value="<?= htmlspecialchars($tillCust['fiscal_code']) ?>">
+                        <button type="button" class="btn btn-success" onclick="tcCfRead()"><i class="fas fa-barcode"></i> <?= te('till_cf_read') ?></button>
+                    </div>
+                    <div id="tcCfInfo" class="text-muted" style="margin-top:4px;font-weight:600;"><?= htmlspecialchars($tillCust['born']) ?></div>
+                    <small class="text-muted"><?= te('till_cf_hint') ?></small>
+                </div>
                 <?php endif; ?>
                 <div class="form-row">
                     <div class="form-group"><label class="form-label"><?= te('self_name') ?></label><input id="tcFirst" class="form-control" maxlength="60" value="<?= htmlspecialchars($tillCust['first_name']) ?>"></div>
@@ -710,7 +721,8 @@ $('couponCode') && $('couponCode').addEventListener('keydown', e => { if (e.key 
 <?php if ($tillOrder): ?>
 /* ---- Ordini Cassa: the customer's details ---- */
 const TC = <?= json_encode(['saved' => t('till_cust_saved'), 'saved_code' => t('till_cust_saved_code'), 'known' => t('till_cust_known'),
-                              'recalled' => t('till_cust_recalled'), 'failed' => t('js_failed')], JSON_UNESCAPED_UNICODE) ?>;
+                              'recalled' => t('till_cust_recalled'), 'failed' => t('js_failed'),
+                              'cf_known' => t('till_cf_known'), 'cf_new' => t('till_cf_new')], JSON_UNESCAPED_UNICODE) ?>;
 function tcShowCode(code) {
     $('tcCode').textContent = code || '';
     $('tcCodeBadge').hidden = !code;
@@ -721,7 +733,8 @@ async function tcSave(btn) {
     const msg = $('tcMsg'); msg.className = ''; msg.textContent = '';
     try {
         const r = await post('/api/till.php', { action: 'customer', order_id: CFG.order_id, first_name: tcVal('tcFirst'), last_name: tcVal('tcLast'),
-            address: tcVal('tcAddress'), street_number: tcVal('tcNumber'), country: $('tcCountry').value, phone: tcVal('tcPhone'), birth_date: tcVal('tcBirth') });
+            address: tcVal('tcAddress'), street_number: tcVal('tcNumber'), country: $('tcCountry').value, phone: tcVal('tcPhone'), birth_date: tcVal('tcBirth'),
+            fiscal_code: $('tcCf') ? tcVal('tcCf') : '' });
         msg.className = r.success ? 'dev-ok' : 'dev-err';
         msg.textContent = r.success ? (r.code ? TC.saved_code.replace('{code}', r.code) : TC.saved) : (r.message || TC.failed);
         if (r.success) { $('tcSummary').textContent = (tcVal('tcFirst') + ' ' + tcVal('tcLast')).trim(); tcShowCode(r.code); }
@@ -739,14 +752,53 @@ async function tcRecall(btn) {
         if (!r.success) { msg.className = 'dev-err'; msg.textContent = r.message || TC.failed; btn.disabled = false; return; }
         const c = r.customer;
         $('tcFirst').value = c.first_name; $('tcLast').value = c.last_name; $('tcAddress').value = c.address;
-        $('tcNumber').value = c.street_number; $('tcCountry').value = c.country; $('tcPhone').value = c.phone; $('tcBirth').value = c.birth_date || '';
-        $('tcSummary').textContent = (c.first_name + ' ' + c.last_name).trim();
-        tcShowCode(c.code); $('tcRecall').value = '';
+        tcFill(c); $('tcRecall').value = '';
         msg.className = 'dev-ok'; msg.textContent = TC.recalled.replace('{code}', c.code);
     } catch (e) { msg.className = 'dev-err'; msg.textContent = e.message; }
     btn.disabled = false;
 }
 $('tcRecall') && $('tcRecall').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tcRecall(e.target.nextElementSibling); } });
+function tcFill(c) {
+    $('tcFirst').value = c.first_name; $('tcLast').value = c.last_name; $('tcAddress').value = c.address;
+    $('tcNumber').value = c.street_number; $('tcCountry').value = c.country; $('tcPhone').value = c.phone; $('tcBirth').value = c.birth_date || '';
+    if ($('tcCf')) { $('tcCf').value = c.fiscal_code || ''; $('tcCfInfo').textContent = c.born || ''; }
+    $('tcSummary').textContent = (c.first_name + ' ' + c.last_name).trim();
+    tcShowCode(c.code);
+}
+// The tessera sanitaria (scanner types the codice fiscale + Enter): a known
+// customer comes back whole; a new one gets date of birth (and sex, place).
+let tcCfLast = '';
+async function tcCfRead() {
+    const cf = tcVal('tcCf');
+    if (!cf || cf.toUpperCase() === tcCfLast) return;   // (scanner: 16th character and Enter both read it)
+    tcCfLast = cf.toUpperCase();
+    setTimeout(() => { tcCfLast = ''; }, 1500);
+    const msg = $('tcMsg'); msg.className = ''; msg.textContent = '';
+    try {
+        const r = await post('/api/till.php', { action: 'fiscal_code', cf, order_id: CFG.order_id });
+        if (!r.success) { msg.className = 'dev-err'; msg.textContent = r.message || TC.failed; $('tcCfInfo').textContent = ''; return; }
+        if (r.known) {
+            tcFill(r.known);
+            msg.className = 'dev-ok'; msg.textContent = TC.cf_known.replace('{name}', (r.known.first_name + ' ' + r.known.last_name).trim()).replace('{code}', r.known.code);
+            return;
+        }
+        $('tcCf').value = r.new.cf;
+        $('tcCfInfo').textContent = r.new.born;
+        $('tcBirth').value = r.new.birth_date;
+        msg.className = 'dev-ok'; msg.textContent = TC.cf_new;
+        (tcVal('tcFirst') ? $('tcPhone') : $('tcFirst')).focus();
+    } catch (e) { msg.className = 'dev-err'; msg.textContent = e.message; }
+}
+if ($('tcCf')) {
+    $('tcCf').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tcCfRead(); } });
+    // A codice fiscale typed in full (16 characters): read it at once.
+    $('tcCf').addEventListener('input', e => { if (e.target.value.replace(/[^a-z0-9]/gi, '').length === 16) tcCfRead(); });
+    // A tessera read at Ordini Cassa for a new customer comes along to this sale.
+    try {
+        const pend = sessionStorage.getItem('till-pending-cf');
+        if (pend && !tcVal('tcCf')) { sessionStorage.removeItem('till-pending-cf'); $('tcCf').value = pend; tcCfRead(); $('tcCf').closest('details').open = true; }
+    } catch (e) {}
+}
 // A phone we already know: fill in what is still empty.
 async function tcLookup() {
     if (!tcVal('tcPhone')) return;

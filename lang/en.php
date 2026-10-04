@@ -1596,4 +1596,15 @@ return [
     'wa_in_off_done' => 'Receiving is off: the webhook is back as it was.',
     'wa_in_err_panel' => 'Cannot read the TextMeBot panel: try again shortly.',
     'wa_in_err_set' => 'TextMeBot did not accept the new webhook: the previous one was put back.',
+
+    // ---- Till: codice fiscale from the tessera sanitaria ----
+    'till_cf_label' => 'Codice fiscale (health card)',
+    'till_cf_read' => 'Read',
+    'till_cf_hint' => 'Scan the barcode of the tessera sanitaria (or type the codice fiscale): date and place of birth are filled in, and customers already registered are recognised. Name and surname must be typed: they are not in the codice fiscale.',
+    'till_cf_invalid' => 'Invalid codice fiscale: scan the card again or check the letters.',
+    'till_cf_known' => 'Customer recognised from the card: {name} ({code}).',
+    'till_cf_new' => 'New customer: date of birth filled from the card. Add first name, surname and mobile, then Save.',
+    'till_cf_born_M' => 'Man, born on {date} in {place}',
+    'till_cf_born_F' => 'Woman, born on {date} in {place}',
+    'till_cf_scan_new' => 'Card read: new customer ({born}). At payment, in "Customer details", the codice fiscale and date of birth are already there: add name and mobile.',
 ];

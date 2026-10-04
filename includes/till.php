@@ -19,6 +19,7 @@
  */
 
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/codice_fiscale.php';
 require_once __DIR__ . '/settings.php';
 require_once __DIR__ . '/system_place.php';
 require_once __DIR__ . '/online_order.php';
@@ -164,6 +165,8 @@ function tillOrderCustomer(array $order): array
     $tc = !empty($order['till_customer_id']) ? tillCustomerById((int) $order['till_customer_id']) : null;
     $c['code'] = $tc['code'] ?? '';
     $c['birth_date'] = (string) ($tc['birth_date'] ?? $oc['birth_date'] ?? '');
+    $c['fiscal_code'] = (string) ($tc['fiscal_code'] ?? '');
+    $c['born'] = $c['fiscal_code'] !== '' ? tillFiscalBornLabel(codiceFiscaleDecode($c['fiscal_code'])) : '';
     return $c;
 }
 
@@ -183,6 +186,12 @@ function tillSaveCustomer(int $orderId, array $in): array
     if ($f('phone', 20) !== '' && !($phone = internationalPhone($country, $f('phone', 20)))) return ['error' => 'cust_bad_phone'];
     $birth = birthDateValue($in['birth_date'] ?? '');
     if ($birth === null) return ['error' => 'online_err_birth'];
+    // The codice fiscale (tessera sanitaria): it also gives the date of birth.
+    $cf = null;
+    if (trim((string) ($in['fiscal_code'] ?? '')) !== '') {
+        if (!$cf = codiceFiscaleDecode((string) $in['fiscal_code'])) return ['error' => 'till_cf_invalid'];
+        if ($birth === '') $birth = $cf['birth_date'];
+    }
     getDBConnection()->prepare("
         UPDATE orders SET customer_name = ?, customer_address = ?, customer_street_number = ?, customer_country = ?, customer_phone = ? WHERE id = ?
     ")->execute([$name !== '' ? $name : null, $f('address', 150) ?: null, $f('street_number', 15) ?: null, $phone ? $country : null, $phone, $orderId]);
@@ -190,7 +199,7 @@ function tillSaveCustomer(int $orderId, array $in): array
     $tc = $order['channel'] === TILL_CHANNEL ? tillCustomerKeep(getOrderById($orderId), [
         'first_name' => $f('first_name', 60), 'last_name' => $f('last_name', 60), 'address' => $f('address', 150),
         'street_number' => $f('street_number', 15), 'phone' => $phone, 'country' => $phone ? $country : null,
-        'birth_date' => $birth,
+        'birth_date' => $birth, 'fiscal' => $cf,
     ]) : null;
     return ['ok' => true, 'code' => $tc['code'] ?? ''];
 }
@@ -235,9 +244,11 @@ function tillCustomerByCode(string $typed): ?array
  */
 function tillCustomerKeep(array $order, array $d): ?array
 {
-    if (trim($d['first_name'] . $d['last_name']) === '' && empty($d['phone'])) return null;
+    $cf = $d['fiscal'] ?? null;
+    if (trim($d['first_name'] . $d['last_name']) === '' && empty($d['phone']) && !$cf) return null;
     $pdo = getDBConnection();
     $tc  = !empty($order['till_customer_id']) ? tillCustomerById((int) $order['till_customer_id']) : null;
+    if (!$tc && $cf) $tc = tillCustomerByFiscalCode($cf['cf']);
     if (!$tc && !empty($d['phone'])) {
         $st = $pdo->prepare("SELECT * FROM till_customers WHERE phone = ? AND active = 1 ORDER BY id LIMIT 1");
         $st->execute([$d['phone']]);
@@ -245,14 +256,17 @@ function tillCustomerKeep(array $order, array $d): ?array
     }
     $vals = [$d['first_name'] ?: null, $d['last_name'] ?: null, $d['address'] ?: null, $d['street_number'] ?: null, $d['phone'] ?: null, $d['country'] ?: null,
              ($d['birth_date'] ?? '') ?: null];
+    $fvals = [$cf['cf'] ?? null, $cf['sex'] ?? null, $cf ? (codiceFiscalePlaceLabel($cf) ?: null) : null];
     if ($tc) {
-        // An empty date of birth keeps the one already known.
+        // An empty date of birth (or codice fiscale) keeps the one already known.
         $pdo->prepare("UPDATE till_customers SET first_name = ?, last_name = ?, address = ?, street_number = ?, phone = ?, country = ?,
-                       birth_date = COALESCE(?, birth_date) WHERE id = ?")
-            ->execute([...$vals, (int) $tc['id']]);
+                       birth_date = COALESCE(?, birth_date), fiscal_code = COALESCE(?, fiscal_code), sex = COALESCE(?, sex),
+                       birth_place = COALESCE(?, birth_place) WHERE id = ?")
+            ->execute([...$vals, ...$fvals, (int) $tc['id']]);
     } else {
-        $pdo->prepare("INSERT INTO till_customers (code, first_name, last_name, address, street_number, phone, country, birth_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-            ->execute([tillNewCustomerCode(), ...$vals]);
+        $pdo->prepare("INSERT INTO till_customers (code, first_name, last_name, address, street_number, phone, country, birth_date, fiscal_code, sex, birth_place)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            ->execute([tillNewCustomerCode(), ...$vals, ...$fvals]);
         $id = (int) $pdo->lastInsertId();
         $tc = ['id' => $id];
         logActivity('till_customer_created', 'till_customers', $id);
@@ -372,6 +386,40 @@ function tillAttachCustomer(int $orderId, string $typed): array
                  $tc['phone'] ? $tc['country'] : null, $tc['phone'], $orderId]);
     logActivity('till_customer_recalled', 'orders', $orderId, ['code' => $tc['code']]);
     return ['ok' => tillOrderCustomer(getOrderById($orderId))];
+}
+
+/** The active Clienti cassa customer with this codice fiscale, or null. */
+function tillCustomerByFiscalCode(string $cf): ?array
+{
+    $stmt = getDBConnection()->prepare("SELECT * FROM till_customers WHERE fiscal_code = ? AND active = 1 ORDER BY id LIMIT 1");
+    $stmt->execute([$cf]);
+    return $stmt->fetch() ?: null;
+}
+
+/** "Uomo, nato il 14/05/1990 a Napoli (NA)" for the payment page. */
+function tillFiscalBornLabel(?array $d): string
+{
+    if (!$d) return '';
+    return t('till_cf_born_' . $d['sex'], ['date' => date('d/m/Y', strtotime($d['birth_date'])), 'place' => codiceFiscalePlaceLabel($d)]);
+}
+
+/**
+ * A codice fiscale read at the till (tessera sanitaria): a customer we know
+ * comes back (on the sale, when one is open), otherwise what the code says
+ * (date and place of birth) to start a new one. ['known' => box values] |
+ * ['new' => decoded + 'born' label] | ['error' => lang key].
+ */
+function tillFiscalCodeRead(string $raw, int $orderId = 0): array
+{
+    if (!$d = codiceFiscaleDecode($raw)) return ['error' => 'till_cf_invalid'];
+    if ($tc = tillCustomerByFiscalCode($d['cf'])) {
+        if ($orderId) {
+            $res = tillAttachCustomer($orderId, (string) $tc['code']);
+            if (isset($res['ok'])) return ['known' => $res['ok']];
+        }
+        return ['known' => ['code' => $tc['code'], 'first_name' => (string) $tc['first_name'], 'last_name' => (string) $tc['last_name']]];
+    }
+    return ['new' => $d + ['born' => tillFiscalBornLabel($d)]];
 }
 
 /**

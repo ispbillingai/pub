@@ -8,6 +8,7 @@
  * POST {action: 'customer', order_id, first_name, last_name, address, street_number, country, phone} → the customer's details on the order
  * POST {action: 'lookup', country, phone}                                   → someone already known by that phone, to fill the box
  * POST {action: 'recall', order_id, code}                                   → a Clienti cassa customer, by code, on the counter sale
+ * POST {action: 'fiscal_code', cf, order_id?}                               → a tessera sanitaria read: known customer (on the sale) or birth data
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -46,6 +47,11 @@ if ($action === 'recall') {
     $res = tillAttachCustomer((int) ($input['order_id'] ?? 0), (string) ($input['code'] ?? ''));
     if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
     jsonResponse(['success' => true, 'customer' => $res['ok']]);
+}
+if ($action === 'fiscal_code') {
+    $res = tillFiscalCodeRead((string) ($input['cf'] ?? ''), (int) ($input['order_id'] ?? 0));
+    if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    jsonResponse(['success' => true] + $res);
 }
 if ($action === 'lookup') {
     jsonResponse(['success' => true, 'customer' => tillCustomerLookup((string) ($input['country'] ?? 'IT'), (string) ($input['phone'] ?? ''))]);

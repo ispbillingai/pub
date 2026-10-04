@@ -52,8 +52,8 @@ $params = [];
 if ($q !== '') {
     $like   = '%' . $q . '%';
     $digits = preg_replace('/\D/', '', $q);
-    $where  = "WHERE c.code LIKE ? OR CONCAT_WS(' ', c.first_name, c.last_name) LIKE ? OR c.address LIKE ? OR c.phone LIKE ?";
-    $params = [$like, $like, $like, $digits !== '' ? '%' . $digits . '%' : $like];
+    $where  = "WHERE c.code LIKE ? OR CONCAT_WS(' ', c.first_name, c.last_name) LIKE ? OR c.address LIKE ? OR c.phone LIKE ? OR c.fiscal_code LIKE ?";
+    $params = [$like, $like, $like, $digits !== '' ? '%' . $digits . '%' : $like, '%' . strtoupper(preg_replace('/\s+/', '', $q)) . '%'];
 }
 $stmt = $pdo->prepare("
     SELECT c.*,
@@ -143,7 +143,8 @@ include __DIR__ . '/../includes/header.php';
                 <td><span class="tc-code"><?= htmlspecialchars((string) $r['code']) ?></span>
                     <?php if (!$r['active']): ?><br><span class="badge badge-danger"><?= te('online_disabled') ?></span><?php endif; ?></td>
                 <td><a href="<?= htmlspecialchars(tillCustomerQrUrl($r, true)) ?>" title="<?= te('till_cust_qr_download') ?>"><img class="tc-qr" src="<?= htmlspecialchars(tillCustomerQrUrl($r)) ?>" alt="QR <?= htmlspecialchars((string) $r['code']) ?>" loading="lazy"></a></td>
-                <td><strong><?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name']) ?: '—') ?></strong><?php if (!empty($r['birth_date'])): ?><br><small class="text-muted" title="<?= te('online_birth_date') ?>">🎂 <?= birthDateLabel($r['birth_date']) ?></small><?php endif; ?></td>
+                <td><strong><?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name']) ?: '—') ?></strong><?php if (!empty($r['birth_date'])): ?><br><small class="text-muted" title="<?= te('online_birth_date') ?>">🎂 <?= birthDateLabel($r['birth_date']) ?><?= !empty($r['birth_place']) ? ' · ' . htmlspecialchars($r['birth_place']) : '' ?></small><?php endif; ?>
+                    <?php if (!empty($r['fiscal_code'])): ?><br><code class="text-muted" style="font-size:.78rem;" title="<?= te('till_cf_label') ?>"><?= htmlspecialchars($r['fiscal_code']) ?></code><?php endif; ?></td>
                 <td><?= htmlspecialchars(trim(($r['address'] ?? '') . ($r['street_number'] ? ', ' . $r['street_number'] : '')) ?: '—') ?></td>
                 <td class="flag-font" style="white-space:nowrap;"><?= $r['phone'] ? countryFlag($r['country'] ?: 'IT') . ' ' . htmlspecialchars($r['phone']) : '—' ?></td>
                 <td style="text-align:right;white-space:nowrap;"><?= (int) $r['sales'] ?><?php if ((float) $r['spent'] > 0): ?> <span class="text-muted">· <?= formatCurrency($r['spent']) ?></span><?php endif; ?></td>

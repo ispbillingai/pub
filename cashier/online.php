@@ -228,6 +228,7 @@ async function toggleCamera() {
     cam.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, text => {
         // A product code: on the ticket, and the camera keeps reading the next one.
         if (scanProduct(text, true)) return;
+        if (scanFiscalCode(text)) return;
         cam.stop().catch(() => {});
         location.href = '/cashier/online.php?scan=' + encodeURIComponent(text);
     }).catch(() => { box.innerHTML = '<p class="text-muted">' + <?= json_encode(t('cash_online_camera_err')) ?> + '</p>'; cam = null; });
@@ -238,6 +239,7 @@ const TL = <?= json_encode([
     'pay' => t('till_pay'), 'empty' => t('till_ticket_empty'), 'free' => t('till_free_line'), 'none' => t('till_no_products'),
     'failed' => t('toast_update_failed'), 'cancel_q' => t('till_cancel_confirm'), 'currency' => formatCurrency(0),
     'scanned' => t('till_scanned'), 'cust_set' => t('till_cust_scanned'), 'big_amount' => t('till_big_amount_confirm'),
+    'cf_new' => t('till_cf_scan_new'),
 ], JSON_UNESCAPED_UNICODE) ?>;
 const $id = id => document.getElementById(id);
 const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -274,9 +276,29 @@ function scanSubmit(e) {
     const inp = document.getElementById('scanInput');
     if (scanProduct(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
     if (scanTillCustomer(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
+    if (scanFiscalCode(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
     return true;                         // a customer's QR: the server opens its payment
 }
 // A Clienti cassa customer's QR (C0007): the ticket's sale will start with their details.
+// A tessera sanitaria (its barcode is the codice fiscale): a known customer goes
+// on the ticket; a new one's codice fiscale waits for the payment's "Customer" box.
+function scanFiscalCode(text) {
+    const cf = String(text || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+    if (!/^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(cf)) return false;
+    fetch('/api/till.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'fiscal_code', cf }) })
+        .then(r => r.json()).then(r => {
+            if (!r.success) { showToast(r.message || TL.failed, 'error'); return; }
+            if (r.known) {
+                const name = (r.known.first_name + ' ' + r.known.last_name).trim() || r.known.code;
+                tSetCustomer({ code: r.known.code, name });
+                showToast(TL.cust_set.replace('{name}', name).replace('{code}', r.known.code), 'success', 2500);
+                return;
+            }
+            try { sessionStorage.setItem('till-pending-cf', r.new.cf); } catch (e) {}
+            showToast(TL.cf_new.replace('{born}', r.new.born), 'success', 6000);
+        }).catch(() => showToast(TL.failed, 'error'));
+    return true;
+}
 function scanTillCustomer(text) {
     const code = String(text || '').trim();
     if (!/^C\d{4,}$/i.test(code)) return false;

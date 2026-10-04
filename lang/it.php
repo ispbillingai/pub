@@ -1596,4 +1596,15 @@ return [
     'wa_in_off_done' => 'Ricezione disattivata: il webhook è tornato com\'era.',
     'wa_in_err_panel' => 'Non riesco a leggere il pannello di TextMeBot: riprova tra poco.',
     'wa_in_err_set' => 'TextMeBot non ha accettato il nuovo webhook: il precedente è stato rimesso.',
+
+    // ---- Till: codice fiscale from the tessera sanitaria ----
+    'till_cf_label' => 'Codice fiscale (tessera sanitaria)',
+    'till_cf_read' => 'Leggi',
+    'till_cf_hint' => 'Leggi il codice a barre della tessera sanitaria con il lettore (o scrivi il codice fiscale): compila data e luogo di nascita, e riconosce i clienti già registrati. Nome e cognome vanno scritti: non sono nel codice fiscale.',
+    'till_cf_invalid' => 'Codice fiscale non valido: rileggi la tessera o controlla le lettere.',
+    'till_cf_known' => 'Cliente riconosciuto dalla tessera: {name} ({code}).',
+    'till_cf_new' => 'Cliente nuovo: data di nascita compilata dalla tessera. Aggiungi nome, cognome e cellulare, poi Salva.',
+    'till_cf_born_M' => 'Uomo, nato il {date} a {place}',
+    'till_cf_born_F' => 'Donna, nata il {date} a {place}',
+    'till_cf_scan_new' => 'Tessera letta: cliente nuovo ({born}). Al pagamento, in «Dati cliente», trovi già codice fiscale e data di nascita: aggiungi nome e cellulare.',
 ];
