@@ -17,9 +17,13 @@ onlineDeviceId();   // this phone's device code (cookie), kept with its accesses
 if (isset($_GET['wa'])) {
     $res = onlineWaLink((string) $_GET['wa']);
     if (isset($res['error'])) $_SESSION['online_flash'] = t($res['error']);
-    header('Location: /online.php');
+    header('Location: /online.php' . (!empty($_SESSION['online_card_mode']) ? '?tessera=1' : ''));
     exit;
 }
+// ?tessera=1 (the counter's QR): sign up for the customer card, then show it.
+$cardMode = !empty($_GET['tessera']);
+if ($cardMode) { $GLOBALS['ONLINE_CARD_MODE'] = true; $_SESSION['online_card_mode'] = 1; }
+else unset($_SESSION['online_card_mode']);
 $waUrl = onlineCurrentCustomer() ? null : onlineWaUrl();
 $flash = $_SESSION['online_flash'] ?? '';
 unset($_SESSION['online_flash']);
@@ -30,6 +34,8 @@ $brand = $ws['name'] ?? t('app_name');
 
 $L = [
     'intol_opts'    => $intolOpts,
+    'card_mode'     => $cardMode,
+    'card_saved'    => t('card_bday_saved'),
     'flash'         => $flash,
     'code_failed'   => t('online_code_failed'),
     'intol_none'    => t('online_intol_none'),
@@ -208,6 +214,15 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 #pfIntolOther { width: 100%; }
 .intol-err { color: #b91c1c; font-weight: 600; margin: 8px 0 0; }
 .wa-card { border: 2px solid #25d366; }
+.tessera { text-align: center; background: linear-gradient(160deg, #fff 0%, #fff7ef 100%); border: 2px solid var(--p); }
+.tessera .t-brand { font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; color: #6b7280; }
+.tessera .t-title { font-size: 1.35rem; font-weight: 800; margin: 2px 0 2px; }
+.tessera .t-name { font-size: 1.1rem; font-weight: 600; color: #374151; margin-bottom: 10px; }
+.tessera .t-qr { width: 240px; height: 240px; image-rendering: pixelated; background: #fff; border-radius: 12px; padding: 8px; border: 1px solid #eee; }
+.tessera .t-code { font-family: monospace; font-size: 1.6rem; font-weight: 800; letter-spacing: .12em; margin: 8px 0 4px; }
+.bday-ask .row { display: flex; gap: 10px; margin-top: 10px; }
+.bday-ask input { flex: 1; min-width: 0; padding: 12px; border: 1.5px solid #e5e2dc; border-radius: 12px; font: inherit; }
+.bday-ask .btn-go { flex: 0 0 auto; width: auto; padding: 0 18px; }
 .btn-wa { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; box-sizing: border-box; background: #25d366; color: #fff; text-decoration: none; font-weight: 800; font-size: 1.1rem; border-radius: 14px; padding: 15px; margin-top: 10px; }
 .wa-spin { display: flex; justify-content: center; gap: 8px; margin: 18px 0 6px; }
 .wa-spin span { width: 12px; height: 12px; border-radius: 50%; background: #25d366; animation: waDot 1.2s infinite ease-in-out; }
@@ -233,7 +248,7 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
         <?php endforeach; ?>
     </span>
     <div class="brand"><?= htmlspecialchars($brand) ?></div>
-    <h1><?= te('online_page_title') ?></h1>
+    <h1><?= te($cardMode ? 'card_page_title' : 'online_page_title') ?></h1>
 </header>
 
 <?php
@@ -260,7 +275,7 @@ $footHtml = ob_get_clean(); ?>
     <?php if ($waUrl): ?>
     <div class="card wa-card">
         <h2><i class="fab fa-whatsapp"></i> <?= te('online_wa_title') ?></h2>
-        <p class="sub"><?= te('online_wa_text') ?></p>
+        <p class="sub"><?= te($cardMode ? 'card_wa_text' : 'online_wa_text') ?></p>
         <a class="btn-wa" href="<?= htmlspecialchars($waUrl) ?>" onclick="waWaiting()"><i class="fab fa-whatsapp"></i> <?= te('online_wa_btn') ?></a>
     </div>
     <p class="or"><?= te('online_wa_or') ?></p>
@@ -294,6 +309,10 @@ $footHtml = ob_get_clean(); ?>
                 </select>
                 <input id="rgMobile" name="tel" type="tel" inputmode="tel" maxlength="20" autocomplete="tel-national" placeholder="333 123 4567" required>
             </div>
+            <?php if ($cardMode): ?>
+            <label for="rgBirth"><?= te('card_birth_label') ?></label>
+            <input id="rgBirth" name="bday" type="date" min="1900-01-01" max="<?= date('Y-m-d') ?>" autocomplete="bday" required>
+            <?php endif; ?>
             <label class="consent">
                 <input type="checkbox" id="rgConsent">
                 <span><strong><?= te('self_consent_label') ?></strong> (<?= te('self_consent_optional') ?>)<br><?= htmlspecialchars(consentText('prompt_online', currentLang())) ?></span>
@@ -322,6 +341,10 @@ $footHtml = ob_get_clean(); ?>
         <form class="form" onsubmit="waRegister(event)">
             <label for="waNameInput"><?= te('online_wa_name_q') ?></label>
             <input id="waNameInput" name="name" maxlength="120" autocomplete="name" autocapitalize="words" placeholder="<?= te('online_full_name_ph') ?>" required>
+            <?php if ($cardMode): ?>
+            <label for="waBirth"><?= te('card_birth_label') ?></label>
+            <input id="waBirth" name="bday" type="date" min="1900-01-01" max="<?= date('Y-m-d') ?>" autocomplete="bday" required>
+            <?php endif; ?>
             <label class="consent">
                 <input type="checkbox" id="waConsent">
                 <span><strong><?= te('self_consent_label') ?></strong> (<?= te('self_consent_optional') ?>)<br><?= htmlspecialchars(consentText('prompt_online', currentLang())) ?></span>
@@ -362,6 +385,24 @@ $footHtml = ob_get_clean(); ?>
     <div class="bday-banner" hidden><span>🎂 <?= te('online_bday_banner') ?></span><button type="button" onclick="openProfile()"><?= te('online_bday_add') ?></button></div>
     <div class="shop-cats" id="shopCats"></div>
     <div id="shopMenu"><div class="card"><div class="empty"><?= te('loading') ?></div></div></div>
+    <p class="whoami"><button class="link-btn" onclick="openCard()"><i class="fas fa-id-card"></i> <?= te('card_mine') ?></button> · <button class="link-btn" onclick="openProfile()"><i class="fas fa-user-pen"></i> <?= te('online_profile') ?></button> · <button class="link-btn" onclick="logout()"><?= te('online_not_you') ?></button></p>
+</main>
+
+<!-- The customer card: the QR to show at the till -->
+<main id="card" hidden>
+    <div class="card tessera">
+        <div class="t-brand"><?= htmlspecialchars($brand) ?></div>
+        <div class="t-title"><?= te('card_title') ?></div>
+        <div class="t-name" id="cardName"></div>
+        <img id="cardQr" class="t-qr" alt="QR">
+        <div class="t-code" id="cardCode"></div>
+        <p class="sub"><?= te('card_show') ?></p>
+    </div>
+    <div class="card bday-ask" id="cardBday" hidden>
+        <strong>🎂 <?= te('card_bday_q') ?></strong>
+        <div class="row"><input id="cardBirth" type="date" min="1900-01-01" max="<?= date('Y-m-d') ?>" autocomplete="bday"><button type="button" class="btn-go" onclick="saveBirthday()"><?= te('save') ?></button></div>
+    </div>
+    <button class="order-more" id="cardOrder" onclick="closeCard()"><i class="fas fa-utensils"></i> <?= te('card_order') ?></button>
     <p class="whoami"><button class="link-btn" onclick="openProfile()"><i class="fas fa-user-pen"></i> <?= te('online_profile') ?></button> · <button class="link-btn" onclick="logout()"><?= te('online_not_you') ?></button></p>
 </main>
 
@@ -456,7 +497,7 @@ $footHtml = ob_get_clean(); ?>
     </div>
     <div class="bday-banner" hidden><span>🎂 <?= te('online_bday_banner') ?></span><button type="button" onclick="openProfile()"><?= te('online_bday_add') ?></button></div>
     <?= $footHtml ?>
-    <p class="whoami"><button class="link-btn" onclick="openProfile()"><i class="fas fa-user-pen"></i> <?= te('online_profile') ?></button> · <button class="link-btn" onclick="logout()"><?= te('online_not_you') ?></button></p>
+    <p class="whoami"><button class="link-btn" onclick="openCard()"><i class="fas fa-id-card"></i> <?= te('card_mine') ?></button> · <button class="link-btn" onclick="openProfile()"><i class="fas fa-user-pen"></i> <?= te('online_profile') ?></button> · <button class="link-btn" onclick="logout()"><?= te('online_not_you') ?></button></p>
 </main>
 
 <div class="toast" id="toast"></div>
@@ -469,7 +510,7 @@ $footHtml = ob_get_clean(); ?>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 const L = <?= json_encode($L, JSON_UNESCAPED_UNICODE) ?>;
-const API = '/api/online.php';
+const API = '/api/online.php' + (L.card_mode ? '?card=1' : '');
 let state = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -479,7 +520,7 @@ function toast(msg) {
     clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 3500);
 }
 function show(id) {
-    ['off', 'gate', 'codeStep', 'shop', 'app', 'profile', 'waWait', 'waName'].forEach(m => { $(m).hidden = m !== id; });
+    ['off', 'gate', 'codeStep', 'shop', 'app', 'profile', 'waWait', 'waName', 'card'].forEach(m => { $(m).hidden = m !== id; });
     if (id !== 'shop') $('cartBar').hidden = true;
 }
 
@@ -506,6 +547,7 @@ function render(s) {
     document.querySelectorAll('.hello').forEach(el => { el.textContent = L.hello.replace('{name}', s.customer.first_name); });
     document.querySelectorAll('.bday-banner').forEach(el => { el.hidden = !!s.customer.birth_date || bdayDismissed(); });
     if (profileOpen) { show('profile'); return; }   // (the form is filled once, on opening)
+    if (cardView) { show('card'); renderCard(s); return; }
     if (!s.enabled && !s.items.length) { show('off'); return; }
     // The menu first (nothing ordered yet) or when asked for more.
     renderPaid(s.paid);
@@ -583,7 +625,8 @@ function renderSignedOut(s) {
 }
 function formData(mode) {
     if (mode === 'login') return { mode, country: $('lgCountry').value, mobile: $('lgMobile').value };
-    return { mode, name: $('rgName').value, country: $('rgCountry').value, mobile: $('rgMobile').value, consent: $('rgConsent').checked };
+    return { mode, name: $('rgName').value, country: $('rgCountry').value, mobile: $('rgMobile').value, consent: $('rgConsent').checked,
+             birth_date: $('rgBirth') ? $('rgBirth').value : '' };
 }
 async function requestCode(e, mode) {
     e.preventDefault();
@@ -634,7 +677,7 @@ function waPoll() {
 }
 async function waRegister(e) {
     e.preventDefault();
-    if (await send({ action: 'wa_register', name: $('waNameInput').value, consent: $('waConsent').checked })) {
+    if (await send({ action: 'wa_register', name: $('waNameInput').value, consent: $('waConsent').checked, birth_date: $('waBirth') ? $('waBirth').value : '' })) {
         try { sessionStorage.removeItem('online-wa-wait'); } catch (e) {}
         if (state && state.welcome) toast(state.welcome);
     }
@@ -869,6 +912,25 @@ function chipToggle(b) {
 const chipValues = boxId => [...$(boxId).querySelectorAll('.chip.on[data-v]')].map(c => c.dataset.v);
 const chipNone = boxId => !!$(boxId).querySelector('.chip.on[data-none]');
 function intolAnswered() { $('intolErr').hidden = true; }
+
+/* ---- The customer card (the counter's QR opens the page on it) ---- */
+let cardView = !!L.card_mode;
+function renderCard(s) {
+    const c = s.customer;
+    $('cardName').textContent = c.name;
+    if (c.card) {
+        if ($('cardQr').dataset.src !== c.card.qr) { $('cardQr').src = c.card.qr; $('cardQr').dataset.src = c.card.qr; }
+        $('cardCode').textContent = c.card.code;
+    }
+    $('cardBday').hidden = !!c.birth_date;
+    $('cardOrder').hidden = !s.enabled;
+}
+function openCard() { cardView = true; shopOpen = false; render(state); window.scrollTo(0, 0); }
+function closeCard() { cardView = false; render(state); window.scrollTo(0, 0); }
+async function saveBirthday() {
+    if (!$('cardBirth').value) return;
+    if (await send({ action: 'birthday', birth_date: $('cardBirth').value })) toast(L.card_saved);
+}
 
 /* ---- "Il mio profilo" ---- */
 let profileOpen = false, profileBack = null;

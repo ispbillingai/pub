@@ -24,13 +24,15 @@ header('Cache-Control: no-store');
 
 $post   = $_SERVER['REQUEST_METHOD'] === 'POST';
 $input  = $post ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_GET;
+// The card page (online.php?tessera=1, the counter's QR): signing up works even with ordering off.
+if (!empty($_GET['card'])) { $GLOBALS['ONLINE_CARD_MODE'] = true; $_SESSION['online_card_mode'] = 1; }
 $action = $post ? (string) ($input['action'] ?? '') : '';
 
 /** Not signed in: whether ordering is on and whether a code is waiting. */
 function signedOutState(): array
 {
     $n = onlineWaNew();
-    return ['success' => true, 'signed_in' => false, 'enabled' => onlineOrderEnabled(), 'pending' => onlineCodePending(),
+    return ['success' => true, 'signed_in' => false, 'enabled' => onlineSignupOpen(), 'pending' => onlineCodePending(),
             // "Entra con WhatsApp": the number is proven, only the name is missing
             'wa_new' => $n ? ['phone' => nationalPhone(phoneCountryIso($n['phone']), $n['phone']), 'name' => $n['name']] : null];
 }
@@ -74,6 +76,11 @@ if ($action === 'send') {
     jsonResponse(onlineOrderState($customer) + ['signed_in' => true, 'sent' => $res['ok']]);
 }
 
+if ($action === 'birthday') {
+    $res = onlineSaveBirthday($customer, (string) ($input['birth_date'] ?? ''));
+    if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
+    jsonResponse(onlineOrderState($res['ok']) + ['signed_in' => true]);
+}
 if ($action === 'profile') {
     $res = onlineSaveProfile($customer, $input);
     if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);

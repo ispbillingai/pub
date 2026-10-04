@@ -37,6 +37,7 @@ require_once __DIR__ . '/restaurant.php';
 require_once __DIR__ . '/system_place.php';
 require_once __DIR__ . '/qr.php';
 require_once __DIR__ . '/whatsapp_inbound.php';
+require_once __DIR__ . '/customer_card.php';
 
 const ONLINE_CHANNEL       = 'online';
 const ONLINE_COOKIE        = 'online_customer';
@@ -54,6 +55,18 @@ const ONLINE_INTOL_OPTIONS = [
     'uova' => 'Uova', 'pesce' => 'Pesce', 'crostacei' => 'Crostacei e molluschi', 'soia' => 'Soia', 'sesamo' => 'Sesamo',
 ];
 const ONLINE_DEVICE_DAYS   = 730;   // the device code lasts 2 years
+
+/** online.php?tessera=1 (the counter's QR): signing up for the card, even with online ordering off. */
+function onlineCardMode(): bool
+{
+    return !empty($GLOBALS['ONLINE_CARD_MODE']);
+}
+
+/** Signing up / in is open: online ordering is on, or it's the card page. */
+function onlineSignupOpen(): bool
+{
+    return onlineOrderEnabled() || onlineCardMode();
+}
 
 /** ['enabled' => bool, 'thanks_it' / 'thanks_en' => the "paid, thank you" text ('' = default)] */
 function onlineOrderSettings(): array
@@ -285,7 +298,7 @@ function onlineCurrentCustomer(): ?array
  */
 function onlineRequestCode(array $in): array
 {
-    if (!onlineOrderEnabled()) return ['error' => 'online_err_off'];
+    if (!onlineSignupOpen()) return ['error' => 'online_err_off'];
     $mode    = ($in['mode'] ?? '') === 'login' ? 'login' : 'register';
     $country = strtoupper(trim((string) ($in['country'] ?? 'IT')));
     $mobile  = internationalPhone($country, (string) ($in['mobile'] ?? ''));
@@ -310,6 +323,7 @@ function onlineRequestCode(array $in): array
             'birth_date' => birthDateValue($in['birth_date'] ?? ''),   // optional: birthday wishes and a gift
         ];
         if ($data['birth_date'] === null) return ['error' => 'online_err_birth'];
+        if (onlineCardMode() && $data['birth_date'] === '') return ['error' => 'online_err_birth_needed'];   // the card: for the birthday gift
         if (mb_strlen($data['first_name']) < 2) return ['error' => 'online_err_name'];
         if ($data['landline'] !== '' && !preg_match('/^\+?[\d\s\/.-]{5,25}$/', $data['landline'])) {
             return ['error' => 'online_err_landline'];
@@ -403,6 +417,7 @@ function onlineCreateCustomer(array $r): array
     // the same register the campaigns read.
     setConsent($r['mobile'], !empty($r['consent']) ? 'granted' : 'declined', 'online', consentText('prompt_online', $r['lang']), null, $r['lang']);
     if (!empty($r['consent'])) sendConsentConfirmation($r['mobile']);
+    customerCardFor($customer, true);   // their card (code + QR), on WhatsApp too
     return $customer;
 }
 
@@ -434,7 +449,7 @@ function onlineWaNewCode(): string
 /** This browser's wa.me link (its code is made once and kept while valid), or null when off. */
 function onlineWaUrl(): ?string
 {
-    if (!waInboundActive() || !onlineOrderEnabled()) return null;
+    if (!waInboundActive() || !onlineSignupOpen()) return null;
     $pdo = getDBConnection();
     $row = null;
     if (!empty($_SESSION['online_wa'])) {
@@ -564,9 +579,12 @@ function onlineWaRegister(array $in): array
     if (!$n) return ['error' => 'self_err_expired'];
     [$first, $last] = onlineSplitName((string) ($in['name'] ?? ''));
     if (mb_strlen($first) < 2) return ['error' => 'online_err_name'];
+    $birth = birthDateValue($in['birth_date'] ?? '');
+    if ($birth === null) return ['error' => 'online_err_birth'];
+    if (onlineCardMode() && $birth === '') return ['error' => 'online_err_birth_needed'];
     $customer = onlineCustomerByMobile($n['phone']) ?: onlineCreateCustomer([
         'first_name' => $first, 'last_name' => $last, 'mobile' => $n['phone'], 'country' => phoneCountryIso($n['phone']),
-        'consent' => !empty($in['consent']), 'lang' => $n['lang'],
+        'consent' => !empty($in['consent']), 'lang' => $n['lang'], 'birth_date' => $birth,
     ]);
     unset($_SESSION['online_wa_new']);
     if (!$customer['active']) return ['error' => 'online_err_disabled'];
@@ -664,7 +682,20 @@ function onlineSaveProfile(array $customer, array $in): array
     ")->execute([$first, $last, $address, $landline !== '' ? $landline : null, $birth !== '' ? $birth : null,
                  ($t = onlineIntolText($in['intol'] ?? [], $in['intol_other'] ?? '')) !== '' ? $t : null, (int) $customer['id']]);
     logActivity('online_profile_saved', 'online_customers', (int) $customer['id']);
-    return ['ok' => onlineCustomerById((int) $customer['id'])];
+    $customer = onlineCustomerById((int) $customer['id']);
+    customerCardFromOnline($customer);
+    return ['ok' => $customer];
+}
+
+/** The card page's "when is your birthday?" (for the gift). */
+function onlineSaveBirthday(array $customer, string $date): array
+{
+    $birth = birthDateValue($date);
+    if ($birth === null || $birth === '') return ['error' => 'online_err_birth'];
+    getDBConnection()->prepare("UPDATE online_customers SET birth_date = ? WHERE id = ?")->execute([$birth, (int) $customer['id']]);
+    $customer = onlineCustomerById((int) $customer['id']);
+    customerCardFromOnline($customer);
+    return ['ok' => $customer];
 }
 
 /**
@@ -856,6 +887,8 @@ function onlineOrderState(array $customer): array
             'birth_date' => (string) $customer['birth_date'],
             'intolerances'       => (string) $customer['intolerances'],
             'intolerances_asked' => !empty($customer['intolerances_asked']),
+            // The card to show at the till (Clienti cassa code + QR).
+            'card' => ($card = customerCardFor($customer)) ? ['code' => $card['code'], 'qr' => tillCustomerQrUrl($card)] : null,
         ],
         'order'    => $order ? ['number' => $order['order_number'], 'pay_url' => onlinePayUrl(onlinePayToken($order))] : null,
         'items'    => $items,

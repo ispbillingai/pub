@@ -273,6 +273,8 @@ function tillCustomerKeep(array $order, array $d): ?array
     }
     $pdo->prepare("UPDATE orders SET till_customer_id = ? WHERE id = ?")->execute([(int) $tc['id'], (int) $order['id']]);
     $tc = tillCustomerById((int) $tc['id']);
+    require_once __DIR__ . '/customer_card.php';
+    customerCardFromTill($tc);  // the same person online: one card
     tillCustomerWelcome($tc);   // first time with a phone: their code and QR on WhatsApp
     return $tc;
 }

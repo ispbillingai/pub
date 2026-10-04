@@ -10,6 +10,7 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/till.php';
+require_once __DIR__ . '/../includes/customer_card.php';
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -55,8 +56,10 @@ if ($q !== '') {
     $where  = "WHERE c.code LIKE ? OR CONCAT_WS(' ', c.first_name, c.last_name) LIKE ? OR c.address LIKE ? OR c.phone LIKE ? OR c.fiscal_code LIKE ?";
     $params = [$like, $like, $like, $digits !== '' ? '%' . $digits . '%' : $like, '%' . strtoupper(preg_replace('/\s+/', '', $q)) . '%'];
 }
+customerCardsSync();   // every online customer has their card here too
 $stmt = $pdo->prepare("
     SELECT c.*,
+           (SELECT COUNT(*) FROM orders o WHERE o.online_customer_id = c.online_customer_id AND c.online_customer_id IS NOT NULL AND o.status = 'paid') AS online_orders,
            (SELECT COUNT(*) FROM orders o WHERE o.till_customer_id = c.id AND o.status = 'paid') AS sales,
            (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.till_customer_id = c.id AND o.status = 'paid') AS spent,
            (SELECT MAX(o.closed_at) FROM orders o WHERE o.till_customer_id = c.id AND o.status = 'paid') AS last_sale
@@ -90,6 +93,9 @@ include __DIR__ . '/../includes/header.php';
 .tc-row input, .tc-row select { min-width: 0; }
 .tc-edit { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; padding: 10px 0 4px; }
 .tc-off { opacity: .55; }
+.counter-qr { display: flex; gap: 20px; align-items: center; padding: 16px 18px; flex-wrap: wrap; }
+.counter-qr .cq-qr { background: #fff; padding: 8px; border-radius: 8px; border: 1px solid var(--border-color); }
+.tc-online { font-size: .72rem; background: rgba(37,99,235,.1); color: #1d4ed8; border-radius: 6px; padding: 1px 6px; margin-left: 4px; white-space: nowrap; }
 .tc-qr { width: 54px; height: 54px; image-rendering: pixelated; border: 1px solid var(--border-color); border-radius: 6px; background: #fff; }
 </style>
 
@@ -98,6 +104,20 @@ include __DIR__ . '/../includes/header.php';
     <a class="btn btn-outline" href="?<?= htmlspecialchars(http_build_query(array_filter(['q' => $q, 'export' => 'csv']))) ?>"><i class="fas fa-file-csv"></i> <?= te('export_csv') ?></a>
 </div>
 <p class="text-muted"><?= te('till_customers_intro') ?></p>
+
+<!-- The counter's QR: customers make their own card (online.php?tessera=1) -->
+<div class="card mb-lg counter-qr">
+    <div class="cq-qr" data-url="<?= htmlspecialchars(customerCardSignupUrl()) ?>"></div>
+    <div>
+        <h2 style="margin:0 0 6px;font-size:1.05rem;"><i class="fas fa-qrcode"></i> <?= te('till_counter_qr_title') ?></h2>
+        <p class="text-muted" style="margin:0 0 10px;"><?= te('till_counter_qr_text') ?></p>
+        <div class="d-flex gap-sm" style="flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary" onclick="printCounterQr()"><i class="fas fa-print"></i> <?= te('till_counter_qr_print') ?></button>
+            <a class="btn btn-outline" href="<?= htmlspecialchars(customerCardSignupUrl()) ?>" target="_blank"><i class="fas fa-up-right-from-square"></i> <?= te('table_qr_open') ?></a>
+        </div>
+        <div class="text-muted" style="font-size:.8rem;margin-top:8px;word-break:break-all;"><?= htmlspecialchars(customerCardSignupUrl()) ?></div>
+    </div>
+</div>
 
 <?php if (isset($_GET['saved'])): ?>
     <div class="alert alert-success mb-lg" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; border-radius: 8px;"><i class="fas fa-check-circle"></i> <?= te('msg_settings_saved') ?></div>
@@ -143,7 +163,7 @@ include __DIR__ . '/../includes/header.php';
                 <td><span class="tc-code"><?= htmlspecialchars((string) $r['code']) ?></span>
                     <?php if (!$r['active']): ?><br><span class="badge badge-danger"><?= te('online_disabled') ?></span><?php endif; ?></td>
                 <td><a href="<?= htmlspecialchars(tillCustomerQrUrl($r, true)) ?>" title="<?= te('till_cust_qr_download') ?>"><img class="tc-qr" src="<?= htmlspecialchars(tillCustomerQrUrl($r)) ?>" alt="QR <?= htmlspecialchars((string) $r['code']) ?>" loading="lazy"></a></td>
-                <td><strong><?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name']) ?: '—') ?></strong><?php if (!empty($r['birth_date'])): ?><br><small class="text-muted" title="<?= te('online_birth_date') ?>">🎂 <?= birthDateLabel($r['birth_date']) ?><?= !empty($r['birth_place']) ? ' · ' . htmlspecialchars($r['birth_place']) : '' ?></small><?php endif; ?>
+                <td><strong><?= htmlspecialchars(trim($r['first_name'] . ' ' . $r['last_name']) ?: '—') ?></strong><?php if (!empty($r['online_customer_id'])): ?><span class="tc-online" title="<?= te('till_cust_online_title', ['n' => (int) $r['online_orders']]) ?>"><i class="fas fa-globe"></i> <?= te('till_cust_online_badge') ?></span><?php endif; ?><?php if (!empty($r['birth_date'])): ?><br><small class="text-muted" title="<?= te('online_birth_date') ?>">🎂 <?= birthDateLabel($r['birth_date']) ?><?= !empty($r['birth_place']) ? ' · ' . htmlspecialchars($r['birth_place']) : '' ?></small><?php endif; ?>
                     <?php if (!empty($r['fiscal_code'])): ?><br><code class="text-muted" style="font-size:.78rem;" title="<?= te('till_cf_label') ?>"><?= htmlspecialchars($r['fiscal_code']) ?></code><?php endif; ?></td>
                 <td><?= htmlspecialchars(trim(($r['address'] ?? '') . ($r['street_number'] ? ', ' . $r['street_number'] : '')) ?: '—') ?></td>
                 <td class="flag-font" style="white-space:nowrap;"><?= $r['phone'] ? countryFlag($r['country'] ?: 'IT') . ' ' . htmlspecialchars($r['phone']) : '—' ?></td>
@@ -199,4 +219,18 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+document.querySelectorAll('.cq-qr[data-url]').forEach(el => new QRCode(el, { text: el.dataset.url, width: 150, height: 150, correctLevel: QRCode.CorrectLevel.M }));
+// The counter's QR on a page of its own, to print.
+function printCounterQr() {
+    const el = document.querySelector('.cq-qr'), img = el.querySelector('canvas') ? el.querySelector('canvas').toDataURL() : el.querySelector('img').src;
+    const w = window.open('', '_blank');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>QR</title><style>body{font-family:sans-serif;text-align:center;padding:40px}img{width:320px;height:320px;image-rendering:pixelated}h1{font-size:30px;margin:0 0 6px}p{font-size:18px;color:#444;max-width:420px;margin:12px auto}</style></head><body>
+        <div style="font-size:14px;letter-spacing:.15em;text-transform:uppercase;color:#888">${<?= json_encode(restaurantName()) ?>}</div>
+        <h1>${<?= json_encode(t('till_counter_print_title')) ?>}</h1><img src="${img}"><p>${<?= json_encode(t('till_counter_print_text')) ?>}</p>
+        <script>window.onload = () => { window.print(); }<\/script></body></html>`);
+    w.document.close();
+}
+</script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

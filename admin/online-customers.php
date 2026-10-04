@@ -14,6 +14,7 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/online_order.php';
 requireRole(['admin']);
+customerCardsSync();   // every online customer has their card (Clienti cassa)
 
 $pdo = getDBConnection();
 
@@ -61,6 +62,7 @@ $stmt = $pdo->prepare("
            (SELECT COUNT(*) FROM orders o WHERE o.online_customer_id = c.id AND o.status <> 'cancelled') AS orders_count,
            (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.online_customer_id = c.id AND o.status = 'paid') AS spent,
            (SELECT COUNT(DISTINCT a.device_id) FROM online_customer_access a WHERE a.customer_id = c.id AND a.device_id IS NOT NULL) AS devices,
+           (SELECT tc.code FROM till_customers tc WHERE tc.online_customer_id = c.id ORDER BY tc.id LIMIT 1) AS card_code,
            (SELECT COUNT(DISTINCT o2.customer_id) FROM online_customer_access o2
              WHERE o2.customer_id <> c.id AND o2.device_id IN
                    (SELECT a3.device_id FROM online_customer_access a3 WHERE a3.customer_id = c.id AND a3.device_id IS NOT NULL)) AS shared_with
@@ -290,6 +292,7 @@ include __DIR__ . '/../includes/header.php';
                     <td style="white-space:nowrap;"><strong><?= date('d/m/Y', strtotime($r['created_at'])) ?></strong>
                         <span class="text-muted"><?= date('H:i', strtotime($r['created_at'])) ?></span></td>
                     <td><strong><?= htmlspecialchars($r['first_name'] . ' ' . $r['last_name']) ?></strong><?php if (!empty($r['birth_date'])): ?><br><small class="text-muted" title="<?= te('online_birth_date') ?>">🎂 <?= birthDateLabel($r['birth_date']) ?></small><?php endif; ?>
+                        <?php if (!empty($r['card_code'])): ?><br><a class="cell-small" href="/admin/till-customers.php?q=<?= urlencode($r['card_code']) ?>" title="<?= te('online_card_code') ?>"><i class="fas fa-id-card"></i> <?= htmlspecialchars($r['card_code']) ?></a><?php endif; ?>
                         <?php if (!$r['active']): ?><span class="badge badge-danger"><?= te('online_disabled') ?></span><?php endif; ?></td>
                     <td><?= ($a1 = onlineAddressLine($r['address'], $r['street_number'])) !== '' ? htmlspecialchars($a1) : '<span class="text-muted">—</span>' ?></td>
                     <td class="flag-font" style="white-space:nowrap;"><?= countryFlag($r['mobile_country'] ?: 'IT') ?> <?= htmlspecialchars($r['mobile']) ?></td>
