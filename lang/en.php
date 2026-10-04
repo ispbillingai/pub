@@ -1561,4 +1561,8 @@ return [
     'online_addr_single_ph' => 'e.g. 12 High Street, London',
     'online_bday_banner' => 'Add your birthday and get a gift!',
     'online_bday_add' => 'Add',
+
+    // ---- Online sign-up: incomplete mobile, code not delivered ----
+    'online_err_mobile_it' => 'The mobile number looks incomplete: an Italian mobile starts with 3 and has 10 digits (e.g. 333 123 4567).',
+    'online_code_failed' => 'We could not send the code on WhatsApp to {phone}. Check that the number is right and has WhatsApp, then tap "Change details or number".',
 ];

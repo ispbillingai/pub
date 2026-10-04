@@ -287,6 +287,7 @@ function onlineRequestCode(array $in): array
     $country = strtoupper(trim((string) ($in['country'] ?? 'IT')));
     $mobile  = internationalPhone($country, (string) ($in['mobile'] ?? ''));
     if (!$mobile) return ['error' => 'cust_bad_phone'];
+    if (!onlineMobileLooksValid($country, $mobile)) return ['error' => $country === 'IT' ? 'online_err_mobile_it' : 'cust_bad_phone'];
     $known = onlineCustomerByMobile($mobile);
 
     $data = ['mode' => $mode, 'mobile' => $mobile, 'country' => $country];
@@ -313,7 +314,8 @@ function onlineRequestCode(array $in): array
     }
 
     $prev = $_SESSION['online_reg'] ?? null;
-    if ($prev && time() - $prev['sent_at'] < ONLINE_CODE_GAP) return ['error' => 'self_err_wait'];
+    // (no wait when the last code could not be delivered: the number is being corrected)
+    if ($prev && time() - $prev['sent_at'] < ONLINE_CODE_GAP && !(onlineCodePending()['failed'] ?? false)) return ['error' => 'self_err_wait'];
     $sends = ($prev['sends'] ?? 0) + 1;
     if ($sends > ONLINE_CODE_MAX_SENDS) return ['error' => 'online_err_too_many'];
     // The same number can't be flooded from several browsers either.
@@ -326,10 +328,25 @@ function onlineRequestCode(array $in): array
         'lang' => currentLang() === 'it' ? 'it' : 'en',
         'code' => $code, 'sent_at' => time(), 'sends' => $sends, 'tries' => 0,
     ];
-    queueGuestWhatsapp(null, null, 'online_code', $mobile, tIn(guestLang($country), 'online_code_text', [
+    // Its outbox id: if WhatsApp refuses the number, the page says so (onlineCodePending).
+    $_SESSION['online_reg']['outbox_id'] = queueGuestWhatsapp(null, null, 'online_code', $mobile, tIn(guestLang($country), 'online_code_text', [
         'restaurant' => restaurantName(), 'code' => $code,
     ]), null, null, 20);
     return ['ok' => true];
+}
+
+/**
+ * A mobile that can receive the code: an Italian one starts with 3 and has 9-10
+ * digits (a number typed short — "338 3265" — is refused here, not by WhatsApp
+ * minutes later); elsewhere at least 7 digits. The 00000000xx numbers are the
+ * staff's test numbers (never real phones).
+ */
+function onlineMobileLooksValid(string $iso, string $e164): bool
+{
+    $national = preg_replace('/\D/', '', nationalPhone($iso, $e164));
+    if (str_starts_with($national, '00000000')) return true;
+    if (strtoupper($iso) === 'IT') return (bool) preg_match('/^3\d{8,9}$/', $national);
+    return strlen($national) >= 7;
 }
 
 /** What step 1 left in this browser (for the page), or null. */
@@ -337,7 +354,15 @@ function onlineCodePending(): ?array
 {
     $r = $_SESSION['online_reg'] ?? null;
     if (!$r || time() - $r['sent_at'] > ONLINE_CODE_TTL) return null;
-    return ['phone_end' => substr($r['mobile'], -4), 'mode' => $r['mode'],
+    // WhatsApp refused the number (wrong or without WhatsApp): the page asks to correct it.
+    $failed = false;
+    if (!empty($r['outbox_id'])) {
+        $st = getDBConnection()->prepare("SELECT status FROM whatsapp_outbox WHERE id = ?");
+        $st->execute([(int) $r['outbox_id']]);
+        $failed = $st->fetchColumn() === 'failed';
+    }
+    return ['phone_end' => substr($r['mobile'], -4), 'mode' => $r['mode'], 'failed' => $failed,
+            'phone' => nationalPhone($r['country'], $r['mobile']),
             'resend_in' => max(0, ONLINE_CODE_GAP - (time() - $r['sent_at']))];
 }
 

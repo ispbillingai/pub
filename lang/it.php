@@ -1561,4 +1561,8 @@ return [
     'online_addr_single_ph' => 'Es. Via Roma 12, Castellammare di Stabia',
     'online_bday_banner' => 'Aggiungi il tuo compleanno: ti facciamo un regalo!',
     'online_bday_add' => 'Aggiungi',
+
+    // ---- Online sign-up: incomplete mobile, code not delivered ----
+    'online_err_mobile_it' => 'Il numero di cellulare non sembra completo: un cellulare italiano inizia con 3 e ha 10 cifre (es. 333 123 4567).',
+    'online_code_failed' => 'Non siamo riusciti a inviarti il codice su WhatsApp al numero {phone}. Controlla che il numero sia giusto e che abbia WhatsApp, poi tocca «Cambia i dati o il numero».',
 ];

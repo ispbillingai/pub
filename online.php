@@ -20,6 +20,7 @@ $brand = $ws['name'] ?? t('app_name');
 
 $L = [
     'intol_opts'    => $intolOpts,
+    'code_failed'   => t('online_code_failed'),
     'intol_none'    => t('online_intol_none'),
     'err_intol'     => t('online_err_intol'),
     'profile_saved' => t('online_profile_saved'),
@@ -195,6 +196,7 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .intol-ask input:focus { outline: none; border-color: var(--p); }
 #pfIntolOther { width: 100%; }
 .intol-err { color: #b91c1c; font-weight: 600; margin: 8px 0 0; }
+.code-fail { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 12px; padding: 12px 14px; font-weight: 600; text-align: left; }
 .bday-banner { display: flex; align-items: center; gap: 12px; justify-content: space-between; background: #fff4ec; border: 1px solid #fed7aa; border-radius: 14px; padding: 12px 14px; margin: 0 0 14px; font-size: .95rem; }
 .bday-banner[hidden] { display: none; }
 .bday-banner button { border: 0; background: var(--p); color: #fff; font: inherit; font-weight: 700; border-radius: 10px; padding: 8px 14px; cursor: pointer; white-space: nowrap; }
@@ -283,7 +285,8 @@ $footHtml = ob_get_clean(); ?>
         <i class="fas fa-lock gate-icon"></i>
         <h2><?= te('self_code_title') ?></h2>
         <p class="sub" id="codeText"></p>
-        <form onsubmit="verifyCode(event)">
+        <p class="code-fail" id="codeFail" hidden></p>
+        <form id="codeForm" onsubmit="verifyCode(event)">
             <input id="codeInput" class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="••••••" required>
             <button class="btn-go" type="submit"><?= te('self_enter') ?></button>
         </form>
@@ -504,6 +507,11 @@ function renderSignedOut(s) {
     if (s.pending && !editing) {
         show('codeStep');
         $('codeText').textContent = L.code_sent_to.replace('{phone}', '•••• ' + s.pending.phone_end);
+        // WhatsApp refused the number: say so, and offer to correct it.
+        $('codeFail').hidden = !s.pending.failed;
+        $('codeFail').textContent = L.code_failed.replace('{phone}', s.pending.phone);
+        $('codeForm').hidden = $('resendBtn').hidden = !!s.pending.failed;
+        $('codeText').hidden = !!s.pending.failed;
         resendAt = Date.now() + s.pending.resend_in * 1000;
         tickResend();
         return;
