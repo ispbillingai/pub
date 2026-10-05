@@ -150,6 +150,53 @@ function fiscalClient(array $cfg)
 }
 
 /**
+ * Ingenico card client for a 'pos' config, by its connection 'mode':
+ * 'p17' = Protocol 17 straight to the terminal over TCP (base_url tcp://ip:port),
+ * anything else = the RTS WebDoReMi HTTP service that wraps it.
+ *
+ * @return PosClient|IngenicoP17Client
+ */
+function posClient(array $cfg)
+{
+    if (posMode($cfg) === 'p17') {
+        require_once __DIR__ . '/IngenicoP17Client.php';
+        return new IngenicoP17Client($cfg);
+    }
+    require_once __DIR__ . '/PosClient.php';
+    return new PosClient($cfg);
+}
+
+/** 'p17' (direct TCP) or 'rts' (HTTP service) for a 'pos' config. */
+function posMode(array $cfg): string
+{
+    // The address decides (a till may override the global URL but not the mode).
+    $url = (string) ($cfg['base_url'] ?? '');
+    if (stripos($url, 'tcp://') === 0) {
+        return 'p17';
+    }
+    if (preg_match('#^https?://#i', $url)) {
+        return 'rts';
+    }
+    return ($cfg['mode'] ?? '') === 'p17' ? 'p17' : 'rts';
+}
+
+/**
+ * Normalise the card terminal address typed in admin for its mode:
+ * p17 -> tcp://host:port, rts -> http(s)://…
+ */
+function posNormUrl(string $v, string $mode): string
+{
+    $v = trim($v);
+    if ($v === '') {
+        return '';
+    }
+    if ($mode === 'p17') {
+        return 'tcp://' . preg_replace('#^[a-z]+://#i', '', rtrim($v, '/'));
+    }
+    return preg_match('#^https?://#i', $v) ? $v : 'http://' . preg_replace('#^tcp://#i', '', $v);
+}
+
+/**
  * Which card gateway(s) the cashier offers, chosen on the admin Payment
  * Gateways page: 'pos' (Ingenico), 'dojo', 'both', or 'none'. Defaults to
  * 'both' when unset so existing installs keep showing whatever is configured.

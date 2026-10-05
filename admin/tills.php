@@ -41,8 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'timeout_ms' => (int) ($_POST['f_timeout'] ?? 35000),
             ],
             'pos' => [
-                'base_url'        => $normUrl($_POST['p_url'] ?? ''),
+                'mode'            => ($_POST['p_mode'] ?? '') === 'p17' ? 'p17' : 'rts',
+                'base_url'        => posNormUrl($_POST['p_url'] ?? '', ($_POST['p_mode'] ?? '') === 'p17' ? 'p17' : 'rts'),
                 'terminal_name'   => trim($_POST['p_terminal'] ?? ''),
+                'ecr_id'          => trim($_POST['p_ecr'] ?? ''),
                 'protocol_type'   => trim($_POST['p_protocol'] ?? '0'),
                 'connect_timeout' => (int) ($_POST['p_connect'] ?? 5),
                 'read_timeout'    => (int) ($_POST['p_read'] ?? 90),
@@ -269,11 +271,19 @@ $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
                 <div class="form-section">
                     <h4><i class="fas fa-credit-card"></i> <?= te('card_terminal') ?></h4>
                     <div class="form-row">
+                        <div class="form-group"><label class="form-label"><?= te('pos_connection') ?></label>
+                            <select name="p_mode" id="t_p_mode" class="form-control" onchange="posModeUi(this)">
+                                <option value="rts"><?= te('pos_mode_rts') ?></option>
+                                <option value="p17"><?= te('pos_mode_p17') ?></option>
+                            </select></div>
                         <div class="form-group" style="flex:2;"><label class="form-label"><?= te('ip_or_url') ?></label>
                             <input type="text" name="p_url" id="t_p_url" class="form-control" placeholder="http://100.x.y.z/WebDoremiposWS"></div>
                         <div class="form-group"><label class="form-label"><?= te('terminal_name') ?></label>
                             <input type="text" name="p_terminal" id="t_p_terminal" class="form-control" placeholder="Ingenico-XXXX"></div>
+                        <div class="form-group p17-only" style="display:none;"><label class="form-label"><?= te('pos_ecr_id') ?></label>
+                            <input type="text" name="p_ecr" id="t_p_ecr" class="form-control" placeholder="00000001"></div>
                     </div>
+                    <p class="text-muted p17-only" style="font-size:.85rem;display:none;"><?= te('pos_p17_hint') ?></p>
                     <div class="form-row">
                         <div class="form-group"><label class="form-label"><?= te('protocol_type') ?></label>
                             <input type="text" name="p_protocol" id="t_p_protocol" class="form-control" value="0"></div>
@@ -338,7 +348,10 @@ function setTill(d) {
     $t('t_f_url').value = f.base_url || '';
     $t('t_f_operator').value = f.operator || '1';
     $t('t_f_timeout').value = f.timeout_ms || 35000;
+    $t('t_p_mode').value = (p.mode === 'p17' || /^tcp:\/\//i.test(p.base_url || '')) ? 'p17' : 'rts';
+    posModeUi($t('t_p_mode'));
     $t('t_p_url').value = p.base_url || '';
+    $t('t_p_ecr').value = p.ecr_id || '';
     $t('t_p_terminal').value = p.terminal_name || '';
     $t('t_p_protocol').value = (p.protocol_type ?? '0');
     $t('t_p_connect').value = p.connect_timeout || 5;
@@ -350,6 +363,12 @@ function setTill(d) {
     document.querySelectorAll('#tillModal .test-result').forEach(s => s.textContent = '');
 }
 
+function posModeUi(sel) {
+    const p17 = sel.value === 'p17', box = sel.closest('.form-section');
+    box.querySelectorAll('.p17-only').forEach(el => el.style.display = p17 ? '' : 'none');
+    $t('t_p_url').placeholder = p17 ? '192.168.100.14:PORT' : 'http://100.x.y.z/WebDoremiposWS';
+    $t('t_p_terminal').placeholder = p17 ? '00000000' : 'Ingenico-XXXX';
+}
 function openAddTill() {
     $t('tillModalTitle').textContent = TILL_I18N.add;
     $t('t_action').value = 'add_till';

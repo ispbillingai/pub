@@ -38,8 +38,13 @@ return [
     // on the till LAN (reached over Tailscale); it wraps Protocol 17 to the
     // Ingenico terminal. terminal_name is the <terminal name="…"> from RTS.
     // Leave base_url empty to hide the "Pay by card" button.
+    // mode 'p17' = no RTS PC: the server speaks Protocol 17 straight to the
+    // terminal (ECR line set to TCP/IP). base_url = tcp://<terminal ip>:<port>,
+    // terminal_name = terminal ID (8 digits, 00000000 = any), ecr_id = till ID.
     'pos' => [
         'enabled'         => true,
+        'mode'            => 'rts',     // 'rts' | 'p17'
+        'ecr_id'          => '00000001', // p17 only
         'base_url'        => 'http://100.x.y.z/WebDoremiposWS',  // RTS service (Tailscale)
         'terminal_name'   => 'Ingenico-XXXXXXXX',                // RTS terminal name
         'protocol_type'   => '0',       // 0 auto / 1 credit / 2 debit

@@ -2,7 +2,8 @@
 /**
  * Admin: Payment Gateways.
  *
- * Choose which CARD gateway the cashier offers — Ingenico (RTS terminal) or
+ * Choose which CARD gateway the cashier offers — Ingenico (RTS service, or
+ * Protocol 17 straight to the terminal over TCP) or
  * Dojo (Dojo Cloud API) or both — and edit each gateway's connection details in
  * one place. Saved to settings.payment_gateways and overlaid on the device
  * config by deviceConfig(); the chosen gateway drives which "Pay by …" button
@@ -41,8 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     $gateways = [
         'active' => $active,
         'pos' => [
-            'base_url'        => $normUrl($_POST['p_url'] ?? ''),
+            'mode'            => ($_POST['p_mode'] ?? '') === 'p17' ? 'p17' : 'rts',
+            'base_url'        => posNormUrl($_POST['p_url'] ?? '', ($_POST['p_mode'] ?? '') === 'p17' ? 'p17' : 'rts'),
             'terminal_name'   => trim($_POST['p_terminal'] ?? ''),
+            'ecr_id'          => trim($_POST['p_ecr'] ?? ''),
             'protocol_type'   => trim($_POST['p_protocol'] ?? '0'),
             'connect_timeout' => (int) ($_POST['p_connect'] ?? 5),
             'read_timeout'    => (int) ($_POST['p_read'] ?? 90),
@@ -131,12 +134,21 @@ $v = static fn($val, $d = '') => htmlspecialchars((string) ($val ?? $d), ENT_QUO
             <i class="fas fa-chevron-down"></i>
         </div>
         <div class="card-body gw-body" id="gw-pos">
+            <?php $posP17 = posMode($pos) === 'p17'; ?>
             <div class="form-row">
+                <div class="form-group"><label class="form-label"><?= te('pos_connection') ?></label>
+                    <select name="p_mode" class="form-control" onchange="posModeUi(this)">
+                        <option value="rts" <?= $posP17 ? '' : 'selected' ?>><?= te('pos_mode_rts') ?></option>
+                        <option value="p17" <?= $posP17 ? 'selected' : '' ?>><?= te('pos_mode_p17') ?></option>
+                    </select></div>
                 <div class="form-group" style="flex:2;"><label class="form-label"><?= te('ip_or_url') ?></label>
-                    <input type="text" name="p_url" class="form-control" value="<?= $v($pos['base_url'] ?? '') ?>" placeholder="http://100.x.y.z/WebDoremiposWS"></div>
+                    <input type="text" name="p_url" class="form-control" value="<?= $v($pos['base_url'] ?? '') ?>" placeholder="<?= $posP17 ? '192.168.100.14:PORT' : 'http://100.x.y.z/WebDoremiposWS' ?>"></div>
                 <div class="form-group"><label class="form-label"><?= te('terminal_name') ?></label>
-                    <input type="text" name="p_terminal" class="form-control" value="<?= $v($pos['terminal_name'] ?? '') ?>" placeholder="Ingenico-XXXX"></div>
+                    <input type="text" name="p_terminal" class="form-control" value="<?= $v($pos['terminal_name'] ?? '') ?>" placeholder="<?= $posP17 ? '00000000' : 'Ingenico-XXXX' ?>"></div>
+                <div class="form-group p17-only" <?= $posP17 ? '' : 'style="display:none;"' ?>><label class="form-label"><?= te('pos_ecr_id') ?></label>
+                    <input type="text" name="p_ecr" class="form-control" value="<?= $v($pos['ecr_id'] ?? '') ?>" placeholder="00000001"></div>
             </div>
+            <p class="text-muted p17-only" style="font-size:.85rem;<?= $posP17 ? '' : 'display:none;' ?>"><?= te('pos_p17_hint') ?></p>
             <div class="form-row">
                 <div class="form-group"><label class="form-label"><?= te('protocol_type') ?></label>
                     <input type="text" name="p_protocol" class="form-control" value="<?= $v($pos['protocol_type'] ?? '0') ?>"></div>
@@ -217,6 +229,12 @@ function toggleGw(gw) { document.getElementById('gw-' + gw).classList.toggle('co
     if (!on) document.getElementById('gw-' + gw).classList.add('collapsed');
 });
 
+function posModeUi(sel) {
+    const p17 = sel.value === 'p17', box = sel.closest('.card-body, .form-section');
+    box.querySelectorAll('.p17-only').forEach(el => el.style.display = p17 ? '' : 'none');
+    box.querySelector('[name=p_url]').placeholder = p17 ? '192.168.100.14:PORT' : 'http://100.x.y.z/WebDoremiposWS';
+    box.querySelector('[name=p_terminal]').placeholder = p17 ? '00000000' : 'Ingenico-XXXX';
+}
 async function testGw(gateway, btn) {
     const out = document.querySelector('.test-result[data-for="' + gateway + '"]');
     out.textContent = '…'; out.style.color = '';

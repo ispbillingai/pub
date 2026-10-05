@@ -121,6 +121,16 @@ if ($target === 'till_device') {
     if ($device === 'fiscal' && ($dc['fiscal']['brand'] ?? '') === 'rch') {
         rchStatusTest($dc['fiscal']);
     }
+    if ($device === 'pos' && posMode($dc['pos']) === 'p17') {
+        // Protocol 17 status request: answered by the terminal, charges nothing.
+        $st = posClient($dc['pos'])->status();
+        echo json_encode([
+            'ok'    => !empty($st['ok']),
+            'error' => $st['ok'] ? null : ($st['error'] ?? $st['state'] ?? 'unreachable'),
+            'info'  => isset($st['terminal_state']) ? ('Ingenico ' . $st['state'] . ($st['releases'] ? ', ' . $st['releases'] : '')) : null,
+        ]);
+        exit;
+    }
     $p    = parse_url($base);
     $host = $p['host'] ?? '';
     $port = $p['port'] ?? (($p['scheme'] ?? 'http') === 'https' ? 443 : 80);

@@ -1,12 +1,11 @@
 <?php
 /**
- * Card payment for an order via the RTS WebDoReMi POS (Ingenico over Protocol
- * 17). Mirrors parking card-pay-cashier: charge the card, confirm the order
+ * Card payment for an order on the Ingenico: through the RTS WebDoReMi POS
+ * service, or straight to the terminal over Protocol 17 (posClient()). Mirrors parking card-pay-cashier: charge the card, confirm the order
  * paid, then emit the fiscal receipt. Body: { order_id }.
  */
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/devices.php';
-require_once __DIR__ . '/../includes/PosClient.php';
 require_once __DIR__ . '/../includes/order_payment.php';
 
 header('Content-Type: application/json');
@@ -28,11 +27,20 @@ if ($order['status'] === 'paid') { echo json_encode(['ok' => false, 'error' => '
 $amount = toCents($order['total']);
 if ($amount <= 0) { echo json_encode(['ok' => false, 'error' => 'bad_amount']); exit; }
 
-$pos = new PosClient(tillConfigForOrder($order, 'pos'));
+$pos = posClient(tillConfigForOrder($order, 'pos'));
+// The terminal can take a minute and more (tap, PIN, acquirer).
+@set_time_limit(0);
 if (!$pos->enabled()) { echo json_encode(['ok' => false, 'error' => 'pos_not_configured']); exit; }
 
 // 1) Charge the card. If this fails, nothing was charged — safe to retry.
 $auth = $pos->pay($amount);
+if (!$auth['ok'] && ($auth['error'] ?? '') === 'outcome_unknown') {
+    // The line dropped after the terminal accepted the payment and it could not
+    // tell us the result: the card MAY have been charged. Don't close the order.
+    logDeviceEvent('card', 'outcome_unknown', $orderId, ['amount_cents' => $amount]);
+    echo json_encode(['ok' => false, 'error' => t('card_outcome_unknown'), 'stage' => 'authorize']);
+    exit;
+}
 if (!$auth['ok']) {
     logDeviceEvent('card', 'payment_fail', $orderId, ['stage' => 'authorize', 'error' => $auth['error'] ?? '?']);
     echo json_encode(['ok' => false, 'error' => $auth['error'] ?? 'card_declined', 'stage' => 'authorize']);
