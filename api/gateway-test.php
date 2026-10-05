@@ -37,5 +37,19 @@ if ($gw === 'dojo') {
                       'terminals' => $r['terminals'] ?? null]);
     exit;
 }
+if ($gw === 'cashmatic') {
+    // A login proves the address and credentials reach the machine; it starts
+    // no payment, so nothing is taken and no drawer opens.
+    require_once __DIR__ . '/../includes/CashmaticClient.php';
+    $c = new CashmaticClient(deviceConfig('cashmatic'));
+    if (!$c->enabled()) {
+        echo json_encode(['ok' => false, 'error' => 'not_configured']);
+        exit;
+    }
+    $r  = $c->login();
+    $ok = ($r['code'] ?? -1) === 0;
+    echo json_encode(['ok' => $ok, 'state' => $ok ? 'login ok' : '', 'error' => $ok ? null : ($r['message'] ?? 'login_failed')]);
+    exit;
+}
 
 echo json_encode(['ok' => false, 'error' => 'unknown_gateway']);

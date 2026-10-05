@@ -65,6 +65,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     ];
 
     setSetting('payment_gateways', $gateways);
+
+    // Cashmatic (cash machine) lives in its own setting. The password is
+    // write-only, like the Dojo secret: a blank field keeps the stored one.
+    $existingCm = getSetting('cashmatic', []);
+    $existingPw = is_array($existingCm) ? (string) ($existingCm['password'] ?? '') : '';
+    $submittedPw = (string) ($_POST['cm_password'] ?? '');
+    setSetting('cashmatic', [
+        'enabled'    => isset($_POST['cm_enabled']),
+        'base_url'   => $normUrl($_POST['cm_url'] ?? ''),
+        'username'   => trim($_POST['cm_username'] ?? ''),
+        'password'   => $submittedPw !== '' ? $submittedPw : $existingPw,
+        'verify_ssl' => isset($_POST['cm_verify']),
+    ]);
+
     // Never log the secret key.
     logActivity('payment_gateways_updated', 'settings', null, ['active' => $active]);
     header('Location: /admin/payment-gateways.php?saved=1');
@@ -75,6 +89,8 @@ $active    = activeCardGateway();
 $pos       = deviceConfig('pos');
 $dojo      = deviceConfig('dojo');
 $dojoKeySet = !empty($dojo['secret_key']);
+$cm        = deviceConfig('cashmatic');
+$cmPwSet   = !empty($cm['password']);
 
 $pageTitle = t('payment_gateways');
 include __DIR__ . '/../includes/header.php';
@@ -215,6 +231,33 @@ $v = static fn($val, $d = '') => htmlspecialchars((string) ($val ?? $d), ENT_QUO
         </div>
     </div>
 
+    <!-- Cashmatic (cash machine) -->
+    <div class="card gw-card">
+        <div class="card-header gw-head" onclick="toggleGw('cashmatic')">
+            <span class="gw-title"><i class="fas fa-coins"></i> <?= te('cashmatic') ?>
+                <span class="gw-tag <?= !empty($cm['enabled']) ? 'gw-tag-on' : 'gw-tag-off' ?>">
+                    <?= !empty($cm['enabled']) ? te('gw_active') : te('gw_inactive') ?></span></span>
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="card-body gw-body" id="gw-cashmatic">
+            <p class="text-muted" style="margin-top:0;"><?= te('cashmatic_help') ?></p>
+            <label><input type="checkbox" name="cm_enabled" <?= !empty($cm['enabled']) ? 'checked' : '' ?>> <?= te('enabled') ?></label>
+            <div class="form-row mt-md">
+                <div class="form-group" style="flex:2;"><label class="form-label"><?= te('ip_or_url') ?></label>
+                    <input type="text" name="cm_url" class="form-control" value="<?= $v($cm['base_url'] ?? '') ?>" placeholder="https://192.168.100.239:50301"></div>
+                <div class="form-group"><label class="form-label"><?= te('username') ?></label>
+                    <input type="text" name="cm_username" class="form-control" value="<?= $v($cm['username'] ?? '') ?>" autocomplete="off"></div>
+                <div class="form-group"><label class="form-label"><?= te('password') ?></label>
+                    <input type="password" name="cm_password" class="form-control" autocomplete="new-password"
+                           placeholder="<?= $cmPwSet ? te('cashmatic_password_set') : '' ?>"></div>
+                <div class="form-group" style="align-self:end;">
+                    <label><input type="checkbox" name="cm_verify" <?= !empty($cm['verify_ssl']) ? 'checked' : '' ?>> <?= te('verify_ssl') ?></label></div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline" onclick="testGw('cashmatic', this)"><i class="fas fa-vial"></i> <?= te('test_connection') ?></button>
+            <span class="test-result" data-for="cashmatic"></span>
+        </div>
+    </div>
+
     <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> <?= te('save') ?></button>
 </form>
 
@@ -228,6 +271,7 @@ function toggleGw(gw) { document.getElementById('gw-' + gw).classList.toggle('co
     const on = ACTIVE === gw || ACTIVE === 'both';
     if (!on) document.getElementById('gw-' + gw).classList.add('collapsed');
 });
+if (!<?= !empty($cm['enabled']) ? 'true' : 'false' ?>) document.getElementById('gw-cashmatic').classList.add('collapsed');
 
 function posModeUi(sel) {
     const p17 = sel.value === 'p17', box = sel.closest('.card-body, .form-section');

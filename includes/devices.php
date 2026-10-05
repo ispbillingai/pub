@@ -47,6 +47,17 @@ function deviceConfig(?string $section = null)
                 }
             }
         }
+        // Overlay Cashmatic settings from the admin Payment Gateways page. Like
+        // the Dojo secret, the password is write-only in the UI, so a blank
+        // field keeps the stored one (handled on save). Booleans are always
+        // applied so the machine can be switched off from the browser.
+        $cm = getSetting('cashmatic', []);
+        if (is_array($cm) && $cm) {
+            $over = array_filter($cm, static fn($v) => $v !== '' && $v !== null);
+            $over['enabled']    = !empty($cm['enabled']);
+            $over['verify_ssl'] = !empty($cm['verify_ssl']);
+            $cfg['cashmatic'] = array_merge($cfg['cashmatic'] ?? [], $over);
+        }
     }
     if ($section === null) {
         return $cfg;
