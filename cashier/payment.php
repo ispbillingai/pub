@@ -140,6 +140,7 @@ include __DIR__ . '/../includes/header.php';
 .kiosk-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
 .kiosk-actions button { padding: 18px; font-size: 1.2rem; font-weight: 700; border: none; border-radius: var(--radius-md); cursor: pointer; }
 .btn-cash { background: var(--success); color: #fff; }
+.btn-cash-nf { background: #f59e0b; color: #fff; }
 .btn-card { background: var(--primary); color: #fff; }
 .btn-cancel { background: var(--bg-light); color: var(--text); }
 .btn-test { background: #fff; color: #7c3aed; border: 2px dashed #7c3aed !important; display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -353,7 +354,8 @@ include __DIR__ . '/../includes/header.php';
                 <div class="kiosk-amount"><span class="cur"><?= htmlspecialchars($sym) ?></span><?= number_format($order['total'], 2) ?></div>
                 <div class="kiosk-actions">
                     <button class="btn-cancel" onclick="printBill(this)"><i class="fas fa-print"></i> <?= te('print_bill') ?></button>
-                    <?php if ($jsCfg['cashmatic']): ?><button class="btn-cash" onclick="payCash()"><i class="fas fa-coins"></i> <?= te('start_payment_cash') ?></button><?php endif; ?>
+                    <?php if ($jsCfg['cashmatic']): ?><button class="btn-cash" onclick="payCash()"><i class="fas fa-coins"></i> <?= te('start_payment_cash') ?></button>
+                    <button class="btn-cash-nf" onclick="payCash(true)"><i class="fas fa-coins"></i> <?= te('start_payment_cash_nofiscal') ?></button><?php endif; ?>
                     <?php if ($jsCfg['pos']): ?><button class="btn-card" onclick="payCard()"><i class="fas fa-credit-card"></i> <?= te('pay_by_card') ?></button><?php endif; ?>
                     <?php if ($jsCfg['dojo']): ?><button class="btn-card" onclick="payDojo()"><i class="fas fa-credit-card"></i> <?= te('pay_by_dojo') ?></button><?php endif; ?>
                     <button class="btn-cancel" onclick="toggleManual()"><i class="fas fa-mobile-alt"></i> <?= te('mpesa_manual') ?></button>
@@ -466,7 +468,7 @@ function leavePay(paid) {
 const SYM = CFG.currency_symbol;
 const $ = id => document.getElementById(id);
 const fmtc = c => (c / 100).toFixed(2);
-let pollTimer = null, finishing = false;
+let pollTimer = null, finishing = false, cashNoFiscal = false;
 
 function showPanel(id) {
     ['k-choose','k-manual','k-cash','k-dojo','k-busy','k-done'].forEach(p => $(p).classList.toggle('hidden', p !== id));
@@ -635,8 +637,8 @@ async function dojoCancel() {
 if (CFG.dojo_inflight) document.addEventListener('DOMContentLoaded', payDojo);
 
 /* ---- Cash machine (Cashmatic) ---- */
-async function payCash() {
-    showPanel('k-cash'); finishing = false;
+async function payCash(noFiscal) {
+    showPanel('k-cash'); finishing = false; cashNoFiscal = !!noFiscal;
     $('c-req').textContent = CFG.total.toFixed(2);
     $('c-status').textContent = CFG.i18n.starting;
     const sp = await post('/api/cashmatic-start.php', { order_id: CFG.order_id });
@@ -653,7 +655,7 @@ async function pollCash() {
         $('c-req').textContent = fmtc(r.requested); $('c-ins').textContent = fmtc(r.inserted); $('c-disp').textContent = fmtc(r.dispensed);
         if (r.operation !== 'idle') { again = true; return; }
         finishing = true;
-        const f = await post('/api/cashmatic-finish.php', { order_id: CFG.order_id });
+        const f = await post('/api/cashmatic-finish.php', { order_id: CFG.order_id, no_fiscal: cashNoFiscal });
         if (!f.ok) { alert(CFG.i18n.payment_failed + ': ' + (f.error || f.end || CFG.i18n.failed)); showPanel('k-choose'); return; }
         let msg = f.receipt && f.receipt.receipt_number ? (CFG.i18n.fiscal_no + f.receipt.receipt_number) : CFG.i18n.cash_received;
         if (f.notDispensed > 0) msg += ' — ' + CFG.i18n.change_not_disp + ' ' + SYM + fmtc(f.notDispensed);

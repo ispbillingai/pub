@@ -72,6 +72,7 @@ return [
     // ---- Payment (kiosk) ----
     'total_to_pay'        => 'Totale da pagare',
     'start_payment_cash'  => 'Avvia pagamento (contanti)',
+    'start_payment_cash_nofiscal' => 'Avvia pagamento (contanti) senza scontrino',
     'pay_by_card'         => 'Paga con carta',
     'pay_by_dojo'         => 'Paga con Dojo',
     'mpesa_manual'        => 'M-Pesa / manuale',

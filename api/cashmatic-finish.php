@@ -18,8 +18,12 @@ if (!$u || !in_array($u['role'], ['admin', 'cashier', 'till'], true)) {
     exit;
 }
 
-$input   = json_decode(file_get_contents('php://input'), true) ?: [];
-$orderId = (int) ($input['order_id'] ?? 0);
+$input    = json_decode(file_get_contents('php://input'), true) ?: [];
+$orderId  = (int) ($input['order_id'] ?? 0);
+// "Avvia pagamento (contanti) senza scontrino": take the cash and mark the
+// order paid, but do NOT emit the fiscal receipt (used for tests / when the
+// receipt is issued elsewhere).
+$noFiscal = !empty($input['no_fiscal']);
 if (!userMayUseOrder($orderId)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'forbidden']); exit; }
 $order   = getOrderById($orderId);
 if (!$order) { echo json_encode(['ok' => false, 'error' => 'order_not_found']); exit; }
@@ -52,7 +56,7 @@ if (!$conf['ok']) {
     exit;
 }
 
-$fiscal = emitFiscalForOrder($orderId, $conf['payment_id'], $amount, 'cash', $order);
+$fiscal = $noFiscal ? null : emitFiscalForOrder($orderId, $conf['payment_id'], $amount, 'cash', $order);
 
 unset($_SESSION['till_cashmatic_cfg']); // payment done — drop the cached till config
 
@@ -61,5 +65,6 @@ echo json_encode([
     'amount_cents' => $amount,
     'notDispensed' => $notDisp,
     'cashmatic_id' => $cmTxId,
+    'no_fiscal'    => $noFiscal,
     'receipt'      => !empty($fiscal['ok']) ? $fiscal : null,
 ]);
