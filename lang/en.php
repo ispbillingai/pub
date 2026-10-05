@@ -71,8 +71,8 @@ return [
 
     // ---- Payment (kiosk) ----
     'total_to_pay'        => 'Total to pay',
-    'start_payment_cash'  => 'Start payment (cash)',
-    'start_payment_cash_nofiscal' => 'Start payment (cash) without receipt',
+    'start_payment_cash'  => 'Start payment',
+    'start_payment_cash_nofiscal' => 'Start payment (cash)',
     'pay_by_card'         => 'Pay by card',
     'pay_by_dojo'         => 'Pay by Dojo',
     'mpesa_manual'        => 'M-Pesa / manual',
