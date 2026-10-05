@@ -184,6 +184,7 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
             <a href="/admin/payment-gateways.php" class="<?= $currentPage === 'payment-gateways' ? 'active' : '' ?>"><i class="fas fa-credit-card"></i> <?= te('payment_gateways') ?></a>
             <a href="/admin/activity.php" class="<?= $currentPage === 'activity' ? 'active' : '' ?>"><i class="fas fa-history"></i> <?= te('activity') ?></a>
             <a href="/admin/settings.php" class="<?= $currentPage === 'settings' ? 'active' : '' ?>"><i class="fas fa-cog"></i> <?= te('settings') ?></a>
+            <a href="/admin/berkel.php" class="<?= $currentPage === 'berkel' ? 'active' : '' ?>"><i class="fas fa-scale-balanced"></i> <?= te('berkel_title') ?></a>
         </aside>
         <?php endif; ?>
     <main class="main-content">

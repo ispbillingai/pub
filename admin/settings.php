@@ -949,4 +949,14 @@ function mcSubmit(form) {
     </form>
 </div>
 
+<div class="card">
+    <div class="card-header">
+        <h2><i class="fas fa-scale-balanced"></i> <?= te('berkel_title') ?></h2>
+    </div>
+    <div class="card-body">
+        <p class="text-muted" style="margin-top:0;"><?= te('berkel_help') ?></p>
+        <a href="/admin/berkel.php" class="btn btn-outline"><i class="fas fa-scale-balanced"></i> <?= te('berkel_title') ?></a>
+    </div>
+</div>
+
 <?php include __DIR__ . '/../includes/footer.php'; ?>
