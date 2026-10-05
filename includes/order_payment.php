@@ -4,7 +4,7 @@
  *
  * Mirrors the parking app's Confirmer (mark session paid) but for restaurant
  * orders: records the payment row with device metadata, marks the order paid,
- * frees the table, then emits the Epson fiscal receipt and records its number.
+ * frees the table, then emits the fiscal receipt (Epson or RCH) and records its number.
  */
 
 require_once __DIR__ . '/functions.php';
@@ -99,7 +99,7 @@ function emitFiscalForOrder(int $orderId, int $paymentId, int $amountCents, stri
     // Use the fiscal printer of the till this order was routed to (falls back
     // to the global fiscal printer when no till / blank).
     $order  = $order ?? getOrderById($orderId);
-    $fiscal = new FiscalClient(tillConfigForOrder($order, 'fiscal_printer'));
+    $fiscal = fiscalClient(tillConfigForOrder($order, 'fiscal_printer'));
     if (!$fiscal->enabled()) {
         return ['ok' => false, 'error' => 'fiscal_printer_disabled'];
     }

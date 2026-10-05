@@ -677,6 +677,9 @@ return [
     'enabled'            => 'Enabled',
     'ip_address'         => 'IP Address',
     'ip_or_url'          => 'IP / URL',
+    'fiscal_brand'       => 'Brand / model',
+    'rch_cash_payment'   => 'RCH payment no. — cash',
+    'rch_card_payment'   => 'RCH payment no. — card',
     'port'               => 'Port',
     'paper_width'        => 'Paper width (characters)',
     'operator_id'        => 'Operator ID',
@@ -685,7 +688,7 @@ return [
     'saved'              => 'Saved',
     'kitchen_role_hint'  => 'Order tickets to the kitchen (no prices).',
     'cashier_role_hint'  => 'Proforma bill at the cash desk (with prices).',
-    'fiscal_role_hint'   => 'Official fiscal receipt, printed after payment (Epson RT).',
+    'fiscal_role_hint'   => 'Official fiscal receipt, printed after payment (Epson or RCH RT).',
     'test_ok'            => 'Test sent to printer.',
     'test_failed'        => 'Test failed',
 

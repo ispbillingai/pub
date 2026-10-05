@@ -73,9 +73,15 @@ return [
     // ---- Epson fiscal printer (Registratore Telematico) ---------------
     // Drives the EFT-POS over Protocol 17 and prints the fiscal receipt via
     // its fpmate.cgi web service. Leave base_url empty to disable.
+    // brand 'rch' = RCH PRINT! 3.0 RT instead: commands go to its service.cgi
+    // web service; cash_payment / card_payment are the RT's payment numbers
+    // (=T1 cash, =T4 electronic by default).
     'fiscal_printer' => [
         'enabled'    => true,
-        'base_url'   => 'http://100.x.y.z',   // Epson RT printer (Tailscale)
+        'brand'      => 'epson',              // 'epson' | 'rch'
+        'base_url'   => 'http://100.x.y.z',   // fiscal RT printer (Tailscale)
+        'cash_payment' => 1,                  // RCH only
+        'card_payment' => 4,                  // RCH only
         'operator'   => '1',
         'timeout_ms' => 35000,
         'auto_print' => true,

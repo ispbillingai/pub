@@ -2,7 +2,8 @@
 /**
  * Test a configured printer. Body: { target: 'kitchen' | 'cashier' | 'fiscal' }.
  * Thermal printers print a sample slip; the fiscal printer is only checked for
- * reachability (we never emit a real fiscal document as a "test").
+ * reachability, or for an RCH a status read (we never emit a real fiscal
+ * document as a "test").
  */
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/devices.php';
@@ -14,6 +15,21 @@ $u = isLoggedIn() ? getCurrentUser() : null;
 if (!$u || !in_array($u['role'], ['admin', 'cashier'], true)) {
     http_response_code(401);
     echo json_encode(['ok' => false, 'error' => 'unauthorized']);
+    exit;
+}
+
+/**
+ * RCH fiscal printers answer a status read (<</?s) that prints nothing, so
+ * test them for real; report paper/cover/open-document state with it.
+ */
+function rchStatusTest(array $cfg): void
+{
+    $st = fiscalClient($cfg)->status();
+    echo json_encode([
+        'ok'    => !empty($st['ok']),
+        'error' => $st['ok'] ? null : ($st['error'] ?? 'unreachable'),
+        'info'  => isset($st['mode']) ? ('RCH ' . $st['mode'] . ', Z ' . ($st['last_z'] ?? '?') . ', idle ' . ($st['idle_state'] ?? '?')) : null,
+    ]);
     exit;
 }
 
@@ -102,6 +118,9 @@ if ($target === 'till_device') {
         echo json_encode(['ok' => false, 'error' => 'not_configured']);
         exit;
     }
+    if ($device === 'fiscal' && ($dc['fiscal']['brand'] ?? '') === 'rch') {
+        rchStatusTest($dc['fiscal']);
+    }
     $p    = parse_url($base);
     $host = $p['host'] ?? '';
     $port = $p['port'] ?? (($p['scheme'] ?? 'http') === 'https' ? 443 : 80);
@@ -127,6 +146,9 @@ if ($target === 'fiscal') {
     if ($base === '') {
         echo json_encode(['ok' => false, 'error' => 'printer_not_configured']);
         exit;
+    }
+    if (($cfg['brand'] ?? '') === 'rch') {
+        rchStatusTest($cfg);
     }
     $p    = parse_url($base);
     $host = $p['host'] ?? '';

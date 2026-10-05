@@ -677,6 +677,9 @@ return [
     'enabled'            => 'Abilitata',
     'ip_address'         => 'Indirizzo IP',
     'ip_or_url'          => 'IP / URL',
+    'fiscal_brand'       => 'Marca / modello',
+    'rch_cash_payment'   => 'N. pagamento RCH — contanti',
+    'rch_card_payment'   => 'N. pagamento RCH — carta',
     'port'               => 'Porta',
     'paper_width'        => 'Larghezza carta (caratteri)',
     'operator_id'        => 'ID Operatore',
@@ -685,7 +688,7 @@ return [
     'saved'              => 'Salvato',
     'kitchen_role_hint'  => 'Comande verso la cucina (senza prezzi).',
     'cashier_role_hint'  => 'Conto pre-fiscale alla cassa (con prezzi).',
-    'fiscal_role_hint'   => 'Scontrino fiscale ufficiale, stampato dopo il pagamento (Epson RT).',
+    'fiscal_role_hint'   => 'Scontrino fiscale ufficiale, stampato dopo il pagamento (RT Epson o RCH).',
     'test_ok'            => 'Prova inviata alla stampante.',
     'test_failed'        => 'Prova non riuscita',
 

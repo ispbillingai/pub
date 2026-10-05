@@ -134,6 +134,22 @@ function tillConfigForOrder(?array $order, string $section): array
 }
 
 /**
+ * Fiscal printer client for a fiscal_printer config, by its 'brand':
+ * 'rch' = RCH PRINT! 3.0 RT (service.cgi), anything else = Epson (fpmate.cgi).
+ *
+ * @return FiscalClient|RchClient
+ */
+function fiscalClient(array $cfg)
+{
+    if (($cfg['brand'] ?? 'epson') === 'rch') {
+        require_once __DIR__ . '/RchClient.php';
+        return new RchClient($cfg);
+    }
+    require_once __DIR__ . '/FiscalClient.php';
+    return new FiscalClient($cfg);
+}
+
+/**
  * Which card gateway(s) the cashier offers, chosen on the admin Payment
  * Gateways page: 'pos' (Ingenico), 'dojo', 'both', or 'none'. Defaults to
  * 'both' when unset so existing installs keep showing whatever is configured.

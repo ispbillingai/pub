@@ -34,9 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         ],
         'fiscal_printer' => [
             'enabled'    => isset($_POST['f_enabled']),
+            'brand'      => ($_POST['f_brand'] ?? '') === 'rch' ? 'rch' : 'epson',
             'base_url'   => $normUrl($_POST['f_url'] ?? ''),
             'operator'   => trim($_POST['f_operator'] ?? '1'),
             'timeout_ms' => (int) ($_POST['f_timeout'] ?? 35000),
+            'cash_payment' => max(1, (int) ($_POST['f_cash_pay'] ?? 1)),
+            'card_payment' => max(1, (int) ($_POST['f_card_pay'] ?? 4)),
         ],
     ];
     setSetting('printers', $printers);
@@ -136,12 +139,23 @@ $cpVal = static function ($v, $d = '') { return htmlspecialchars((string) ($v ??
             <p class="text-muted"><?= te('fiscal_role_hint') ?></p>
             <label><input type="checkbox" name="f_enabled" <?= !empty($f['enabled']) ? 'checked' : '' ?>> <?= te('enabled') ?></label>
             <div class="form-row mt-md">
+                <div class="form-group"><label class="form-label"><?= te('fiscal_brand') ?></label>
+                    <select name="f_brand" id="f_brand" class="form-control" onchange="toggleRch()">
+                        <option value="epson" <?= ($f['brand'] ?? 'epson') !== 'rch' ? 'selected' : '' ?>>Epson (fpmate.cgi)</option>
+                        <option value="rch" <?= ($f['brand'] ?? '') === 'rch' ? 'selected' : '' ?>>RCH PRINT! 3.0 RT (service.cgi)</option>
+                    </select></div>
                 <div class="form-group"><label class="form-label"><?= te('ip_or_url') ?></label>
                     <input type="text" name="f_url" class="form-control" value="<?= $cpVal($f['base_url'] ?? '') ?>" placeholder="http://100.x.y.z"></div>
                 <div class="form-group"><label class="form-label"><?= te('operator_id') ?></label>
                     <input type="text" name="f_operator" class="form-control" value="<?= $cpVal($f['operator'] ?? '1') ?>"></div>
                 <div class="form-group"><label class="form-label"><?= te('timeout_ms') ?></label>
                     <input type="number" name="f_timeout" class="form-control" value="<?= $cpVal($f['timeout_ms'] ?? 35000) ?>"></div>
+            </div>
+            <div class="form-row" id="rchFields">
+                <div class="form-group"><label class="form-label"><?= te('rch_cash_payment') ?></label>
+                    <input type="number" min="1" name="f_cash_pay" class="form-control" value="<?= $cpVal($f['cash_payment'] ?? 1) ?>"></div>
+                <div class="form-group"><label class="form-label"><?= te('rch_card_payment') ?></label>
+                    <input type="number" min="1" name="f_card_pay" class="form-control" value="<?= $cpVal($f['card_payment'] ?? 4) ?>"></div>
             </div>
             <button type="button" class="btn btn-sm btn-outline" onclick="testPrinter('fiscal', this)"><i class="fas fa-vial"></i> <?= te('test_print') ?></button>
             <span class="test-result" data-for="fiscal"></span>
@@ -153,6 +167,10 @@ $cpVal = static function ($v, $d = '') { return htmlspecialchars((string) ($v ??
 
 <script>
 const I18N = { ok: <?= json_encode(t('test_ok')) ?>, failed: <?= json_encode(t('test_failed')) ?> };
+function toggleRch() {
+    document.getElementById('rchFields').hidden = document.getElementById('f_brand').value !== 'rch';
+}
+toggleRch();
 async function testPrinter(target, btn) {
     const out = document.querySelector('.test-result[data-for="' + target + '"]');
     out.textContent = '…'; out.style.color = '';
@@ -163,7 +181,7 @@ async function testPrinter(target, btn) {
             body: JSON.stringify({ target })
         });
         const data = await res.json();
-        if (data.ok) { out.style.color = 'var(--success)'; out.textContent = I18N.ok; }
+        if (data.ok) { out.style.color = 'var(--success)'; out.textContent = I18N.ok + (data.info ? ' — ' + data.info : ''); }
         else { out.style.color = 'var(--danger)'; out.textContent = I18N.failed + ': ' + (data.error || ''); }
     } catch (e) { out.style.color = 'var(--danger)'; out.textContent = e.message; }
     finally { if (btn) btn.disabled = false; }

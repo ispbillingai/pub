@@ -35,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $deviceConfig = [
             'fiscal' => [
+                'brand'      => ($_POST['f_brand'] ?? '') === 'rch' ? 'rch' : 'epson',
                 'base_url'   => $normUrl($_POST['f_url'] ?? ''),
                 'operator'   => trim($_POST['f_operator'] ?? '1'),
                 'timeout_ms' => (int) ($_POST['f_timeout'] ?? 35000),
@@ -230,6 +231,11 @@ $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
                 <div class="form-section">
                     <h4><i class="fas fa-stamp"></i> <?= te('fiscal_printer_lbl') ?> <span class="till-tag tag-fiscal"><?= te('fiscal') ?></span></h4>
                     <div class="form-row">
+                        <div class="form-group"><label class="form-label"><?= te('fiscal_brand') ?></label>
+                            <select name="f_brand" id="t_f_brand" class="form-control">
+                                <option value="epson">Epson</option>
+                                <option value="rch">RCH PRINT! 3.0 RT</option>
+                            </select></div>
                         <div class="form-group" style="flex:2;"><label class="form-label"><?= te('ip_or_url') ?></label>
                             <input type="text" name="f_url" id="t_f_url" class="form-control" placeholder="http://100.x.y.z"></div>
                         <div class="form-group"><label class="form-label"><?= te('operator_id') ?></label>
@@ -328,6 +334,7 @@ function setTill(d) {
     $t('t_bp_codepage').value = d.printer_codepage || 2;
     const dc = d.dc || {};
     const f = dc.fiscal || {}, p = dc.pos || {}, c = dc.cashmatic || {};
+    $t('t_f_brand').value = f.brand === 'rch' ? 'rch' : 'epson';
     $t('t_f_url').value = f.base_url || '';
     $t('t_f_operator').value = f.operator || '1';
     $t('t_f_timeout').value = f.timeout_ms || 35000;
@@ -368,7 +375,7 @@ async function postTest(body) {
 function showTest(key, data) {
     const out = document.querySelector('#tillModal .test-result[data-for="' + key + '"]');
     if (!out) return;
-    if (data.ok) { out.style.color = 'var(--success)'; out.textContent = TILL_I18N.ok; }
+    if (data.ok) { out.style.color = 'var(--success)'; out.textContent = TILL_I18N.ok + (data.info ? ' — ' + data.info : ''); }
     else { out.style.color = 'var(--danger)'; out.textContent = TILL_I18N.failed + ': ' + (data.error || ''); }
 }
 // Reachability test needs a SAVED till id (uses stored config).
