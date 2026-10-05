@@ -161,6 +161,34 @@ function fiscalClient(array $cfg)
 }
 
 /**
+ * Every fiscal printer the shop uses, for the daily closure: the global one
+ * (Admin > Printers) and each till with its own (device_config 'fiscal'),
+ * once per printer address. Keys: 0 = global, else the till id.
+ *
+ * @return array<int,array{key:int, label:string, cfg:array}>
+ */
+function fiscalPrinters(): array
+{
+    $out  = [];
+    $seen = [];
+    $global = (array) deviceConfig('fiscal_printer');
+    if (!empty($global['base_url'])) {
+        $out[0] = ['key' => 0, 'label' => '', 'cfg' => $global];
+        $seen[rtrim((string) $global['base_url'], '/')] = true;
+    }
+    foreach (getTills() as $till) {
+        $cfg = tillConfigForOrder(['till_id' => (int) $till['id']], 'fiscal_printer');
+        $url = rtrim((string) ($cfg['base_url'] ?? ''), '/');
+        if ($url === '' || isset($seen[$url])) {
+            continue;
+        }
+        $seen[$url] = true;
+        $out[(int) $till['id']] = ['key' => (int) $till['id'], 'label' => (string) $till['name'], 'cfg' => $cfg];
+    }
+    return $out;
+}
+
+/**
  * Ingenico card client for a 'pos' config, by its connection 'mode':
  * 'p17' = Protocol 17 straight to the terminal over TCP (base_url tcp://ip:port),
  * anything else = the RTS WebDoReMi HTTP service that wraps it.

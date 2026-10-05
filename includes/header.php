@@ -90,6 +90,11 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
                     <i class="fas fa-globe"></i> <?= te('cash_online_title') ?>
                 </a>
             <?php endif; ?>
+            <?php if (hasRole(['admin', 'cashier', TILL_OPERATOR_ROLE])): ?>
+                <a href="/cashier/closing.php" class="<?= ($_SERVER['PHP_SELF'] ?? '') === '/cashier/closing.php' ? 'active' : '' ?>">
+                    <i class="fas fa-file-invoice-dollar"></i> <?= te('nav_closing') ?>
+                </a>
+            <?php endif; ?>
 
             <?php if (hasRole(['admin', 'kitchen'])): ?>
                 <a href="/kitchen/index.php" class="<?= strpos($currentPage, 'kitchen') !== false ? 'active' : '' ?>">

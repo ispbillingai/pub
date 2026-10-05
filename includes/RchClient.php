@@ -13,6 +13,7 @@
  *   =c                     close the document when the "fidelity" option is on
  *   =x                     cancel an open document (closes it at 0,00)
  *   <</?s                  status
+ *   =C3 + =C10             daily closure (chiusura di cassa / azzeramento fiscale)
  *
  * Config: deviceConfig('fiscal_printer') => base_url, brand='rch', timeout_ms,
  *         verify_ssl, operator, cash_payment (default 1), card_payment
@@ -117,6 +118,43 @@ class RchClient
     }
 
     /**
+     * Daily closure ("chiusura di cassa", manual 5.14.1): key Z (=C3) and
+     * execute (=C10). The RT prints the Z report and sends the day's totals to
+     * the Agenzia delle Entrate, so it can take a while. Back to REG after.
+     *
+     * @return array{ok:bool, error?:string, z_number?:int}
+     */
+    public function dailyClosure(): array
+    {
+        if (!$this->enabled()) {
+            return ['ok' => false, 'error' => 'fiscal_printer_disabled'];
+        }
+        // An open document may be a receipt the Cashmatic (which drives the
+        // same RT) is printing right now: never cancel it, wait instead.
+        $pre = $this->status();
+        if (!$pre['ok']) {
+            return $pre;
+        }
+        if ((int) ($pre['idle_state'] ?? 0) !== 0 || !empty($pre['busy'])) {
+            return ['ok' => false, 'error' => 'document_open'] + $pre;
+        }
+        $res = $this->send(['=K', '=C3', '=C10', '=C1'], 120000);
+        if (!$res['ok']) {
+            error_log('[fiscal/rch] daily closure failed: ' . ($res['error'] ?? '?') . ' lastCmd=' . ($res['last_cmd'] ?? '?'));
+            return $res;
+        }
+        // Only a real closure advances lastZ: don't report one that didn't happen.
+        $z0 = (int) ($pre['last_z'] ?? 0);
+        $st = $this->status();
+        $z1 = (int) (($st['ok'] ? $st : $res)['last_z'] ?? 0);
+        if ($z1 <= $z0) {
+            error_log('[fiscal/rch] daily closure sent but Z did not advance (z0=' . $z0 . ' z1=' . $z1 . ')');
+            return ['ok' => false, 'error' => 'close_not_confirmed', 'z_number' => $z1];
+        }
+        return ['ok' => true, 'z_number' => $z1];
+    }
+
+    /**
      * Close or cancel whatever document is open so a new one can start.
      */
     private function recover(): array
@@ -182,7 +220,7 @@ class RchClient
      *
      * @param string[] $cmds
      */
-    private function send(array $cmds): array
+    private function send(array $cmds, ?int $minTimeoutMs = null): array
     {
         $body = '<?xml version="1.0" encoding="UTF-8"?><Service>';
         foreach ($cmds as $c) {
@@ -190,7 +228,7 @@ class RchClient
         }
         $body .= '</Service>';
 
-        $timeoutMs = (int) ($this->cfg['timeout_ms'] ?? 35000);
+        $timeoutMs = max((int) ($this->cfg['timeout_ms'] ?? 35000), (int) $minTimeoutMs);
         $verify    = !empty($this->cfg['verify_ssl']);
         $url       = rtrim((string) $this->cfg['base_url'], '/') . '/service.cgi';
 

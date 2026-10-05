@@ -57,6 +57,26 @@ class FiscalClient
     }
 
     /**
+     * Daily closure ("chiusura di cassa"): printZReport. The RT prints the Z
+     * report and sends the day's totals to the Agenzia delle Entrate.
+     *
+     * @return array{ok:bool, error?:string, z_number?:int}
+     */
+    public function dailyClosure(): array
+    {
+        if (!$this->enabled()) {
+            return ['ok' => false, 'error' => 'fiscal_printer_disabled'];
+        }
+        $op  = $this->attr((string) ($this->cfg['operator'] ?? '1'));
+        $res = $this->request('<printerFiscalReport><printZReport operator="' . $op . '" /></printerFiscalReport>', 120000);
+        if (!$res['ok']) {
+            error_log('[fiscal] daily closure failed: ' . ($res['error'] ?? '?'));
+            return $res;
+        }
+        return ['ok' => true, 'z_number' => (int) ($res['add_info']['zRepNumber'] ?? 0)];
+    }
+
+    /**
      * Build the <printerFiscalReceipt> XML. paymentType 0 = cash, 2 = card.
      * For card, splice the buffered EFT-POS slip lines (printRecMessage type 8).
      */
@@ -93,14 +113,14 @@ class FiscalClient
     }
 
     /** @return array{ok:bool, error?:string, code?:string, status?:string, add_info?:array} */
-    private function request(string $bodyXml): array
+    private function request(string $bodyXml, ?int $minTimeoutMs = null): array
     {
         $envelope = '<?xml version="1.0" encoding="utf-8"?>'
             . '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
             . '<s:Body>' . $bodyXml . '</s:Body>'
             . '</s:Envelope>';
 
-        $timeoutMs   = (int) ($this->cfg['timeout_ms'] ?? 35000);
+        $timeoutMs   = max((int) ($this->cfg['timeout_ms'] ?? 35000), (int) $minTimeoutMs);
         $url         = rtrim((string) $this->cfg['base_url'], '/') . '/cgi-bin/fpmate.cgi?timeout=' . $timeoutMs;
         $curlTimeout = max(1, (int) ($timeoutMs / 1000) + 5);
 
