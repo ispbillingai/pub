@@ -85,9 +85,10 @@ header('Cache-Control: no-store');
 body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--ink); padding: env(safe-area-inset-top) 0 calc(110px + env(safe-area-inset-bottom)); }
 header { background: #fff; color: var(--ink); padding: 14px 18px 16px; border-bottom: 4px solid #7a1428; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
 header .brand { font-size: .85rem; opacity: .75; letter-spacing: .04em; text-transform: uppercase; }
-header .brand-logo { display: block; height: 66px; width: auto; margin: 2px 0 6px; }
+header { position: relative; text-align: center; }
+header .brand-logo { display: block; height: 70px; width: auto; max-width: 70%; margin: 2px auto 6px; object-fit: contain; }
 header h1 { margin: 4px 0 0; font-size: 1.45rem; color: #7a1428; }
-.lang { float: right; font-size: .8rem; }
+.lang { position: absolute; top: 14px; right: 16px; font-size: .8rem; }
 .lang a { color: var(--ink); opacity: .55; text-decoration: none; margin-left: 8px; font-weight: 700; }
 .lang a.on { opacity: 1; text-decoration: underline; }
 main { padding: 16px; max-width: 560px; margin: 0 auto; }
