@@ -348,17 +348,29 @@ class IngenicoP17Client
             return 'pos_disabled';
         }
         [$host, $port] = $ep;
+        $connTimeout = (float) ($this->cfg['connect_timeout'] ?? 5);
+        // The terminal accepts one ECR connection at a time and refuses a new
+        // one for a moment after the previous closed (errno 111) or resets it
+        // (104). Retry those briefly so a payment isn't lost to a transient
+        // refusal; a real bad host/port still fails fast on the first try.
+        $attempts = max(1, (int) ($this->cfg['connect_retries'] ?? 8));
         $errno = 0; $errstr = '';
-        $sock = @stream_socket_client("tcp://{$host}:{$port}", $errno, $errstr,
-            (float) ($this->cfg['connect_timeout'] ?? 5));
-        if (!$sock) {
-            error_log("[p17] connect {$host}:{$port} failed: {$errno} {$errstr}");
-            return trim("connect({$errno}): {$errstr}") ?: 'unreachable';
+        for ($i = 0; $i < $attempts; $i++) {
+            $sock = @stream_socket_client("tcp://{$host}:{$port}", $errno, $errstr, $connTimeout);
+            if ($sock) {
+                stream_set_blocking($sock, true);
+                $this->sock = $sock;
+                $this->buf  = '';
+                return null;
+            }
+            if ($i < $attempts - 1 && in_array((int) $errno, [111, 104], true)) {
+                usleep(500000); // 0.5 s, then try again
+                continue;
+            }
+            break;
         }
-        stream_set_blocking($sock, true);
-        $this->sock = $sock;
-        $this->buf  = '';
-        return null;
+        error_log("[p17] connect {$host}:{$port} failed: {$errno} {$errstr}");
+        return trim("connect({$errno}): {$errstr}") ?: 'unreachable';
     }
 
     private function close(): void
