@@ -595,7 +595,7 @@ $currency = __('currency');
             margin-bottom: 30px;
         }
 
-        .hero h1.hero-logo { background: rgba(255,255,255,.94); border-radius: 22px; padding: 14px 22px; display: inline-block; box-shadow: 0 10px 40px rgba(0,0,0,.35); margin-bottom: 22px; }
+        .hero h1.hero-logo { background: rgba(255,255,255,.94); border-radius: 22px; padding: 14px 22px; display: table; margin: 18px auto 22px; box-shadow: 0 10px 40px rgba(0,0,0,.35); letter-spacing: 0; }
         .hero h1.hero-logo img { display: block; width: min(420px, 70vw); height: auto; }
         .hero h1 {
             font-family: 'Cormorant Garamond', serif;
