@@ -65,10 +65,15 @@ function renderOrderPdf(int $orderId): string
     $pdf->AddPage();
     $pdf->SetMargins(16, 16, 16);
 
-    // Header
-    $pdf->SetTextColor(232, 89, 12);
-    $pdf->SetFont('Helvetica', 'B', 18);
-    $pdf->Cell(0, 9, pdfText($brand), 0, 1);
+    // Header: the logo (or the name)
+    if ($logoFile = brandLogoPrintFile()) {
+        $pdf->Image($logoFile, 16, 12, 52);
+        $pdf->SetY(12 + 52 * 300 / 713 + 2);
+    } else {
+        $pdf->SetTextColor(232, 89, 12);
+        $pdf->SetFont('Helvetica', 'B', 18);
+        $pdf->Cell(0, 9, pdfText($brand), 0, 1);
+    }
     // Address and contacts, when set in Settings.
     require_once __DIR__ . '/restaurant.php';
     $w       = restaurantInfo();

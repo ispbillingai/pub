@@ -63,10 +63,15 @@ function renderMenuPdf(string $lang): string
     $pdf->SetAutoPageBreak(true, 16);
     $pdf->AddPage();
 
-    // Header: name, contacts.
-    $pdf->SetTextColor(232, 89, 12);
-    $pdf->SetFont('Helvetica', 'B', 22);
-    $pdf->Cell(0, 11, pdfText(restaurantName()), 0, 1, 'C');
+    // Header: the logo (or the name), contacts.
+    if ($logoFile = brandLogoPrintFile()) {
+        $pdf->Image($logoFile, (210 - 76) / 2, 12, 76);
+        $pdf->SetY(12 + 76 * 300 / 713 + 2);
+    } else {
+        $pdf->SetTextColor(232, 89, 12);
+        $pdf->SetFont('Helvetica', 'B', 22);
+        $pdf->Cell(0, 11, pdfText(restaurantName()), 0, 1, 'C');
+    }
     $contact = implode(' · ', array_filter([restaurantAddressLine(), !empty($w['phone']) ? tIn($lang, 'rs_phone_short') . ' ' . $w['phone'] : '',
                                             preg_replace('~^https?://(www\.)?~i', '', rtrim((string) ($w['website'] ?? ''), '/'))]));
     if ($contact !== '') {

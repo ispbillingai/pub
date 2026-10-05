@@ -595,6 +595,8 @@ $currency = __('currency');
             margin-bottom: 30px;
         }
 
+        .hero h1.hero-logo { background: rgba(255,255,255,.94); border-radius: 22px; padding: 14px 22px; display: inline-block; box-shadow: 0 10px 40px rgba(0,0,0,.35); margin-bottom: 22px; }
+        .hero h1.hero-logo img { display: block; width: min(420px, 70vw); height: auto; }
         .hero h1 {
             font-family: 'Cormorant Garamond', serif;
             font-size: clamp(3rem, 10vw, 6rem);
@@ -1109,7 +1111,11 @@ $currency = __('currency');
         <div class="hero-overlay"></div>
         <div class="hero-content">
             <span class="hero-badge"><?= __('est') ?> 2024</span>
+            <?php if ($logo = (is_file(__DIR__ . '/assets/img/logo.png') ? '/assets/img/logo.png?v=' . filemtime(__DIR__ . '/assets/img/logo.png') : null)): ?>
+            <h1 class="hero-logo"><img src="<?= htmlspecialchars($logo) ?>" alt="<?= htmlspecialchars($restaurantName) ?>"></h1>
+            <?php else: ?>
             <h1><?= htmlspecialchars($restaurantName) ?></h1>
+            <?php endif; ?>
             <div class="hero-divider"></div>
             <p><?= __('discover') ?></p>
         </div>

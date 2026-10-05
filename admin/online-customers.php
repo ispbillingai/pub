@@ -132,6 +132,7 @@ include __DIR__ . '/../includes/header.php';
 .online-top { display: grid; grid-template-columns: minmax(250px, 320px) 1fr; gap: var(--space-lg); margin-bottom: var(--space-lg); }
 @media (max-width: 800px) { .online-top { grid-template-columns: 1fr; } }
 .qr-card { text-align: center; padding: 18px; }
+.qr-card .brand-logo { display: block; width: 170px; max-width: 80%; height: auto; margin: 0 auto 4px; }
 .qr-card .brand { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); }
 .qr-card .tno { font-size: 1.5rem; font-weight: 800; margin: 2px 0 10px; }
 .qr-card .qr { display: flex; justify-content: center; margin: 0 auto 10px; }
@@ -167,7 +168,7 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="online-top">
     <div class="card qr-card">
-        <div class="brand"><?= htmlspecialchars($brand) ?></div>
+        <?php if ($logo = brandLogoUrl()): ?><img class="brand-logo" src="<?= htmlspecialchars($logo) ?>" alt="<?= htmlspecialchars($brand) ?>"><?php else: ?><div class="brand"><?= htmlspecialchars($brand) ?></div><?php endif; ?>
         <div class="tno"><?= te('online_qr_title') ?></div>
         <div class="qr" data-url="<?= htmlspecialchars($url) ?>"></div>
         <div class="hint"><?= te('online_qr_hint') ?></div>

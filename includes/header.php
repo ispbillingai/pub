@@ -58,8 +58,12 @@ $inAdmin = $currentUser && ($currentUser['role'] ?? '') === 'admin'
     if (empty($embedPage)): ?>
     <nav class="main-nav">
         <div class="nav-brand">
-            <i class="fas fa-utensils"></i>
-            <span><?= te('app_name') ?></span>
+            <?php if ($logo = brandLogoUrl()): ?>
+                <span class="nav-logo"><img src="<?= htmlspecialchars($logo) ?>" alt="<?= te('app_name') ?>"></span>
+            <?php else: ?>
+                <i class="fas fa-utensils"></i>
+                <span><?= te('app_name') ?></span>
+            <?php endif; ?>
         </div>
         
         <?php if ($currentUser): ?>

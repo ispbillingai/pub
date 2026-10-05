@@ -501,3 +501,20 @@ function getRecentNotifications($userId, $limit = 10) {
     $stmt->execute([$userId, $limit]);
     return $stmt->fetchAll();
 }
+
+/**
+ * The restaurant's logo (assets/img/logo.png, transparent) for page headers,
+ * with its version so a new logo shows at once; null when there is none.
+ */
+function brandLogoUrl(): ?string
+{
+    $f = __DIR__ . '/../assets/img/logo.png';
+    return is_file($f) ? '/assets/img/logo.png?v=' . filemtime($f) : null;
+}
+
+/** The logo on white (JPEG) for PDFs, as a file path; null when there is none. */
+function brandLogoPrintFile(): ?string
+{
+    $f = __DIR__ . '/../assets/img/logo-print.jpg';
+    return is_file($f) ? $f : null;
+}

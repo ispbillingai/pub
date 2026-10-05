@@ -44,7 +44,7 @@ button { background: #dc2626; color: #fff; border: 0; border-radius: 12px; paddi
 </head>
 <body>
 <div class="box">
-    <div class="brand"><?= htmlspecialchars(restaurantName()) ?></div>
+    <div class="brand"><?php if ($logo = brandLogoUrl()): ?><img src="<?= htmlspecialchars($logo) ?>" alt="<?= htmlspecialchars(restaurantName()) ?>" style="width:220px;max-width:70%;height:auto;"><?php else: ?><?= htmlspecialchars(restaurantName()) ?><?php endif; ?></div>
     <?php if (!$phone): ?>
         <h1><?= te('camp_unsub_invalid') ?></h1>
     <?php elseif ($done): ?>

@@ -228,7 +228,7 @@ function printCounterQr() {
     const el = document.querySelector('.cq-qr'), img = el.querySelector('canvas') ? el.querySelector('canvas').toDataURL() : el.querySelector('img').src;
     const w = window.open('', '_blank');
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>QR</title><style>body{font-family:sans-serif;text-align:center;padding:40px}img{width:320px;height:320px;image-rendering:pixelated}h1{font-size:30px;margin:0 0 6px}p{font-size:18px;color:#444;max-width:420px;margin:12px auto}</style></head><body>
-        <div style="font-size:14px;letter-spacing:.15em;text-transform:uppercase;color:#888">${<?= json_encode(restaurantName()) ?>}</div>
+        ${<?= json_encode(brandLogoUrl() ? '<img src="' . brandLogoUrl() . '" style="width:300px;height:auto;image-rendering:auto;margin-bottom:10px" alt="">' : '<div style="font-size:14px;letter-spacing:.15em;text-transform:uppercase;color:#888">' . htmlspecialchars(restaurantName()) . '</div>') ?>.replace('src="/', 'src="' + location.origin + '/')}
         <h1>${<?= json_encode(t('till_counter_print_title')) ?>}</h1><img src="${img}"><p>${<?= json_encode(t('till_counter_print_text')) ?>}</p>
         <script>window.onload = () => { window.print(); }<\/script></body></html>`);
     w.document.close();

@@ -114,6 +114,17 @@ body {
     font-size: 1.75rem;
 }
 
+/* The logo (burgundy and gold) on a white plate: the bar is dark. */
+.nav-logo {
+    display: inline-flex;
+    align-items: center;
+    background: #fff;
+    border-radius: 12px;
+    padding: 3px 12px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+}
+.nav-logo img { height: 44px; width: auto; display: block; }
+
 .nav-links {
     display: flex;
     gap: var(--space-sm);
@@ -1308,6 +1319,8 @@ textarea.form-control {
     color: var(--primary);
 }
 
+.login-logo-img { width: 80%; max-width: 280px; height: auto; display: block; margin: 0 auto 6px; }
+
 .login-logo h1 {
     font-family: var(--font-display);
     font-size: 1.5rem;
@@ -1564,6 +1577,8 @@ textarea.form-control {
     .main-nav { position: static; padding: 8px 12px; gap: 6px; }
     .nav-brand { font-size: 1.05rem; }
     .nav-brand i { font-size: 1.2rem; }
+    .nav-logo { padding: 2px 8px; border-radius: 9px; }
+    .nav-logo img { height: 30px; }
     .nav-user { gap: 6px; margin-left: auto; }
     .nav-user .lang-switch { margin-right: 0; }
     .nav-user .lang-switch a { padding: 2px 7px; }

@@ -34,6 +34,7 @@ include __DIR__ . '/../includes/header.php';
 <style>
 .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
 .qr-card { background: #fff; border: 1px solid var(--border-color); border-radius: 14px; padding: 16px; text-align: center; break-inside: avoid; }
+.qr-card .brand-logo { display: block; width: 170px; max-width: 80%; height: auto; margin: 0 auto 4px; }
 .qr-card .brand { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); }
 .qr-card .tno { font-size: 1.8rem; font-weight: 800; margin: 2px 0 10px; }
 .qr-card .qr { display: flex; justify-content: center; margin: 0 auto 10px; }
@@ -83,7 +84,7 @@ include __DIR__ . '/../includes/room_scroller.php';
 <div class="qr-grid">
     <?php foreach ($room['tables'] as $tb): ?>
         <div class="qr-card" id="table-<?= (int) $tb['id'] ?>">
-            <div class="brand"><?= htmlspecialchars($brand) ?></div>
+            <?php if ($logo = brandLogoUrl()): ?><img class="brand-logo" src="<?= htmlspecialchars($logo) ?>" alt="<?= htmlspecialchars($brand) ?>"><?php else: ?><div class="brand"><?= htmlspecialchars($brand) ?></div><?php endif; ?>
             <div class="tno"><?= te('table') ?> <?= htmlspecialchars($tb['table_number']) ?></div>
             <div class="qr" data-url="<?= htmlspecialchars($tb['url']) ?>"></div>
             <div class="hint"><?= te('table_qr_hint') ?></div>

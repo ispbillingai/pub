@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body class="login-page">
     <div class="login-container">
         <div class="login-logo">
-            <i class="fas fa-key"></i>
+            <?php if (is_file(__DIR__ . '/assets/img/logo.png')): ?><img class="login-logo-img" src="/assets/img/logo.png?v=<?= filemtime(__DIR__ . '/assets/img/logo.png') ?>" alt=""><?php else: ?><i class="fas fa-key"></i><?php endif; ?>
             <h1><?= te('pwr_title') ?></h1>
             <p class="text-muted"><?= te('pwr_intro') ?></p>
         </div>

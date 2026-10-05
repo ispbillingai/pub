@@ -83,11 +83,12 @@ header('Cache-Control: no-store');
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--ink); padding: env(safe-area-inset-top) 0 calc(110px + env(safe-area-inset-bottom)); }
-header { background: var(--ink); color: #fff; padding: 18px 18px 22px; }
+header { background: #fff; color: var(--ink); padding: 14px 18px 16px; border-bottom: 4px solid #7a1428; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
 header .brand { font-size: .85rem; opacity: .75; letter-spacing: .04em; text-transform: uppercase; }
-header h1 { margin: 4px 0 0; font-size: 1.6rem; }
+header .brand-logo { display: block; height: 66px; width: auto; margin: 2px 0 6px; }
+header h1 { margin: 4px 0 0; font-size: 1.45rem; color: #7a1428; }
 .lang { float: right; font-size: .8rem; }
-.lang a { color: #fff; opacity: .6; text-decoration: none; margin-left: 8px; font-weight: 700; }
+.lang a { color: var(--ink); opacity: .55; text-decoration: none; margin-left: 8px; font-weight: 700; }
 .lang a.on { opacity: 1; text-decoration: underline; }
 main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 14px; }
@@ -247,7 +248,7 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
             <a href="<?= htmlspecialchars(langSwitchUrl($code)) ?>" class="<?= $code === currentLang() ? 'on' : '' ?>"><?= $label ?></a>
         <?php endforeach; ?>
     </span>
-    <div class="brand"><?= htmlspecialchars($brand) ?></div>
+    <?php if ($logo = brandLogoUrl()): ?><img class="brand-logo" src="<?= htmlspecialchars($logo) ?>" alt="<?= htmlspecialchars($brand) ?>"><?php else: ?><div class="brand"><?= htmlspecialchars($brand) ?></div><?php endif; ?>
     <h1><?= te($cardMode ? 'card_page_title' : 'online_page_title') ?></h1>
 </header>
 
