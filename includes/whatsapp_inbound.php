@@ -123,14 +123,18 @@ function waInboundActivate(): array
     if ($info === null) return ['error' => 'wa_in_err_panel'];
     $s    = waInboundSettings();
     $ours = waInboundUrl();
-    if ($info['webhook'] !== '' && $info['webhook'] !== $ours) $s['forward_url'] = $info['webhook'];
+    // Recognise our OWN webhook by its secret path, regardless of host: when the
+    // shop changes domain (e.g. pub -> focacciami) the old URL is still ours, not
+    // the chatbot to preserve as forward_url.
+    $isOurs = static fn(string $u): bool => $u !== '' && strpos($u, 'api/whatsapp-inbound.php?t=' . ($s['secret'] ?? "\0")) !== false;
+    if ($info['webhook'] !== '' && !$isOurs($info['webhook'])) $s['forward_url'] = $info['webhook'];
     if ($info['phone'] !== '') $s['shop_phone'] = '+' . $info['phone'];
     if ($info['webhook'] !== $ours) {
         if ($info['webhook'] !== '') tmbWebhookDelete();
         tmbWebhookAdd($ours);
         $check = tmbWebhookInfo();
         if (($check['webhook'] ?? '') !== $ours) {
-            if (($check['webhook'] ?? '') === '' && $info['webhook'] !== '') tmbWebhookAdd($info['webhook']);   // put the chatbot back
+            if (($check['webhook'] ?? '') === '' && $info['webhook'] !== '' && !$isOurs($info['webhook'])) tmbWebhookAdd($info['webhook']);   // put the chatbot back
             waInboundSave($s);
             return ['error' => 'wa_in_err_set'];
         }

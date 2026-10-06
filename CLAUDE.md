@@ -8,7 +8,9 @@ Work continues here.
 PHP + MariaDB restaurant POS ("ristorante"): admin, cashier, waiter, kitchen, guest ordering
 (QR menu), fiscal printing via the Epson RT printer, card payments (Epson RT protocol 17 / Dojo),
 Glovo orders, "Clienti online" (one QR for a shop with no tables:
-sign-up with WhatsApp code, then ordering; `online.php`, `includes/online_order.php`, Admin > Clienti online). This repo (pub) is live at https://pub.upgradesrls.com;
+sign-up with WhatsApp code, then ordering; `online.php`, `includes/online_order.php`, Admin > Clienti online). This repo is live at https://focacciami.upgradesrls.com
+(rebrand Focacciami, 2026-10-06; the old https://pub.upgradesrls.com still resolves to the same
+server during the migration and will be removed);
 the original (`order` repo) is still live at https://ristorante.upgradesrls.com.
 
 ## Project notes
