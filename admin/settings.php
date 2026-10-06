@@ -117,13 +117,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'update_loyalty') {
         $rules = [];
         foreach ((array) ($_POST['rules'] ?? []) as $r) {
-            if (trim((string) ($r['min_visits'] ?? '')) === '') continue;
+            $criterion = ($r['criterion'] ?? '') === 'spend' ? 'spend' : 'visits';
+            $minSpendRaw = str_replace(',', '.', trim((string) ($r['min_spend'] ?? '')));
+            // A rule needs the threshold for its criterion, else it's a blank row.
+            if ($criterion === 'visits' && trim((string) ($r['min_visits'] ?? '')) === '') continue;
+            if ($criterion === 'spend'  && $minSpendRaw === '') continue;
             $rules[] = [
                 'id'             => preg_match('/^[a-z0-9]{6,32}$/', $r['id'] ?? '') ? $r['id'] : bin2hex(random_bytes(6)),
                 'name'           => mb_substr(trim((string) ($r['name'] ?? '')), 0, 120),
                 'active'         => !empty($r['active']),
-                'period'         => isset(LOYALTY_PERIODS[$r['period'] ?? '']) ? $r['period'] : 'month',
-                'min_visits'     => max(1, (int) $r['min_visits']),
+                'criterion'      => $criterion,
+                'period'         => in_array($r['period'] ?? '', ['single', 'week', 'month', 'year'], true) ? $r['period'] : 'month',
+                'min_visits'     => max(1, (int) ($r['min_visits'] ?? 1)),
+                'min_spend'      => max(0, (float) ($minSpendRaw !== '' ? $minSpendRaw : 0)),
                 'discount_type'  => ($r['discount_type'] ?? '') === 'fixed' ? 'fixed' : 'percent',
                 'discount_value' => max(0, min(($r['discount_type'] ?? '') === 'fixed' ? 9999 : 100, (float) str_replace(',', '.', (string) ($r['discount_value'] ?? 0)))),
                 'valid_days'     => max(1, min(3650, (int) ($r['valid_days'] ?? 60))),
@@ -650,7 +656,8 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <template id="loyRuleTpl">
-    <?php $i = '__N__'; $r = ['id' => '', 'name' => '', 'active' => true, 'period' => 'month', 'min_visits' => 3,
+    <?php $i = '__N__'; $r = ['id' => '', 'name' => '', 'active' => true, 'criterion' => 'visits', 'period' => 'month',
+          'min_visits' => 3, 'min_spend' => 50,
           'discount_type' => 'percent', 'discount_value' => 10, 'valid_days' => 60, 'message_it' => '', 'message_en' => ''];
     include __DIR__ . '/partials/loyalty_rule.php'; ?>
 </template>
@@ -662,6 +669,11 @@ function addLoyaltyRule() {
     renumberLoyalty();
 }
 function removeLoyaltyRule(btn) { btn.closest('.loy-rule').remove(); renumberLoyalty(); }
+function loyCritToggle(sel) {
+    const line = sel.closest('.loy-line'), spend = sel.value === 'spend';
+    line.querySelector('.loy-when-visits').style.display = spend ? 'none' : 'contents';
+    line.querySelector('.loy-when-spend').style.display  = spend ? 'contents' : 'none';
+}
 function renumberLoyalty() {
     document.querySelectorAll('#loyRules .loy-prio').forEach((el, i) => { el.textContent = (i + 1) + '.'; });
 }

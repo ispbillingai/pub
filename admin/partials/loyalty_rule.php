@@ -16,13 +16,24 @@ $n = 'rules[' . $i . ']';
         </label>
         <button type="button" class="btn btn-sm btn-outline" style="color:var(--danger);" onclick="removeLoyaltyRule(this)" title="<?= te('delete') ?>"><i class="fas fa-trash"></i></button>
     </div>
+    <?php $crit = ($r['criterion'] ?? 'visits') === 'spend' ? 'spend' : 'visits'; ?>
     <div class="loy-line">
-        <?= te('loy_when') ?>
-        <input type="number" name="<?= $n ?>[min_visits]" class="form-control" min="1" max="999" value="<?= (int) $r['min_visits'] ?>">
-        <?= te('loy_visits_in') ?>
+        <?= te('loy_prefix_when') ?>
+        <select name="<?= $n ?>[criterion]" class="form-control" onchange="loyCritToggle(this)">
+            <option value="visits" <?= $crit === 'visits' ? 'selected' : '' ?>><?= te('loy_crit_visits') ?></option>
+            <option value="spend"  <?= $crit === 'spend'  ? 'selected' : '' ?>><?= te('loy_crit_spend') ?></option>
+        </select>
+        <span class="loy-when-visits" style="display:<?= $crit === 'spend' ? 'none' : 'contents' ?>;">
+            <input type="number" name="<?= $n ?>[min_visits]" class="form-control" min="1" max="999" value="<?= (int) ($r['min_visits'] ?? 3) ?>">
+            <?= te('loy_times') ?>
+        </span>
+        <span class="loy-when-spend" style="display:<?= $crit === 'spend' ? 'contents' : 'none' ?>;">
+            € <input type="number" name="<?= $n ?>[min_spend]" class="form-control" min="0" step="0.5" value="<?= htmlspecialchars((string) (float) ($r['min_spend'] ?? 50)) ?>">
+        </span>
+        <?= te('loy_in') ?>
         <select name="<?= $n ?>[period]" class="form-control">
-            <?php foreach (['week', 'month', 'year'] as $p): ?>
-                <option value="<?= $p ?>" <?= $r['period'] === $p ? 'selected' : '' ?>><?= te('loy_period_' . $p) ?></option>
+            <?php foreach (['single', 'week', 'month', 'year'] as $p): ?>
+                <option value="<?= $p ?>" <?= ($r['period'] ?? 'month') === $p ? 'selected' : '' ?>><?= te('loy_period_' . $p) ?></option>
             <?php endforeach; ?>
         </select>
     </div>

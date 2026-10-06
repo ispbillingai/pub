@@ -31,8 +31,10 @@ function loyaltyRules(bool $activeOnly = false): array
             'id'             => (string) ($r['id'] ?? ''),
             'name'           => trim((string) ($r['name'] ?? '')),
             'active'         => !empty($r['active']),
-            'period'         => isset(LOYALTY_PERIODS[$r['period'] ?? '']) ? $r['period'] : 'month',
+            'criterion'      => ($r['criterion'] ?? '') === 'spend' ? 'spend' : 'visits',
+            'period'         => in_array($r['period'] ?? '', ['single', 'week', 'month', 'year'], true) ? $r['period'] : 'month',
             'min_visits'     => max(1, (int) ($r['min_visits'] ?? 3)),
+            'min_spend'      => max(0, (float) ($r['min_spend'] ?? 0)),
             'discount_type'  => ($r['discount_type'] ?? '') === 'fixed' ? 'fixed' : 'percent',
             'discount_value' => max(0, (float) ($r['discount_value'] ?? 10)),
             'valid_days'     => max(1, (int) ($r['valid_days'] ?? 60)),
@@ -69,6 +71,22 @@ function customerVisits(string $phone, ?int $days = null): int
     return (int) $stmt->fetchColumn();
 }
 
+/**
+ * Total spend (in cents) of a phone's paid orders in the last $days days
+ * (null = ever). Counts the whole-table order totals attributed to the phone
+ * (the main customer); split-bill seat guests carry no stored amount, so they
+ * don't contribute to a spend threshold.
+ */
+function customerSpendCents(string $phone, ?int $days = null): int
+{
+    $sql = "SELECT COALESCE(SUM(o.total), 0) FROM orders o
+            WHERE o.parent_order_id IS NULL AND o.status = 'paid' AND o.customer_phone = ?"
+         . ($days ? " AND COALESCE(o.opened_at, o.created_at) >= NOW() - INTERVAL " . (int) $days . " DAY" : '');
+    $stmt = getDBConnection()->prepare($sql);
+    $stmt->execute([$phone]);
+    return (int) round(((float) $stmt->fetchColumn()) * 100);
+}
+
 /** Unique, easy to read out code (no O/0, I/1). */
 function newCouponCode(): string
 {
@@ -101,11 +119,16 @@ function couponMessage(array $coupon, array $rule, string $lang): string
 {
     $tpl = trim($lang === 'it' ? $rule['message_it'] : $rule['message_en']) ?: defaultLoyaltyMessage($lang);
     $first = trim(strtok((string) $coupon['customer_name'], ' ') ?: '');
+    // For a spend rule, coupons.visits holds the whole-euro spend that earned it.
+    $isSpend = ($rule['criterion'] ?? 'visits') === 'spend';
+    $spesa   = $isSpend ? formatCurrency((float) $coupon['visits']) : '';
     $text = strtr($tpl, [
         '{nome}'       => $first,
         '{name}'       => $first,
         '{visite}'     => (string) $coupon['visits'],
         '{visits}'     => (string) $coupon['visits'],
+        '{spesa}'      => $spesa,
+        '{spend}'      => $spesa,
         '{periodo}'    => tIn($lang, 'loy_in_last_' . $rule['period']),
         '{period}'     => tIn($lang, 'loy_in_last_' . $rule['period']),
         '{codice}'     => $coupon['code'],
@@ -254,16 +277,35 @@ function loyaltyAfterMeal(int $rootOrderId): int
         $pdo  = getDBConnection();
         $stmt = $pdo->prepare("SELECT phone, MAX(name) AS name FROM (" . loyaltyVisitsSql() . ") v WHERE v.root_id = ? GROUP BY phone");
         $stmt->execute([$rootOrderId]);
+        // This meal's own total and main customer, for 'single' (one-purchase) rules.
+        $rstmt = $pdo->prepare("SELECT customer_phone, total FROM orders WHERE id = ?");
+        $rstmt->execute([$rootOrderId]);
+        $rootRow        = $rstmt->fetch() ?: [];
+        $rootPhone      = $rootRow['customer_phone'] ?? null;
+        $rootTotalCents = (int) round(((float) ($rootRow['total'] ?? 0)) * 100);
         $issued = 0;
         $recent = $pdo->prepare("SELECT 1 FROM coupons WHERE rule_id = ? AND phone = ? AND issued_at >= NOW() - INTERVAL ? DAY LIMIT 1");
         foreach ($stmt->fetchAll() as $guest) {
             foreach ($rules as $rule) { // first rule reached wins
-                $days   = LOYALTY_PERIODS[$rule['period']];
-                $visits = customerVisits($guest['phone'], $days);
-                if ($visits < $rule['min_visits']) continue;
-                $recent->execute([$rule['id'], $guest['phone'], $days]);
-                if ($recent->fetchColumn()) break; // already rewarded for this period
-                issueCoupon($rule, $guest['phone'], $guest['name'], $visits);
+                $single = $rule['period'] === 'single';
+                $days   = $single ? null : LOYALTY_PERIODS[$rule['period']];
+                if (($rule['criterion'] ?? 'visits') === 'spend') {
+                    // 'single' = this purchase only (the main customer of this meal).
+                    $spendCents = $single
+                        ? (($rootPhone !== null && $guest['phone'] === $rootPhone) ? $rootTotalCents : 0)
+                        : customerSpendCents($guest['phone'], $days);
+                    if ($spendCents < (int) round($rule['min_spend'] * 100)) continue;
+                    $metric = (int) round($spendCents / 100); // whole euros, stored in coupons.visits
+                } else {
+                    $visits = $single ? 1 : customerVisits($guest['phone'], $days);
+                    if ($visits < $rule['min_visits']) continue;
+                    $metric = $visits;
+                }
+                if (!$single) { // one coupon per rule and guest within the period
+                    $recent->execute([$rule['id'], $guest['phone'], $days]);
+                    if ($recent->fetchColumn()) break; // already rewarded for this period
+                }
+                issueCoupon($rule, $guest['phone'], $guest['name'], $metric);
                 $issued++;
                 break;
             }
