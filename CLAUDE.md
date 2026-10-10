@@ -1,6 +1,6 @@
 # Ristorante POS — handoff notes
 
-This folder (`F:\pub`, repo `ispbillingai/pub`) is a copy of `F:\order` (repo `ispbillingai/order`),
+This folder (`F:\pub`, repo `anvial1/pub`, formerly `ispbillingai/pub`; the server's origin was switched on 2026-10-10) is a copy of `F:\order` (repo `ispbillingai/order`),
 copied on 2026-10-01 at commit `39705be` ("Menu components: a photo for each ingredient").
 Work continues here.
 
