@@ -1504,10 +1504,14 @@ return [
     'till_voice_manual_cash' => 'Contanti: controlla l\'importo e di\' «conferma»',
     'till_voice_discount' => 'Sconto applicato: {d}',
     'till_voice_discount_off' => 'Sconto tolto',
-    'till_voice_help' => 'Prodotti: «pane euro 2,30» · «2 taralli» · «varie 6 euro» · «annulla» · «togli saccottino» — Cassa: «incassa» · «totale» · «svuota» · «fotocamera» · «basta»',
+    'till_voice_help' => 'Prodotti: «pane euro 2,30» · «2 taralli» · «varie 6 euro» · «annulla» · «togli saccottino» — Cassa: «incassa» · «totale» · «svuota» · «fotocamera» · «basta» — Da incassare: «incassa Mario» · «incassa 13 euro» · «incassa banco» · «incassa l\'ultimo»',
     'till_voice_help_pay' => 'Pagamento: «carta» · «contanti» · «contanti senza scontrino» · «stampa conto» · «sconto 10 per cento» · «sconto 5 euro» · «conferma» · «chiudi» · «fatto» · in modalità test «pagamento virtuale»',
     'till_voice_in_pay' => 'Pagamento aperto: di\' «carta», «contanti», «stampa conto» o «chiudi» («aiuto» per l\'elenco)',
     'till_voice_pay_first' => 'Prima apri il pagamento: di\' «incassa»',
+    'till_voice_collect_none' => 'Non ci sono ordini da incassare',
+    'till_voice_collect_which' => 'Quale? Di\' «incassa» e il nome o l\'importo: {list}',
+    'till_voice_collect_unknown' => 'Non trovo «{said}». Da incassare: {list}',
+    'till_voice_collect_counter' => 'banco',
 
     // ---- User group: Ordini Cassa only ----
     'role_till' => 'Operatore Ordini Cassa',

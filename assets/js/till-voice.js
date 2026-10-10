@@ -8,6 +8,8 @@
  *   "pane 2,30 poi taralli 1,50" (also "… e taralli …") → two lines
  *   "annulla" / "togli"         → removes the last line added by voice; "togli saccottino" → one less
  * Till buttons: "incassa", "totale" (also said aloud), "svuota" (+ "sì"), "fotocamera", "aiuto".
+ * Orders waiting below (counter sales left open, online orders): "incassa" with an empty ticket,
+ *   "incassa Mario", "incassa 13 euro", "incassa banco 2,40", "incassa l'ultimo" open their payment.
  * Payment window: "carta", "contanti", "contanti senza scontrino", "stampa conto",
  *   "sconto 10 per cento" / "sconto 5 euro", "conferma", "chiudi", "fatto",
  *   "pagamento virtuale" (test mode button; the spoken command is its confirmation).
@@ -212,6 +214,8 @@
         if (is(/^(si|conferma|confermo|ok|va bene|certo)$/)) return { cmd: 'yes' };
         if (is(/^(no|lascia stare|niente|lascia)$/)) return { cmd: 'no' };
         if (is(/^(incassa|paga|pagamento|vai al pagamento|procedi( al pagamento)?|chiudi( lo)? scontrino|fai( il)? conto)$/)) return { cmd: 'checkout' };
+        const who = n.match(/^(?:incassa|fai pagare|paga) (?:(?:l |il |lo |la )?(?:ordine|conto|vendita) )?(?:di |del |della |dello |a )?(.+)$/);
+        if (who) return { cmd: 'collect', words: who[1].split(' ') };
         if (is(/^(totale|quanto fa|quanto viene|quanto e|dimmi( il)? totale|il totale)$/)) return { cmd: 'total' };
         if (is(/^(svuota( lo scontrino| tutto| lo)?|cancella tutto|azzera( tutto| lo scontrino)?|nuovo scontrino)$/)) return { cmd: 'clear' };
         if (is(/^((apri|accendi|spegni|chiudi) )?(la )?(fotocamera|camera|telecamera)$/)) return { cmd: 'camera' };
@@ -220,7 +224,36 @@
         return null;
     }
 
-    root.TillVoice = { parseVoice, resolveVoice, matchProduct, parseCommand, stripWake, norm };
+    /**
+     * Which waiting order "incassa …" means. list: [{id, kind: 'sale'|'online', name, total, at}].
+     * Returns {match}, {ambiguous: [...]} or {none: true}.
+     */
+    function pickCollect(words, list) {
+        if (!list.length) return { none: true };
+        const said = (words || []).join(' ');
+        const k = key(said);
+        const byTime = list.slice().sort((a, b) => String(a.at).localeCompare(String(b.at)));
+        if (!k && !/\d/.test(said)) return list.length === 1 ? { match: list[0] } : { ambiguous: byTime };
+        if (/(^| )(ultim[oa]|recente)( |$)/.test(k)) return { match: byTime[byTime.length - 1] };
+        if (/(^| )prim[oa]( |$)/.test(k)) return { match: byTime[0] };
+        const item = parseVoice(said).items[0] || { words: [], price: null, qty: null };
+        let price = item.price;
+        const bare = tokens(said);
+        if (price === null && bare.length === 1 && isNum(bare[0])) price = Number(bare[0]);   // "incassa 13"
+        const nameWords = item.words.filter(w => !['ordine', 'conto', 'vendita', 'cliente', 'banco', 'euro'].includes(w));
+        let pool = list;
+        if (item.words.some(w => w === 'banco' || w === 'vendita')) pool = pool.filter(o => o.kind === 'sale');
+        if (price !== null) pool = pool.filter(o => Math.abs(o.total - price) < 0.005);
+        if (nameWords.length) {
+            const named = pool.filter(o => o.name);
+            const m = matchProduct(nameWords, named.map(o => ({ id: o.id, name: o.name })));
+            pool = m ? named.filter(o => o.id === m.id) : [];
+        }
+        if (pool.length === 1) return { match: pool[0] };
+        return pool.length ? { ambiguous: pool } : { ambiguous: byTime, notFound: true };
+    }
+
+    root.TillVoice = { parseVoice, resolveVoice, matchProduct, parseCommand, stripWake, pickCollect, norm };
     if (typeof module !== 'undefined' && module.exports) module.exports = root.TillVoice;
     if (typeof document === 'undefined') return;
 
@@ -398,14 +431,23 @@
             }
         }
     }
+    // "incassa …": one of the orders waiting below the till (open counter sales, online orders).
+    function collect(words) {
+        const r = pickCollect(words, host.collectables());
+        if (r.none) { toast(L.collect_none, 'warning', 3000); return; }
+        if (r.match) { host.openPay(r.match.id); toast(L.pay_open, 'info', 6000); return; }
+        const list = r.ambiguous.slice(0, 4).map(o => (o.name || L.collect_counter) + ' ' + host.money(o.total)).join(' · ');
+        toast(fill(r.notFound ? L.collect_unknown : L.collect_which, { list, said: words.join(' ') }), 'warning', 7000);
+    }
     function runTill(c) {
         const tk = host.ticket();
         switch (c.cmd) {
             case 'checkout':
-                if (!tk.length) { toast(L.empty, 'warning'); break; }
+                if (!tk.length) { collect([]); break; }
                 host.checkout();
                 toast(L.pay_open, 'info', 6000);
                 break;
+            case 'collect': collect(c.words); break;
             case 'total': {
                 const tot = host.total();
                 const e = Math.floor(tot + 1e-9), cents = Math.round((tot - e) * 100);
@@ -462,7 +504,7 @@
         if (c && (c.cmd === 'yes' || c.cmd === 'no')) return;          // nothing waiting for a yes / no
         // A payment command with no payment open ("sconto 10 per cento") must never become an amount.
         const payCmd = alts.map(a => parseCommand(a, 'pay')).find(Boolean);
-        if (!c && payCmd && ['card', 'cash', 'cash_nf', 'print', 'discount', 'virtual'].includes(payCmd.cmd)) { toast(L.pay_first, 'warning', 3500); return; }
+        if ((!c || c.cmd === 'collect') && payCmd && ['card', 'cash', 'cash_nf', 'print', 'discount', 'virtual'].includes(payCmd.cmd)) { toast(L.pay_first, 'warning', 3500); return; }
         if (c) { runTill(c); return; }
         const [, res] = best(alts);
         addLines(res);

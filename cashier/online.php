@@ -68,6 +68,11 @@ $paid = $paid->fetchAll();
 $tillMenu  = tillMenu();
 $openSales = tillOpenSales();
 $tillTargets = array_map(fn($o) => ['id' => (int) $o['id'], 'label' => $o['customer_name'] . ' · ' . $o['order_number']], $orders);
+// Orders waiting below, for "incassa Mario" / "incassa 13 euro" by voice.
+$voiceCollect = array_merge(
+    array_map(fn($s) => ['id' => (int) $s['id'], 'kind' => 'sale', 'name' => '', 'total' => (float) $s['total'], 'at' => $s['created_at']], $openSales),
+    array_map(fn($o) => ['id' => (int) $o['id'], 'kind' => 'online', 'name' => (string) $o['customer_name'], 'total' => (float) $o['total'], 'at' => $o['created_at']], $orders)
+);
 
 $pageTitle  = t('cash_online_title');
 include __DIR__ . '/../includes/header.php';
@@ -435,6 +440,7 @@ window.tillVoiceHost = {
     products: () => TILL_MENU.flatMap(c => c.items), ticket: () => ticket, changed: () => { saveTicket(); renderTicket(); }, money,
     total: () => ticket.reduce((s, l) => s + lineTotal(l), 0), checkout: () => tCheckout(), clear: () => tClear(), camera: () => toggleCamera(),
     payDoc: () => { try { return $id('payOverlay').hidden ? null : $id('payFrame').contentDocument; } catch (e) { return null; } },
+    collectables: () => <?= json_encode($voiceCollect, JSON_UNESCAPED_UNICODE) ?>, openPay: id => openPay(id),
 };
 window.TILL_VOICE_TEXT = <?= json_encode([
     'listening' => t('till_voice_listening'), 'heard' => t('till_voice_heard'), 'added' => t('till_voice_added'),
@@ -447,6 +453,7 @@ window.TILL_VOICE_TEXT = <?= json_encode([
     'removed_one' => t('till_voice_removed_one'), 'no_btn' => t('till_voice_no_btn'), 'manual_cash' => t('till_voice_manual_cash'),
     'discount' => t('till_voice_discount'), 'discount_off' => t('till_voice_discount_off'), 'help' => t('till_voice_help'),
     'help_pay' => t('till_voice_help_pay'), 'in_pay' => t('till_voice_in_pay'), 'pay_first' => t('till_voice_pay_first'),
+    'collect_none' => t('till_voice_collect_none'), 'collect_which' => t('till_voice_collect_which'), 'collect_unknown' => t('till_voice_collect_unknown'), 'collect_counter' => t('till_voice_collect_counter'),
 ], JSON_UNESCAPED_UNICODE) ?>;
 setInterval(() => { if (!cam && !(window.tillVoiceActive && window.tillVoiceActive()) && !document.getElementById('scanInput').value && !ticket.length && !kpCents && !ticketCustomer && $id('payOverlay').hidden) location.reload(); }, 20000);
 </script>
