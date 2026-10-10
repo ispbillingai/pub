@@ -253,12 +253,45 @@ function pushPromo(string $title, string $body, string $url = ''): array
     return $res;
 }
 
+/**
+ * A promotion as a test to one customer's phones only: kept like the others, but only
+ * they see it in their offers box. Returns [sent, failed].
+ */
+function pushPromoTest(int $customerId, string $title, string $body, string $url = ''): array
+{
+    $pdo = getDBConnection();
+    $pdo->prepare("INSERT INTO push_promos (title, body, url, target_customer_id, created_by) VALUES (?, ?, ?, ?, ?)")
+        ->execute([$title, $body, $url !== '' ? $url : null, $customerId, $_SESSION['user_id'] ?? null]);
+    $id = (int) $pdo->lastInsertId();
+    $st = $pdo->prepare("SELECT * FROM push_subscriptions WHERE online_customer_id = ? AND active = 1");
+    $st->execute([$customerId]);
+    $res = pushSend($st->fetchAll(), ['title' => $title, 'body' => $body, 'url' => '/online.php?promo=' . $id, 'tag' => 'promo-' . $id]);
+    $pdo->prepare("UPDATE push_promos SET sent = ?, failed = ? WHERE id = ?")->execute([$res[0], $res[1], $id]);
+    logActivity('push_promo_test_sent', 'push_promos', $id, ['customer' => $customerId, 'sent' => $res[0], 'failed' => $res[1]]);
+    return $res;
+}
+
 /** One promotion sent (for online.php?promo=), or null. */
 function pushPromoById(int $id): ?array
 {
     $st = getDBConnection()->prepare("SELECT id, title, body, url, created_at FROM push_promos WHERE id = ?");
     $st->execute([$id]);
     return $st->fetch() ?: null;
+}
+
+/**
+ * The offers still running (sent in the last $days days), newest first, for the coloured
+ * box at the top of online.php: [['id', 'title', 'body', 'url', 'date']]. A test meant
+ * for one customer (target_customer_id) shows to them only.
+ */
+function pushPromosActive(int $customerId, int $days = 7, int $limit = 3): array
+{
+    $st = getDBConnection()->prepare("SELECT id, title, body, url, created_at FROM push_promos
+                                      WHERE created_at >= NOW() - INTERVAL ? DAY AND (target_customer_id IS NULL OR target_customer_id = ?)
+                                      ORDER BY id DESC LIMIT " . max(1, $limit));
+    $st->execute([$days, $customerId]);
+    return array_map(fn($p) => ['id' => (int) $p['id'], 'title' => $p['title'], 'body' => $p['body'], 'url' => (string) $p['url'],
+                                'date' => t('promo_of', ['date' => date('d/m/Y', strtotime($p['created_at']))])], $st->fetchAll());
 }
 
 /** The last promotions sent, newest first (Admin > Clienti online). */

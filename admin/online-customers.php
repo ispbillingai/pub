@@ -257,7 +257,8 @@ include __DIR__ . '/../includes/header.php';
             <h3 style="font-size:.95rem;margin:0 0 8px;"><i class="fas fa-clock-rotate-left"></i> <?= te('push_admin_recent') ?></h3>
             <?php foreach ($recentPromos as $p): ?>
                 <div class="d-flex align-center gap-sm" style="justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border-color,#e5e7eb);">
-                    <span><strong><?= htmlspecialchars($p['title']) ?></strong> <span class="text-muted">— <?= htmlspecialchars($p['body']) ?></span><br>
+                    <span><strong><?= htmlspecialchars($p['title']) ?></strong> <span class="text-muted">— <?= htmlspecialchars($p['body']) ?></span>
+                        <?php if (!empty($p['target_customer_id'])): ?><span class="badge badge-light"><?= te('push_admin_test_badge') ?></span><?php endif; ?><br>
                         <small class="text-muted"><?= te('push_admin_recent_row', ['date' => date('d/m/Y H:i', strtotime($p['created_at'])), 'sent' => (int) $p['sent']]) ?></small></span>
                     <!-- What the customer sees on tapping the notification -->
                     <a class="btn btn-sm btn-outline" href="/online.php?promo=<?= (int) $p['id'] ?>" target="_blank" rel="noopener"><i class="fas fa-eye"></i> <?= te('push_admin_preview') ?></a>

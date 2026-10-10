@@ -82,13 +82,18 @@ $L = [
     'all_ready'         => t('online_all_ready'),
     'all_ready_delivery'=> t('online_all_ready_delivery'),
     'ready_body_delivery' => t('online_ready_body_delivery'),
-    'promo'             => $promo ? ['title' => $promo['title'], 'body' => $promo['body'], 'url' => (string) $promo['url'],
+    'promo'             => $promo ? ['id' => (int) $promo['id'], 'title' => $promo['title'], 'body' => $promo['body'], 'url' => (string) $promo['url'],
                                      'date' => t('promo_of', ['date' => date('d/m/Y', strtotime($promo['created_at']))])] : null,
     'push_on_toast'     => t('push_on_toast'),
+    'push_off_toast'    => t('push_off_toast'),
+    'promo_label'       => t('promo_label'),
+    'promo_order'       => t('promo_order'),
+    'promo_more'        => t('promo_more'),
+    'close'             => t('close'),
     'push_failed'       => t('push_failed'),
 ];
 $countries = phoneCountryOptions();
-// "Attiva le notifiche" (Web Push, includes/web_push.php): on the menu and on the order page.
+// "Attiva le notifiche" (Web Push, includes/web_push.php): in "Il mio profilo".
 // The parts shown depend on the phone (pushRender): off / iPhone not on the Home screen / on / blocked.
 $pushCard = '<div class="card push-card" hidden>'
     . '<div class="pc-off"><h2><i class="fas fa-bell"></i> ' . te('push_title') . '</h2><p class="sub">' . te('push_intro') . '</p>'
@@ -96,7 +101,8 @@ $pushCard = '<div class="card push-card" hidden>'
     . '<button type="button" class="btn-go" onclick="pushEnable(this)"><i class="fas fa-bell"></i> ' . te('push_enable') . '</button></div>'
     . '<div class="pc-ios"><h2><i class="fas fa-bell"></i> ' . te('push_title') . '</h2><p class="sub">' . te('push_ios') . '</p></div>'
     . '<div class="pc-on"><strong><i class="fas fa-bell" style="color:var(--ok);"></i> ' . te('push_on') . '</strong>'
-    . '<label class="pc-promo"><input type="checkbox" class="pc-promos" onchange="pushPromosChanged(this)"> <span>' . te('push_promos') . '</span></label></div>'
+    . '<label class="pc-promo"><input type="checkbox" class="pc-promos" onchange="pushPromosChanged(this)"> <span>' . te('push_promos') . '</span></label>'
+    . '<button type="button" class="btn-go btn-no" onclick="pushDisable(this)"><i class="fas fa-bell-slash"></i> ' . te('push_disable') . '</button></div>'
     . '<div class="pc-denied"><p class="sub" style="margin:0;"><i class="fas fa-bell-slash"></i> ' . te('push_denied') . '</p></div>'
     . '</div>';
 $mLang     = currentLang() === 'it' ? 'it' : 'en';
@@ -274,6 +280,16 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .promo-sheet p { font-size: 1.05rem; line-height: 1.45; margin: 0 0 6px; white-space: pre-line; }
 .promo-date { color: var(--muted); }
 .promo-link { text-decoration: none; text-align: center; box-sizing: border-box; margin-top: 8px; }
+/* The offers of the last days: a coloured box at the top of the page */
+.promo-box { position: relative; background: linear-gradient(135deg, #e8590c 0%, #7a1428 100%); color: #fff; border-radius: 16px; padding: 16px 18px; margin-bottom: 14px; box-shadow: 0 6px 18px rgba(122,20,40,.25); }
+.promo-box .pb-label { font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .9; }
+.promo-box strong { display: block; font-size: 1.25rem; margin: 4px 30px 4px 0; }
+.promo-box p { margin: 0 0 4px; line-height: 1.4; white-space: pre-line; }
+.promo-box small { opacity: .8; }
+.promo-box .pb-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.promo-box .pb-actions a, .promo-box .pb-actions button { border: 0; border-radius: 10px; padding: 9px 14px; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; background: #fff; color: #7a1428; }
+.promo-box .pb-actions .pb-more { background: rgba(255,255,255,.2); color: #fff; }
+.promo-box .pb-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255,255,255,.2); color: #fff; cursor: pointer; }
 /* "Attiva le notifiche" */
 .push-card { border: 2px solid #fed7aa; }
 .push-card > div { display: none; }
@@ -449,7 +465,7 @@ $footHtml = ob_get_clean(); ?>
         <p class="sub"><?= te('online_shop_intro') ?></p>
         <button class="link-btn" id="shopBack" hidden onclick="closeShop()" style="padding-left:0;"><i class="fas fa-arrow-left"></i> <?= te('online_back_to_order') ?></button>
     </div>
-    <?= $pushCard ?>
+    <div class="promo-strip"></div>
     <div class="bday-banner" hidden><span>🎂 <?= te('online_bday_banner') ?></span><button type="button" onclick="openProfile()"><?= te('online_bday_add') ?></button></div>
     <div class="shop-cats" id="shopCats"></div>
     <div id="shopMenu"><div class="card"><div class="empty"><?= te('loading') ?></div></div></div>
@@ -502,6 +518,7 @@ $footHtml = ob_get_clean(); ?>
             </div>
         </form>
     </div>
+    <?= $pushCard ?>
 </main>
 <div class="cart-bar" id="cartBar" hidden>
     <div class="sum"><small id="cartCount"></small><strong id="cartTotal"></strong></div>
@@ -596,6 +613,7 @@ $footHtml = ob_get_clean(); ?>
 <!-- Signed in with an order: how it is doing -->
 <main id="app" hidden>
     <div class="all-ready" id="allReady" hidden><i class="fas fa-bell-concierge"></i><div id="allReadyText"><?= te('online_all_ready') ?></div></div>
+    <div class="promo-strip"></div>
     <button class="order-more" onclick="openShop()"><i class="fas fa-plus"></i> <?= te('self_order_more') ?></button>
     <div class="card">
         <h2><i class="fas fa-receipt"></i> <span class="hello"></span></h2>
@@ -605,7 +623,6 @@ $footHtml = ob_get_clean(); ?>
         <div class="ful-info" id="fulInfo" hidden><i class="fas fa-store" id="fulInfoIcon"></i><div id="fulInfoText"></div></div>
         <div class="pay-note"><i class="fas fa-cash-register" id="payNoteIcon"></i><span id="payNote"><?= te('online_pay_at_till') ?></span></div>
     </div>
-    <?= $pushCard ?>
     <!-- Pick-up: the QR the cashier scans. A delivery is paid in cash to the rider: no QR. -->
     <div class="card pay-qr" id="payQrCard">
         <h2><i class="fas fa-qrcode"></i> <?= te('online_pay_qr_title') ?></h2>
@@ -668,6 +685,7 @@ function render(s) {
     state = s;
     pushRender();
     pushKeepLinked();
+    renderPromos(s);
     document.querySelectorAll('.hello').forEach(el => { el.textContent = L.hello.replace('{name}', s.customer.first_name); });
     document.querySelectorAll('.bday-banner').forEach(el => { el.hidden = !!s.customer.birth_date || bdayDismissed(); });
     if (profileOpen) { show('profile'); return; }   // (the form is filled once, on opening)
@@ -735,6 +753,8 @@ function renderPayQr(url) {
 let editing = false, lastRequest = null, resendAt = 0;
 function renderSignedOut(s) {
     state = null;
+    // A promotion's notification opened while signed out: the offer over the sign-in.
+    if (promoFromLink) { promoOpen(promoFromLink); promoFromLink = null; }
     if (!s.enabled) { show('off'); return; }
     if (s.message) toast(s.message);
     // "Entra con WhatsApp": the number is proven, the name is missing.
@@ -920,7 +940,57 @@ function promoOrder() {
     if (state && state.signed_in !== false && state.customer) openShop();
     window.scrollTo(0, 0);
 }
-if (L.promo) promoOpen(L.promo);
+
+/* ---- The offers of the last days: a coloured box at the top of the page, until closed ---- */
+const PROMO_SEEN_KEY = 'online-promos-closed';
+const promosClosed = () => { try { return JSON.parse(localStorage.getItem(PROMO_SEEN_KEY) || '[]'); } catch (e) { return []; } };
+let promoFromLink = L.promo;   // opened from a notification (?promo=)
+function renderPromos(s) {
+    const list = s.promos || [];
+    if (promoFromLink) {
+        // From its notification: shown again even if closed before; an older one opens on its own.
+        const p = promoFromLink; promoFromLink = null;
+        if (list.some(x => x.id === p.id)) {
+            try { localStorage.setItem(PROMO_SEEN_KEY, JSON.stringify(promosClosed().filter(id => id !== p.id))); } catch (e) {}
+            window.scrollTo(0, 0);
+        } else promoOpen(p);
+        try { history.replaceState(null, '', location.pathname + location.search.replace(/([?&])promo=\d+&?/, '$1').replace(/[?&]$/, '')); } catch (e) {}
+    }
+    const closed = new Set(promosClosed());
+    const html = list.filter(p => !closed.has(p.id)).map(p => `
+        <div class="promo-box">
+            <button type="button" class="pb-close" onclick="promoDismiss(${p.id})" aria-label="${esc(L.close)}"><i class="fas fa-xmark"></i></button>
+            <div class="pb-label"><i class="fas fa-gift"></i> ${esc(L.promo_label)}</div>
+            <strong>${esc(p.title)}</strong>
+            <p>${esc(p.body)}</p>
+            <small>${esc(p.date)}</small>
+            <div class="pb-actions">
+                <button type="button" class="pb-order" onclick="openShop()"><i class="fas fa-utensils"></i> ${esc(L.promo_order)}</button>
+                ${p.url ? `<a class="pb-more" href="${esc(p.url)}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> ${esc(L.promo_more)}</a>` : ''}
+            </div>
+        </div>`).join('');
+    document.querySelectorAll('.promo-strip').forEach(el => {
+        el.innerHTML = html;
+        // On the menu itself "Ordina ora" has nothing to open.
+        if (el.closest('#shop')) el.querySelectorAll('.pb-order').forEach(b => b.remove());
+    });
+}
+function promoDismiss(id) {
+    try { localStorage.setItem(PROMO_SEEN_KEY, JSON.stringify([...new Set([...promosClosed(), id])].slice(-50))); } catch (e) {}
+    if (state) renderPromos(state);
+}
+
+/* ---- "Disattiva le notifiche" (profile): this phone gets nothing more ---- */
+async function pushDisable(btn) {
+    btn.disabled = true;
+    const endpoint = pushSub ? pushSub.endpoint : '';
+    try { if (pushSub) await pushSub.unsubscribe(); } catch (e) {}
+    pushSub = null;
+    if (endpoint) await send({ action: 'push_unsubscribe', endpoint });
+    btn.disabled = false;
+    pushRender();
+    toast(L.push_off_toast);
+}
 
 /* ---- The menu and the cart (kept on this phone until sent) ---- */
 let shopOpen = false, shopMenu = null, shopCat = null;

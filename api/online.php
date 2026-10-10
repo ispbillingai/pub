@@ -15,6 +15,7 @@
  *       fulfil: {mode: 'pickup'|'delivery', date, time, address, number, intercom, phone_mode: 'mine'|'other', country, phone}
  * POST {action: 'logout', push_endpoint?}      → "not you?": sign out of this phone (its notifications stop)
  * POST {action: 'push_subscribe', sub: PushSubscription.toJSON(), promos: bool} → notifications on this phone (includes/web_push.php)
+ * POST {action: 'push_unsubscribe', endpoint}  → no more notifications on this phone
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -86,6 +87,12 @@ if ($action === 'push_subscribe') {
         jsonResponse(['success' => false, 'message' => t('push_failed')]);
     }
     jsonResponse(onlineOrderState($customer) + ['signed_in' => true, 'push_saved' => true]);
+}
+
+if ($action === 'push_unsubscribe') {
+    // "Disattiva le notifiche" in their profile: this phone gets nothing more.
+    pushForget((string) ($input['endpoint'] ?? ''));
+    jsonResponse(onlineOrderState($customer) + ['signed_in' => true]);
 }
 
 if ($action === 'birthday') {

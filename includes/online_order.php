@@ -1014,6 +1014,8 @@ function onlineOrderState(array $customer): array
         // Web Push: the server's key for the browser, and whether promotions start ticked
         // (only when they already agreed to marketing).
         'push' => ['key' => pushVapid()['public'], 'promos_default' => !empty($customer['marketing_consent'])],
+        // The offers of the last days, in a coloured box at the top of their page.
+        'promos' => pushPromosActive((int) $customer['id']),
         'items'    => $items,
         'all_ready'=> $items && !array_filter($items, fn($i) => !in_array($i['status'], ['ready', 'served'], true)),
         'total_fmt'=> formatCurrency($order['total'] ?? 0),
