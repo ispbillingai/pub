@@ -1504,7 +1504,7 @@ return [
     'till_voice_manual_cash' => 'Contanti: controlla l\'importo e di\' «conferma»',
     'till_voice_discount' => 'Sconto applicato: {d}',
     'till_voice_discount_off' => 'Sconto tolto',
-    'till_voice_help' => 'Prodotti: «pane euro 2,30» · «2 taralli» · «varie 6 euro» · «annulla» · «togli saccottino» — Cassa: «incassa» · «totale» · «svuota» · «fotocamera» · «basta» — Da incassare: «incassa Mario» · «incassa 13 euro» · «incassa banco» · «incassa l\'ultimo» · «stop cassa» spegne il microfono',
+    'till_voice_help' => 'Prodotti: «pane euro 2,30» · «2 taralli» · «varie 6 euro» · «annulla» · «togli saccottino» — Cassa: «incassa» · «totale» · «svuota» · «fotocamera» · «basta» — Da incassare: «incassa Mario» · «incassa 13 euro» · «incassa banco» · «incassa l\'ultimo» · «stop cassa» torna in attesa di «ok cassa»',
     'till_voice_help_pay' => 'Pagamento: «carta» · «contanti» · «contanti senza scontrino» · «stampa conto» · «sconto 10 per cento» · «sconto 5 euro» · «conferma» · «chiudi» · «fatto» · in modalità test «pagamento virtuale»',
     'till_voice_in_pay' => 'Pagamento aperto: di\' «carta», «contanti», «stampa conto» o «chiudi» («aiuto» per l\'elenco)',
     'till_voice_pay_first' => 'Prima apri il pagamento: di\' «incassa»',
