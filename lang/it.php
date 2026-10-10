@@ -1792,6 +1792,8 @@ return [
     'push_unsupported' => 'Su questo telefono non si possono ricevere le notifiche. Su iPhone serve iOS 16.4 o successivo (Impostazioni › Generali › Aggiornamento software). Gli avvisi dell\'ordine ti arrivano comunque su WhatsApp.',
     'push_disable' =>'Disattiva le notifiche su questo telefono',
     'push_off_toast' => 'Notifiche disattivate su questo telefono.',
+    'push_later' => 'Non ora',
+    'push_later_toast' => 'Puoi attivarle quando vuoi da «Il mio profilo».',
     'push_failed' => 'Non è stato possibile attivare le notifiche su questo telefono.',
     'push_received_title' => 'Ordine ricevuto ✅',
     'push_added_title' => 'Aggiunta ricevuta ✅',

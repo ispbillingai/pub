@@ -86,6 +86,7 @@ $L = [
                                      'date' => t('promo_of', ['date' => date('d/m/Y', strtotime($promo['created_at']))])] : null,
     'push_on_toast'     => t('push_on_toast'),
     'push_off_toast'    => t('push_off_toast'),
+    'push_later_toast'  => t('push_later_toast'),
     'promo_label'       => t('promo_label'),
     'promo_order'       => t('promo_order'),
     'promo_more'        => t('promo_more'),
@@ -93,8 +94,9 @@ $L = [
     'push_failed'       => t('push_failed'),
 ];
 $countries = phoneCountryOptions();
-// "Attiva le notifiche" (Web Push, includes/web_push.php): in "Il mio profilo".
-// The parts shown depend on the phone (pushRender): off / iPhone not on the Home screen / on / blocked.
+// "Attiva le notifiche" (Web Push, includes/web_push.php): always in "Il mio profilo"; on the
+// main page too until they are on (or "Non ora"). The parts shown depend on the phone
+// (pushRender): off / iPhone not on the Home screen / on / blocked / not possible.
 $pushCard = '<div class="card push-card" hidden>'
     . '<div class="pc-off"><h2><i class="fas fa-bell"></i> ' . te('push_title') . '</h2><p class="sub">' . te('push_intro') . '</p>'
     . '<label class="pc-promo"><input type="checkbox" class="pc-promos" onchange="pushPromosChanged(this)"> <span>' . te('push_promos') . '</span></label>'
@@ -105,7 +107,10 @@ $pushCard = '<div class="card push-card" hidden>'
     . '<button type="button" class="btn-go btn-no" onclick="pushDisable(this)"><i class="fas fa-bell-slash"></i> ' . te('push_disable') . '</button></div>'
     . '<div class="pc-denied"><p class="sub" style="margin:0;"><i class="fas fa-bell-slash"></i> ' . te('push_denied') . '</p></div>'
     . '<div class="pc-old"><h2><i class="fas fa-bell-slash"></i> ' . te('push_title') . '</h2><p class="sub" style="margin:0;">' . te('push_unsupported') . '</p></div>'
+    . '<button type="button" class="link-btn pc-later" onclick="pushLater()">' . te('push_later') . '</button>'
     . '</div>';
+// The same box on the main page (menu and order page), first time only.
+$pushCardMain = str_replace('class="card push-card"', 'class="card push-card push-main"', $pushCard);
 $mLang     = currentLang() === 'it' ? 'it' : 'en';
 header('Cache-Control: no-store');
 ?>
@@ -294,6 +299,8 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 /* "Attiva le notifiche" */
 .push-card { border: 2px solid #fed7aa; }
 .push-card > div { display: none; }
+.push-card .pc-later { display: none; padding-left: 0; color: var(--muted); }
+.push-main .pc-later { display: block; }   /* "Non ora": only on the main page */
 .push-card[data-st="off"] .pc-off, .push-card[data-st="ios"] .pc-ios, .push-card[data-st="on"] .pc-on, .push-card[data-st="denied"] .pc-denied, .push-card[data-st="old"] .pc-old { display: block; }
 .pc-promo { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; font-size: .9rem; cursor: pointer; }
 .pc-promo input { width: 20px; height: 20px; flex: 0 0 auto; margin-top: 1px; }
@@ -467,6 +474,7 @@ $footHtml = ob_get_clean(); ?>
         <button class="link-btn" id="shopBack" hidden onclick="closeShop()" style="padding-left:0;"><i class="fas fa-arrow-left"></i> <?= te('online_back_to_order') ?></button>
     </div>
     <div class="promo-strip"></div>
+    <?= $pushCardMain ?>
     <div class="bday-banner" hidden><span>🎂 <?= te('online_bday_banner') ?></span><button type="button" onclick="openProfile()"><?= te('online_bday_add') ?></button></div>
     <div class="shop-cats" id="shopCats"></div>
     <div id="shopMenu"><div class="card"><div class="empty"><?= te('loading') ?></div></div></div>
@@ -624,6 +632,7 @@ $footHtml = ob_get_clean(); ?>
         <div class="ful-info" id="fulInfo" hidden><i class="fas fa-store" id="fulInfoIcon"></i><div id="fulInfoText"></div></div>
         <div class="pay-note"><i class="fas fa-cash-register" id="payNoteIcon"></i><span id="payNote"><?= te('online_pay_at_till') ?></span></div>
     </div>
+    <?= $pushCardMain ?>
     <!-- Pick-up: the QR the cashier scans. A delivery is paid in cash to the rider: no QR. -->
     <div class="card pay-qr" id="payQrCard">
         <h2><i class="fas fa-qrcode"></i> <?= te('online_pay_qr_title') ?></h2>
@@ -872,8 +881,21 @@ function pushRender() {
         else st = pushSub && Notification.permission === 'granted' ? 'on' : 'off';
     } else if (IS_IOS && !STANDALONE) st = 'ios';
     else if (state) st = 'old';   // no notifications here (iPhone before iOS 16.4, or an old browser): say so
-    document.querySelectorAll('.push-card').forEach(c => { c.hidden = !st; c.dataset.st = st; });
+    // The main page asks only while they can still be turned on, and not after "Non ora".
+    const mainAsk = (st === 'off' || st === 'ios') && !pushLaterChosen();
+    document.querySelectorAll('.push-card').forEach(c => {
+        c.hidden = !st || (c.classList.contains('push-main') && !mainAsk);
+        c.dataset.st = st;
+    });
     document.querySelectorAll('.pc-promos').forEach(b => { b.checked = pushPromosWanted(); });
+}
+const PUSH_LATER_KEY = 'online-push-later';
+function pushLaterChosen() { try { return localStorage.getItem(PUSH_LATER_KEY) === '1'; } catch (e) { return false; } }
+// "Non ora" on the main page: it asks no more there (still in the profile).
+function pushLater() {
+    try { localStorage.setItem(PUSH_LATER_KEY, '1'); } catch (e) {}
+    pushRender();
+    toast(L.push_later_toast);
 }
 async function pushInit() {
     if (PUSH_OK) {

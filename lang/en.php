@@ -1792,6 +1792,8 @@ return [
     'push_unsupported' => 'This phone can\'t get notifications. On iPhone you need iOS 16.4 or later (Settings › General › Software Update). Order alerts still reach you on WhatsApp.',
     'push_disable' =>'Turn off notifications on this phone',
     'push_off_toast' => 'Notifications turned off on this phone.',
+    'push_later' => 'Not now',
+    'push_later_toast' => 'You can turn them on any time from "My profile".',
     'push_failed' => 'Notifications could not be turned on for this phone.',
     'push_received_title' => 'Order received ✅',
     'push_added_title' => 'Addition received ✅',
