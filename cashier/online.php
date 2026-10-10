@@ -16,6 +16,9 @@
  *
  * Voice (assets/js/till-voice.js): "pane euro 2,30", "2 taralli", "varie 6 euro", "annulla"
  * put lines on the ticket; products are also found by their Menu cassa "words for the voice".
+ * Spoken commands press the till's buttons ("incassa", "totale", "svuota") and the payment
+ * window's ("carta", "contanti", "stampa conto", "sconto 10 per cento", "chiudi"); with
+ * "ok cassa" ticked the microphone waits from page load for the wake phrase.
  *
  * Paying happens here too: the till's payment page (cash machine, card, Dojo,
  * manual, discounts) opens in a window over the panel (payment.php?embed=1)
@@ -92,7 +95,10 @@ include __DIR__ . '/../includes/header.php';
 .till-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 0 0 10px; }   /* button on the left: toasts appear on the right */
 .voice-btn { display: inline-flex; align-items: center; gap: 8px; border: 2px solid var(--primary); background: #fff; color: var(--primary); border-radius: 999px; padding: 7px 16px; font-weight: 700; cursor: pointer; min-height: 44px; }
 .voice-btn.on { background: #dc2626; border-color: #dc2626; color: #fff; animation: voicePulse 1.4s ease-in-out infinite; }
+.voice-btn.standby { border-color: #dc2626; color: #dc2626; }
 .voice-btn:disabled { opacity: .45; cursor: not-allowed; }
+.voice-wake { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--text-secondary); cursor: pointer; min-height: 44px; }
+.voice-wake input { width: 18px; height: 18px; }
 @keyframes voicePulse { 50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, .18); } }
 .voice-bar { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 8px 12px; margin: -2px 0 10px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .voice-bar .h { font-weight: 600; }
@@ -147,6 +153,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="till-head">
         <h2 style="margin:0;font-size:1.05rem;"><i class="fas fa-cash-register"></i> <?= te('till_title') ?></h2>
         <button type="button" class="voice-btn" id="voiceBtn" aria-pressed="false" hidden><i class="fas fa-microphone"></i> <?= te('till_voice_btn') ?></button>
+        <label class="voice-wake" hidden><input type="checkbox" id="voiceWake"> <?= te('till_voice_wake_label') ?></label>
     </div>
     <div class="voice-bar" id="voiceBar" hidden aria-live="polite"><span class="h" id="voiceHeard"></span><small><?= te('till_voice_hint') ?></small></div>
     <div class="till">
@@ -424,12 +431,22 @@ window.addEventListener('message', e => {
 // or while a ticket / an amount is being made).
 document.addEventListener('click', e => { if (!e.target.closest('input, button, a, select, #camBox')) document.getElementById('scanInput').focus(); });
 // Ordini Cassa by voice (assets/js/till-voice.js) works on this ticket.
-window.tillVoiceHost = { products: () => TILL_MENU.flatMap(c => c.items), ticket: () => ticket, changed: () => { saveTicket(); renderTicket(); }, money };
+window.tillVoiceHost = {
+    products: () => TILL_MENU.flatMap(c => c.items), ticket: () => ticket, changed: () => { saveTicket(); renderTicket(); }, money,
+    total: () => ticket.reduce((s, l) => s + lineTotal(l), 0), checkout: () => tCheckout(), clear: () => tClear(), camera: () => toggleCamera(),
+    payDoc: () => { try { return $id('payOverlay').hidden ? null : $id('payFrame').contentDocument; } catch (e) { return null; } },
+};
 window.TILL_VOICE_TEXT = <?= json_encode([
     'listening' => t('till_voice_listening'), 'heard' => t('till_voice_heard'), 'added' => t('till_voice_added'),
     'not_found' => t('till_voice_not_found'), 'as_free' => t('till_voice_as_free'), 'undone' => t('till_voice_undone'),
     'nothing' => t('till_voice_nothing'), 'nothing_undo' => t('till_voice_nothing_undo'), 'denied' => t('till_voice_denied'),
     'unsupported' => t('till_voice_unsupported'), 'big' => t('till_big_amount_confirm'), 'free' => t('till_voice_free'),
+    'standby' => t('till_voice_standby'), 'restart' => t('till_voice_restart'), 'empty' => t('till_voice_empty'),
+    'pay_open' => t('till_voice_pay_open'), 'total' => t('till_voice_total'), 'total_say' => t('till_voice_total_say'),
+    'confirm_clear' => t('till_voice_confirm_clear'), 'cleared' => t('till_voice_cleared'), 'not_in_ticket' => t('till_voice_not_in_ticket'),
+    'removed_one' => t('till_voice_removed_one'), 'no_btn' => t('till_voice_no_btn'), 'manual_cash' => t('till_voice_manual_cash'),
+    'discount' => t('till_voice_discount'), 'discount_off' => t('till_voice_discount_off'), 'help' => t('till_voice_help'),
+    'help_pay' => t('till_voice_help_pay'), 'in_pay' => t('till_voice_in_pay'),
 ], JSON_UNESCAPED_UNICODE) ?>;
 setInterval(() => { if (!cam && !(window.tillVoiceActive && window.tillVoiceActive()) && !document.getElementById('scanInput').value && !ticket.length && !kpCents && !ticketCustomer && $id('payOverlay').hidden) location.reload(); }, 20000);
 </script>
