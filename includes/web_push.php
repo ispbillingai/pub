@@ -233,42 +233,60 @@ function pushStats(): array
 }
 
 /**
- * A promotion to every phone that said yes to promotions. It is kept (push_promos):
- * tapping the notification opens online.php?promo=<id>, the offer again with its link
- * as a button. Returns [sent, failed].
+ * A notification from Admin > Clienti online, kept (push_promos): tapping it opens
+ * online.php?promo=<id>, the offer again with its link as a button.
+ * $customerIds null: every phone that said yes to promotions. A list: the phones of those
+ * customers only (with notifications on), who alone see it in their offers box
+ * (push_promo_targets). Returns [sent, failed].
  */
-function pushPromo(string $title, string $body, string $url = ''): array
+function pushPromo(string $title, string $body, string $url = '', ?array $customerIds = null): array
 {
     $pdo = getDBConnection();
     $pdo->prepare("INSERT INTO push_promos (title, body, url, created_by) VALUES (?, ?, ?, ?)")
         ->execute([$title, $body, $url !== '' ? $url : null, $_SESSION['user_id'] ?? null]);
-    $id   = (int) $pdo->lastInsertId();
-    $subs = $pdo->query("
-        SELECT s.* FROM push_subscriptions s JOIN online_customers c ON c.id = s.online_customer_id
-        WHERE s.active = 1 AND s.promos = 1 AND c.active = 1
-    ")->fetchAll();
+    $id = (int) $pdo->lastInsertId();
+    if ($customerIds === null) {
+        $subs = $pdo->query("
+            SELECT s.* FROM push_subscriptions s JOIN online_customers c ON c.id = s.online_customer_id
+            WHERE s.active = 1 AND s.promos = 1 AND c.active = 1
+        ")->fetchAll();
+    } else {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $customerIds))));
+        $add = $pdo->prepare("INSERT IGNORE INTO push_promo_targets (promo_id, customer_id) VALUES (?, ?)");
+        foreach ($ids as $cid) $add->execute([$id, $cid]);
+        $subs = [];
+        if ($ids) {
+            $st = $pdo->prepare("SELECT s.* FROM push_subscriptions s JOIN online_customers c ON c.id = s.online_customer_id
+                                 WHERE s.active = 1 AND c.active = 1 AND s.online_customer_id IN (" . implode(',', array_fill(0, count($ids), '?')) . ")");
+            $st->execute($ids);
+            $subs = $st->fetchAll();
+        }
+    }
     $res = pushSend($subs, ['title' => $title, 'body' => $body, 'url' => '/online.php?promo=' . $id, 'tag' => 'promo-' . $id]);
     $pdo->prepare("UPDATE push_promos SET sent = ?, failed = ? WHERE id = ?")->execute([$res[0], $res[1], $id]);
-    logActivity('push_promo_sent', 'push_promos', $id, ['title' => $title, 'sent' => $res[0], 'failed' => $res[1]]);
+    logActivity('push_promo_sent', 'push_promos', $id, ['title' => $title, 'customers' => $customerIds, 'sent' => $res[0], 'failed' => $res[1]]);
     return $res;
 }
 
-/**
- * A promotion as a test to one customer's phones only: kept like the others, but only
- * they see it in their offers box. Returns [sent, failed].
- */
+/** A test to one customer's phones only (only they see it). Returns [sent, failed]. */
 function pushPromoTest(int $customerId, string $title, string $body, string $url = ''): array
 {
-    $pdo = getDBConnection();
-    $pdo->prepare("INSERT INTO push_promos (title, body, url, target_customer_id, created_by) VALUES (?, ?, ?, ?, ?)")
-        ->execute([$title, $body, $url !== '' ? $url : null, $customerId, $_SESSION['user_id'] ?? null]);
-    $id = (int) $pdo->lastInsertId();
-    $st = $pdo->prepare("SELECT * FROM push_subscriptions WHERE online_customer_id = ? AND active = 1");
-    $st->execute([$customerId]);
-    $res = pushSend($st->fetchAll(), ['title' => $title, 'body' => $body, 'url' => '/online.php?promo=' . $id, 'tag' => 'promo-' . $id]);
-    $pdo->prepare("UPDATE push_promos SET sent = ?, failed = ? WHERE id = ?")->execute([$res[0], $res[1], $id]);
-    logActivity('push_promo_test_sent', 'push_promos', $id, ['customer' => $customerId, 'sent' => $res[0], 'failed' => $res[1]]);
-    return $res;
+    return pushPromo($title, $body, $url, [$customerId]);
+}
+
+/**
+ * The customers whose notifications are on, to choose from in Admin > Clienti online:
+ * [['id', 'name', 'mobile', 'devices', 'promos' (on at least one phone)]], by name.
+ */
+function pushRecipients(): array
+{
+    return getDBConnection()->query("
+        SELECT c.id, TRIM(CONCAT(c.first_name, ' ', c.last_name)) AS name, c.mobile,
+               COUNT(*) AS devices, MAX(s.promos) AS promos
+        FROM push_subscriptions s JOIN online_customers c ON c.id = s.online_customer_id
+        WHERE s.active = 1 AND c.active = 1
+        GROUP BY c.id ORDER BY c.first_name, c.last_name
+    ")->fetchAll();
 }
 
 /** One promotion sent (for online.php?promo=), or null. */
@@ -281,21 +299,30 @@ function pushPromoById(int $id): ?array
 
 /**
  * The offers still running (sent in the last $days days), newest first, for the coloured
- * box at the top of online.php: [['id', 'title', 'body', 'url', 'date']]. A test meant
- * for one customer (target_customer_id) shows to them only.
+ * box at the top of online.php: [['id', 'title', 'body', 'url', 'date']]. One sent to
+ * chosen customers (push_promo_targets) shows to them only.
  */
 function pushPromosActive(int $customerId, int $days = 7, int $limit = 3): array
 {
-    $st = getDBConnection()->prepare("SELECT id, title, body, url, created_at FROM push_promos
-                                      WHERE created_at >= NOW() - INTERVAL ? DAY AND (target_customer_id IS NULL OR target_customer_id = ?)
-                                      ORDER BY id DESC LIMIT " . max(1, $limit));
+    $st = getDBConnection()->prepare("SELECT p.id, p.title, p.body, p.url, p.created_at FROM push_promos p
+                                      WHERE p.created_at >= NOW() - INTERVAL ? DAY
+                                        AND (NOT EXISTS (SELECT 1 FROM push_promo_targets t WHERE t.promo_id = p.id)
+                                             OR EXISTS (SELECT 1 FROM push_promo_targets t WHERE t.promo_id = p.id AND t.customer_id = ?))
+                                      ORDER BY p.id DESC LIMIT " . max(1, $limit));
     $st->execute([$days, $customerId]);
     return array_map(fn($p) => ['id' => (int) $p['id'], 'title' => $p['title'], 'body' => $p['body'], 'url' => (string) $p['url'],
                                 'date' => t('promo_of', ['date' => date('d/m/Y', strtotime($p['created_at']))])], $st->fetchAll());
 }
 
-/** The last promotions sent, newest first (Admin > Clienti online). */
+/**
+ * The last notifications sent, newest first (Admin > Clienti online), with 'targets':
+ * the names of the chosen customers ('' = everybody who accepts promotions).
+ */
 function pushPromosRecent(int $limit = 5): array
 {
-    return getDBConnection()->query("SELECT * FROM push_promos ORDER BY id DESC LIMIT " . max(1, $limit))->fetchAll();
+    return getDBConnection()->query("
+        SELECT p.*, (SELECT GROUP_CONCAT(TRIM(CONCAT(c.first_name, ' ', c.last_name)) ORDER BY c.first_name SEPARATOR ', ')
+                     FROM push_promo_targets t JOIN online_customers c ON c.id = t.customer_id WHERE t.promo_id = p.id) AS targets
+        FROM push_promos p ORDER BY p.id DESC LIMIT " . max(1, $limit)
+    )->fetchAll();
 }

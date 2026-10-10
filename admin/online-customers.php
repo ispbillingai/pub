@@ -35,11 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $title = mb_substr(trim((string) ($_POST['push_title'] ?? '')), 0, 60);
         $body  = mb_substr(trim((string) ($_POST['push_body'] ?? '')), 0, 200);
         $link  = trim((string) ($_POST['push_url'] ?? ''));
-        if ($title === '' || $body === '' || ($link !== '' && !preg_match('#^https?://#i', $link))) {
+        // To everybody who accepts promotions, or only to the customers ticked in the list.
+        $chosen = ($_POST['push_to'] ?? 'all') === 'chosen' ? array_map('intval', (array) ($_POST['push_customers'] ?? [])) : null;
+        if ($title === '' || $body === '' || ($link !== '' && !preg_match('#^https?://#i', $link)) || ($chosen !== null && !$chosen)) {
             header('Location: /admin/online-customers.php?push_error=1#push');
             exit;
         }
-        [$sent, $failed] = pushPromo($title, $body, $link);
+        [$sent, $failed] = pushPromo($title, $body, $link, $chosen);
         header('Location: /admin/online-customers.php?' . http_build_query(['push_sent' => $sent, 'push_failed' => $failed]) . '#push');
         exit;
     }
@@ -237,10 +239,29 @@ include __DIR__ . '/../includes/header.php';
         <div class="alert alert-danger" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 12px 16px; margin: 12px 16px 0; border-radius: 8px;">
             <i class="fas fa-exclamation-circle"></i> <?= te('push_admin_error') ?></div>
     <?php endif; ?>
-    <form method="POST" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('push_admin_confirm', ['n' => (int) $push['promos']])), ENT_QUOTES) ?>)">
+    <?php $recipients = pushRecipients(); ?>
+    <form method="POST" id="pushForm" onsubmit="return pushConfirm()">
         <input type="hidden" name="action" value="push_promo">
         <div class="card-body">
             <p class="text-muted" style="margin-top:0;font-size:.9rem;"><?= te('push_admin_intro') ?></p>
+            <!-- To everybody who accepts promotions, or to the customers chosen here -->
+            <label class="form-label"><?= te('push_admin_to') ?></label>
+            <div class="push-to">
+                <label><input type="radio" name="push_to" value="all" checked onchange="pushTo()"> <?= te('push_admin_to_all', ['n' => (int) $push['promos']]) ?></label>
+                <label><input type="radio" name="push_to" value="chosen" onchange="pushTo()" <?= $recipients ? '' : 'disabled' ?>> <?= te('push_admin_to_chosen') ?></label>
+            </div>
+            <div class="push-pick" id="pushPick" hidden>
+                <input type="search" class="form-control" placeholder="<?= te('push_admin_search_ph') ?>" oninput="pushFilter(this.value)">
+                <div class="push-list">
+                    <?php foreach ($recipients as $r): ?>
+                        <label data-q="<?= htmlspecialchars(mb_strtolower($r['name'] . ' ' . $r['mobile'])) ?>">
+                            <input type="checkbox" name="push_customers[]" value="<?= (int) $r['id'] ?>" onchange="pushCount()">
+                            <span><strong><?= htmlspecialchars($r['name']) ?></strong> <small class="text-muted"><?= htmlspecialchars($r['mobile']) ?> · <?= te('push_admin_devices', ['n' => (int) $r['devices']]) ?></small></span>
+                            <?php if (!$r['promos']): ?><span class="badge badge-light" title="<?= te('push_admin_no_promos_title') ?>"><?= te('push_admin_no_promos') ?></span><?php endif; ?>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
             <label class="form-label"><?= te('push_admin_field_title') ?></label>
             <input type="text" name="push_title" class="form-control" maxlength="60" required placeholder="<?= te('push_admin_title_ph') ?>">
             <label class="form-label" style="margin-top:8px;"><?= te('push_admin_field_body') ?></label>
@@ -249,16 +270,48 @@ include __DIR__ . '/../includes/header.php';
             <input type="url" name="push_url" class="form-control" maxlength="300" placeholder="https://…">
         </div>
         <div class="card-footer">
-            <button type="submit" class="btn btn-primary" <?= (int) $push['promos'] ? '' : 'disabled' ?>><i class="fas fa-paper-plane"></i> <?= te('push_admin_send', ['n' => (int) $push['promos']]) ?></button>
+            <button type="submit" class="btn btn-primary" id="pushSend"><i class="fas fa-paper-plane"></i> <span id="pushSendLabel"></span></button>
         </div>
     </form>
+    <style>
+    .push-to { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; }
+    .push-to label, .push-list label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+    .push-pick { margin-bottom: 12px; }
+    .push-list { max-height: 260px; overflow-y: auto; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; margin-top: 6px; }
+    .push-list label { padding: 8px 12px; border-bottom: 1px solid var(--border-color, #e5e7eb); }
+    .push-list label:last-child { border-bottom: 0; }
+    .push-list label span:first-of-type { flex: 1; }
+    .push-list input { width: 18px; height: 18px; }
+    </style>
+    <script>
+    const PUSH_ALL = <?= (int) $push['promos'] ?>;
+    const PUSH_T = <?= json_encode(['send_all' => t('push_admin_send', ['n' => '{n}']), 'send_chosen' => t('push_admin_send_chosen', ['n' => '{n}']),
+                                    'confirm_all' => t('push_admin_confirm', ['n' => '{n}']), 'confirm_chosen' => t('push_admin_confirm_chosen', ['n' => '{n}'])], JSON_UNESCAPED_UNICODE) ?>;
+    const pushChosen = () => document.querySelector('input[name="push_to"]:checked').value === 'chosen';
+    const pushPicked = () => document.querySelectorAll('input[name="push_customers[]"]:checked').length;
+    function pushTo() { document.getElementById('pushPick').hidden = !pushChosen(); pushCount(); }
+    function pushCount() {
+        const n = pushChosen() ? pushPicked() : PUSH_ALL;
+        document.getElementById('pushSendLabel').textContent = (pushChosen() ? PUSH_T.send_chosen : PUSH_T.send_all).replace('{n}', n);
+        document.getElementById('pushSend').disabled = !n;
+    }
+    function pushFilter(q) {
+        q = q.trim().toLowerCase();
+        document.querySelectorAll('.push-list label').forEach(l => { l.hidden = q !== '' && !l.dataset.q.includes(q); });
+    }
+    function pushConfirm() {
+        const n = pushChosen() ? pushPicked() : PUSH_ALL;
+        return confirm((pushChosen() ? PUSH_T.confirm_chosen : PUSH_T.confirm_all).replace('{n}', n));
+    }
+    pushCount();
+    </script>
     <?php if ($recentPromos = pushPromosRecent()): ?>
         <div class="card-body" style="border-top:1px solid var(--border-color,#e5e7eb);">
             <h3 style="font-size:.95rem;margin:0 0 8px;"><i class="fas fa-clock-rotate-left"></i> <?= te('push_admin_recent') ?></h3>
             <?php foreach ($recentPromos as $p): ?>
                 <div class="d-flex align-center gap-sm" style="justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border-color,#e5e7eb);">
                     <span><strong><?= htmlspecialchars($p['title']) ?></strong> <span class="text-muted">— <?= htmlspecialchars($p['body']) ?></span>
-                        <?php if (!empty($p['target_customer_id'])): ?><span class="badge badge-light"><?= te('push_admin_test_badge') ?></span><?php endif; ?><br>
+                        <br><small><?= $p['targets'] ? '<i class="fas fa-user"></i> ' . te('push_admin_to_names', ['names' => $p['targets']]) : '<i class="fas fa-users"></i> ' . te('push_admin_to_everyone') ?></small><br>
                         <small class="text-muted"><?= te('push_admin_recent_row', ['date' => date('d/m/Y H:i', strtotime($p['created_at'])), 'sent' => (int) $p['sent']]) ?></small></span>
                     <!-- What the customer sees on tapping the notification -->
                     <a class="btn btn-sm btn-outline" href="/online.php?promo=<?= (int) $p['id'] ?>" target="_blank" rel="noopener"><i class="fas fa-eye"></i> <?= te('push_admin_preview') ?></a>
