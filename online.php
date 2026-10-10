@@ -25,6 +25,8 @@ $cardMode = !empty($_GET['tessera']);
 if ($cardMode) { $GLOBALS['ONLINE_CARD_MODE'] = true; $_SESSION['online_card_mode'] = 1; }
 else unset($_SESSION['online_card_mode']);
 $waUrl = onlineCurrentCustomer() ? null : onlineWaUrl();
+// A promotion's notification was tapped (?promo=<id>): its offer opens over the page.
+$promo = !empty($_GET['promo']) ? pushPromoById((int) $_GET['promo']) : null;
 $flash = $_SESSION['online_flash'] ?? '';
 unset($_SESSION['online_flash']);
 
@@ -80,6 +82,8 @@ $L = [
     'all_ready'         => t('online_all_ready'),
     'all_ready_delivery'=> t('online_all_ready_delivery'),
     'ready_body_delivery' => t('online_ready_body_delivery'),
+    'promo'             => $promo ? ['title' => $promo['title'], 'body' => $promo['body'], 'url' => (string) $promo['url'],
+                                     'date' => t('promo_of', ['date' => date('d/m/Y', strtotime($promo['created_at']))])] : null,
     'push_on_toast'     => t('push_on_toast'),
     'push_failed'       => t('push_failed'),
 ];
@@ -262,6 +266,14 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .ful-radio input { width: 20px; height: 20px; flex: 0 0 auto; }
 .ful-info { display: flex; gap: 10px; align-items: flex-start; background: #f0f9ff; border-radius: 12px; padding: 12px; margin-top: 12px; font-size: .9rem; }
 .ful-info i { color: var(--p); font-size: 1.2rem; margin-top: 2px; }
+/* A promotion, opened from its notification */
+#promoSheet { z-index: 12; }
+.promo-sheet { text-align: center; }
+.promo-badge { display: inline-flex; gap: 6px; align-items: center; background: #fff7ed; color: var(--p); font-weight: 800; border-radius: 999px; padding: 6px 14px; font-size: .85rem; text-transform: uppercase; letter-spacing: .05em; }
+.promo-sheet h3 { font-size: 1.45rem; margin: 12px 0 8px; color: #7a1428; }
+.promo-sheet p { font-size: 1.05rem; line-height: 1.45; margin: 0 0 6px; white-space: pre-line; }
+.promo-date { color: var(--muted); }
+.promo-link { text-decoration: none; text-align: center; box-sizing: border-box; margin-top: 8px; }
 /* "Attiva le notifiche" */
 .push-card { border: 2px solid #fed7aa; }
 .push-card > div { display: none; }
@@ -506,6 +518,18 @@ $footHtml = ob_get_clean(); ?>
             <button class="btn-no" onclick="$('customSheet').classList.remove('on')"><?= te('cancel') ?></button>
             <button class="btn-go" id="customAddBtn" onclick="customAdd()"></button>
         </div>
+    </div>
+</div>
+<!-- A promotion's notification tapped: the offer, with "Ordina ora" and its link -->
+<div class="sheet-bg" id="promoSheet" onclick="if (event.target === this) promoClose()">
+    <div class="sheet promo-sheet">
+        <div class="promo-badge"><i class="fas fa-gift"></i> <?= te('promo_label') ?></div>
+        <h3 id="promoTitle"></h3>
+        <p id="promoBody"></p>
+        <small class="promo-date" id="promoDate"></small>
+        <button class="btn-go" onclick="promoOrder()"><i class="fas fa-utensils"></i> <?= te('promo_order') ?></button>
+        <a class="btn-go btn-no promo-link" id="promoLink" target="_blank" rel="noopener" hidden><i class="fas fa-up-right-from-square"></i> <?= te('promo_more') ?></a>
+        <div class="row"><button class="btn-no" onclick="promoClose()"><?= te('close') ?></button></div>
     </div>
 </div>
 <div class="sheet-bg" id="videoSheet" onclick="if (event.target === this) closeDishVideo()">
@@ -875,6 +899,28 @@ function pushPromosChanged(box) {
     if (pushSub) pushSave(false);
 }
 pushInit();
+
+/* ---- A promotion's notification was tapped (?promo=): the offer over the page ---- */
+function promoOpen(p) {
+    $('promoTitle').textContent = p.title;
+    $('promoBody').textContent = p.body;
+    $('promoDate').textContent = p.date;
+    $('promoLink').hidden = !p.url;
+    if (p.url) $('promoLink').href = p.url;
+    $('promoSheet').classList.add('on');
+}
+function promoClose() {
+    $('promoSheet').classList.remove('on');
+    // A reload doesn't open it again.
+    try { history.replaceState(null, '', location.pathname + location.search.replace(/([?&])promo=\d+&?/, '$1').replace(/[?&]$/, '')); } catch (e) {}
+}
+// "Ordina ora": the menu (signed out: the sign-in under the offer).
+function promoOrder() {
+    promoClose();
+    if (state && state.signed_in !== false && state.customer) openShop();
+    window.scrollTo(0, 0);
+}
+if (L.promo) promoOpen(L.promo);
 
 /* ---- The menu and the cart (kept on this phone until sent) ---- */
 let shopOpen = false, shopMenu = null, shopCat = null;

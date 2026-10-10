@@ -252,6 +252,19 @@ include __DIR__ . '/../includes/header.php';
             <button type="submit" class="btn btn-primary" <?= (int) $push['promos'] ? '' : 'disabled' ?>><i class="fas fa-paper-plane"></i> <?= te('push_admin_send', ['n' => (int) $push['promos']]) ?></button>
         </div>
     </form>
+    <?php if ($recentPromos = pushPromosRecent()): ?>
+        <div class="card-body" style="border-top:1px solid var(--border-color,#e5e7eb);">
+            <h3 style="font-size:.95rem;margin:0 0 8px;"><i class="fas fa-clock-rotate-left"></i> <?= te('push_admin_recent') ?></h3>
+            <?php foreach ($recentPromos as $p): ?>
+                <div class="d-flex align-center gap-sm" style="justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border-color,#e5e7eb);">
+                    <span><strong><?= htmlspecialchars($p['title']) ?></strong> <span class="text-muted">— <?= htmlspecialchars($p['body']) ?></span><br>
+                        <small class="text-muted"><?= te('push_admin_recent_row', ['date' => date('d/m/Y H:i', strtotime($p['created_at'])), 'sent' => (int) $p['sent']]) ?></small></span>
+                    <!-- What the customer sees on tapping the notification -->
+                    <a class="btn btn-sm btn-outline" href="/online.php?promo=<?= (int) $p['id'] ?>" target="_blank" rel="noopener"><i class="fas fa-eye"></i> <?= te('push_admin_preview') ?></a>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 </div>
 
 <?php if ($detail): ?>

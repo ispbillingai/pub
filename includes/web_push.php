@@ -232,14 +232,37 @@ function pushStats(): array
     ")->fetch();
 }
 
-/** A promotion to every phone that said yes to promotions. Returns [sent, failed]. */
+/**
+ * A promotion to every phone that said yes to promotions. It is kept (push_promos):
+ * tapping the notification opens online.php?promo=<id>, the offer again with its link
+ * as a button. Returns [sent, failed].
+ */
 function pushPromo(string $title, string $body, string $url = ''): array
 {
-    $subs = getDBConnection()->query("
+    $pdo = getDBConnection();
+    $pdo->prepare("INSERT INTO push_promos (title, body, url, created_by) VALUES (?, ?, ?, ?)")
+        ->execute([$title, $body, $url !== '' ? $url : null, $_SESSION['user_id'] ?? null]);
+    $id   = (int) $pdo->lastInsertId();
+    $subs = $pdo->query("
         SELECT s.* FROM push_subscriptions s JOIN online_customers c ON c.id = s.online_customer_id
         WHERE s.active = 1 AND s.promos = 1 AND c.active = 1
     ")->fetchAll();
-    $res = pushSend($subs, ['title' => $title, 'body' => $body, 'url' => $url !== '' ? $url : '/online.php', 'tag' => 'promo-' . time()]);
-    logActivity('push_promo_sent', 'push_subscriptions', null, ['title' => $title, 'sent' => $res[0], 'failed' => $res[1]]);
+    $res = pushSend($subs, ['title' => $title, 'body' => $body, 'url' => '/online.php?promo=' . $id, 'tag' => 'promo-' . $id]);
+    $pdo->prepare("UPDATE push_promos SET sent = ?, failed = ? WHERE id = ?")->execute([$res[0], $res[1], $id]);
+    logActivity('push_promo_sent', 'push_promos', $id, ['title' => $title, 'sent' => $res[0], 'failed' => $res[1]]);
     return $res;
+}
+
+/** One promotion sent (for online.php?promo=), or null. */
+function pushPromoById(int $id): ?array
+{
+    $st = getDBConnection()->prepare("SELECT id, title, body, url, created_at FROM push_promos WHERE id = ?");
+    $st->execute([$id]);
+    return $st->fetch() ?: null;
+}
+
+/** The last promotions sent, newest first (Admin > Clienti online). */
+function pushPromosRecent(int $limit = 5): array
+{
+    return getDBConnection()->query("SELECT * FROM push_promos ORDER BY id DESC LIMIT " . max(1, $limit))->fetchAll();
 }
