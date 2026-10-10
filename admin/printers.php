@@ -4,12 +4,32 @@
  * Configure the kitchen (non-fiscal), cashier-bill (non-fiscal) and fiscal
  * printers with their IP addresses. Saved to the DB (settings.printers) and
  * overlaid on the device config, so no file editing is needed.
+ * "IVA e reparti": the department (reparto) programmed on the fiscal printer for each IVA
+ * rate (settings.vat_departments, includes/vat.php), and the rate of the till's free amounts.
  */
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/settings.php';
 require_once __DIR__ . '/../includes/devices.php';
+require_once __DIR__ . '/../includes/vat.php';
+require_once __DIR__ . '/../includes/till.php';
 requireRole(['admin']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_vat') {
+    $map = [];
+    foreach (VAT_RATES as $r) {
+        $d = (int) ($_POST['dept'][vatKey($r)] ?? 0);
+        if ($d > 0 && $d <= 99) $map[vatKey($r)] = $d;
+    }
+    setSetting('vat_departments', $map);
+    // The keypad's / voice's free amounts ("Varie"): one rate for all of them.
+    if (($free = vatPosted($_POST['free_vat'] ?? null)) !== null && isset($map[vatKey($free)])) {
+        getDBConnection()->prepare("UPDATE menu_items SET vat_rate = ? WHERE id = ?")->execute([$free, tillFreeItemId()]);
+    }
+    logActivity('vat_departments_updated', 'settings', null, $map);
+    header('Location: /admin/printers.php?vat_saved=1#vat');
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_printers') {
     $normUrl = static function (string $v): string {
@@ -51,6 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 $k = deviceConfig('kitchen_printer');
 $c = deviceConfig('cashier_printer');
 $f = deviceConfig('fiscal_printer');
+$vatDeps = vatDepartments();
+vatFillMissing();
+$freeVat = (float) (getDBConnection()->query("SELECT vat_rate FROM menu_items WHERE id = " . tillFreeItemId())->fetchColumn() ?: 10);
 
 $pageTitle = t('printers_setup');
 include __DIR__ . '/../includes/header.php';
@@ -163,6 +186,34 @@ $cpVal = static function ($v, $d = '') { return htmlspecialchars((string) ($v ??
     </div>
 
     <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> <?= te('save') ?></button>
+</form>
+
+<!-- IVA: the fiscal printer's department for each rate -->
+<form method="POST" class="card printer-card" id="vat" style="margin-top:var(--space-lg);">
+    <input type="hidden" name="action" value="save_vat">
+    <div class="card-header"><h2><i class="fas fa-percent"></i> <?= te('vat_departments_title') ?></h2></div>
+    <div class="card-body">
+        <?php if (!empty($_GET['vat_saved'])): ?><div class="alert alert-success mb-md"><?= te('saved') ?></div><?php endif; ?>
+        <p class="text-muted"><?= te('vat_departments_hint') ?></p>
+        <table class="data-table" style="max-width:520px;">
+            <thead><tr><th><?= te('vat') ?></th><th><?= te('vat_department') ?></th></tr></thead>
+            <tbody>
+            <?php foreach (VAT_RATES as $r): $k = vatKey($r); ?>
+                <tr>
+                    <td><strong><?= htmlspecialchars(vatLabel($r)) ?></strong></td>
+                    <td><input type="number" min="1" max="99" name="dept[<?= $k ?>]" class="form-control" style="max-width:110px;"
+                               value="<?= isset($vatDeps[$k]) ? (int) $vatDeps[$k] : '' ?>" placeholder="<?= te('vat_not_used') ?>"></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <div class="form-group mt-md" style="max-width:520px;">
+            <label class="form-label"><?= te('vat_free_amounts') ?></label>
+            <?= vatSelect('free_vat', $freeVat, 'class="form-control" style="max-width:160px;"') ?>
+            <small class="text-muted d-block"><?= te('vat_free_amounts_hint') ?></small>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= te('save') ?></button>
+    </div>
 </form>
 
 <script>

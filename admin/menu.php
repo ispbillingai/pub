@@ -6,6 +6,8 @@
 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/menu_images.php';
+require_once __DIR__ . '/../includes/vat.php';
+vatFillMissing();   // products added before the IVA column, or elsewhere: their suggested rate
 requireRole(['admin']);
 
 $pdo = getDBConnection();
@@ -108,12 +110,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $videoUrl = saveMenuVideo('video', $videoError);
         // Blank = inherit the category's work point.
         $stationId = (($_POST['station_id'] ?? '') !== '') ? (int) $_POST['station_id'] : null;
-        $stmt = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, preparation_time, image_url, video_url, station_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, vat_rate, preparation_time, image_url, video_url, station_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $_POST['category_id'],
             $_POST['name'],
             $_POST['description'],
             $_POST['base_price'],
+            vatPosted($_POST['vat_rate'] ?? null) ?? vatSuggest((string) $_POST['name'], '', false),
             $_POST['preparation_time'] ?? 15,
             $imageUrl,
             $videoUrl,
@@ -142,6 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $catId  = (int) $_POST['category_id'];
         // Blank = inherit the category's work point.
         $stationId = (($_POST['station_id'] ?? '') !== '') ? (int) $_POST['station_id'] : null;
+        if (($vat = vatPosted($_POST['vat_rate'] ?? null)) !== null) {
+            $pdo->prepare("UPDATE menu_items SET vat_rate = ? WHERE id = ?")->execute([$vat, $itemId]);
+        }
         $stmt = $pdo->prepare("UPDATE menu_items SET category_id = ?, name = ?, description = ?, base_price = ?, preparation_time = ?, station_id = ? WHERE id = ?");
         $stmt->execute([
             $catId,
@@ -367,6 +373,7 @@ include __DIR__ . '/partials/menu_share.php';
                         <th><?= te('name') ?></th>
                         <th><?= te('description') ?></th>
                         <th><?= te('price') ?></th>
+                        <th><?= te('vat') ?></th>
                         <th><?= te('prep_time') ?></th>
                         <th><?= te('item_station') ?></th>
                         <th><?= te('actions') ?></th>
@@ -388,6 +395,7 @@ include __DIR__ . '/partials/menu_share.php';
                             </td>
                             <td class="text-muted"><?= htmlspecialchars(substr($item['description'] ?? '', 0, 50)) ?>...</td>
                             <td><strong class="text-primary"><?= formatCurrency($item['base_price']) ?></strong></td>
+                            <td><span class="badge badge-light"><?= htmlspecialchars(vatLabel((float) ($item['vat_rate'] ?? 10))) ?></span></td>
                             <td><?= $item['preparation_time'] ?> <?= te('minutes_short') ?></td>
                             <td>
                                 <?php
@@ -413,6 +421,7 @@ include __DIR__ . '/partials/menu_share.php';
                                             "name" => $item["name"],
                                             "description" => $item["description"],
                                             "base_price" => $item["base_price"],
+                                            "vat_rate" => vatKey((float) ($item["vat_rate"] ?? 10)),
                                             "preparation_time" => $item["preparation_time"],
                                             "station_id" => $item["station_id"] ?? null,
                                             "video_url" => $item["video_url"] ?? null,
@@ -713,6 +722,10 @@ include __DIR__ . '/partials/menu_share.php';
                         <input type="number" name="base_price" class="form-control" step="0.01" required>
                     </div>
                     <div class="form-group">
+                        <label class="form-label"><?= te('vat') ?></label>
+                        <?= vatSelect('vat_rate', null, 'class="form-control" title="' . te('vat_hint_table') . '"') ?>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label"><?= te('prep_time_min') ?></label>
                         <input type="number" name="preparation_time" class="form-control" value="15">
                     </div>
@@ -784,6 +797,10 @@ include __DIR__ . '/partials/menu_share.php';
                     <div class="form-group">
                         <label class="form-label"><?= te('price') ?></label>
                         <input type="number" name="base_price" id="ei_price" class="form-control" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><?= te('vat') ?></label>
+                        <?= vatSelect('vat_rate', 10.0, 'id="ei_vat" class="form-control"') ?>
                     </div>
                     <div class="form-group">
                         <label class="form-label"><?= te('prep_time_min') ?></label>
@@ -874,6 +891,9 @@ function openEditItem(item) {
     document.getElementById('ei_name').value = item.name;
     document.getElementById('ei_description').value = item.description || '';
     document.getElementById('ei_price').value = item.base_price;
+    const vat = document.getElementById('ei_vat');
+    if (![...vat.options].some(o => o.value === item.vat_rate)) vat.add(new Option(item.vat_rate + '%', item.vat_rate));
+    vat.value = item.vat_rate;
     document.getElementById('ei_prep').value = item.preparation_time;
     document.getElementById('ei_station').value = item.station_id ? String(item.station_id) : '';
     // The dish's video: preview it, replace it or remove it.

@@ -10,6 +10,7 @@
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/devices.php';
 require_once __DIR__ . '/FiscalClient.php';
+require_once __DIR__ . '/vat.php';
 
 /**
  * Record a device payment against an order and close it out.
@@ -104,16 +105,12 @@ function emitFiscalForOrder(int $orderId, int $paymentId, int $amountCents, stri
         return ['ok' => false, 'error' => 'fiscal_printer_disabled'];
     }
 
-    $emit = $fiscal->emit(
-        [[
-            'description' => 'ORDER #' . $orderId,
-            'quantity'    => '1',
-            'unitPrice'   => number_format($amountCents / 100, 2, '.', ''),
-            'department'  => 1,
-        ]],
-        $amountCents,
-        in_array($method, ['card', 'dojo'], true) ? 'card' : 'cash'
-    );
+    // Each product on the department of its IVA rate (includes/vat.php). A rate with no
+    // department on the printer: no receipt rather than a wrong one (handled as a failed print).
+    $lines = fiscalLinesForOrder($orderId, $amountCents);
+    $emit = $lines['ok']
+        ? $fiscal->emit($lines['items'], $amountCents, in_array($method, ['card', 'dojo'], true) ? 'card' : 'cash')
+        : ['ok' => false, 'error' => $lines['error'] . ' (IVA ' . ($lines['rate'] ?? '?') . '%)'];
 
     $pdo = getDBConnection();
     if (!empty($emit['ok'])) {
