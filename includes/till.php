@@ -87,7 +87,8 @@ function tillVoiceWords(string $raw): ?string
 }
 
 /**
- * Book the ticket: [['id' => till product, 'qty' => n] | ['id', 'qty', 'amount' => price said by voice] | ['amount' => euros]].
+ * Book the ticket: [['id' => till product, 'qty' => n] | ['id', 'qty', 'amount' => price said by voice]
+ * | ['amount' => euros, 'label' => name said by voice for a product not on the Menu cassa, optional]].
  * $targetOrderId: an online customer's open order to add it to, or null for a
  * new counter sale; $customerCode: the Clienti cassa customer scanned for it.
  * Returns ['ok' => order id] or ['error' => lang key].
@@ -100,12 +101,14 @@ function tillCheckout(array $lines, ?int $targetOrderId, int $userId, ?string $c
     $pdo  = getDBConnection();
     $prod = $pdo->prepare("SELECT mi.id, mi.base_price FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
                            WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1 AND mc.till_only = 1");
-    $book = [];                                         // [menu item id, qty, unit price]
+    $book = [];                                         // [menu item id, qty, unit price, name said or null]
     foreach (array_slice($lines, 0, 100) as $l) {
         if (isset($l['amount']) && !isset($l['id'])) {
             $amount = round((float) $l['amount'], 2);
             if ($amount <= 0 || $amount > TILL_MAX_AMOUNT) return ['error' => 'till_err_amount'];
-            $book[] = [tillFreeItemId(), 1, $amount];
+            // A product said by voice that isn't on the Menu cassa: a "Varie" with its name ("Varie - Pane").
+            $label = mb_substr(trim(preg_replace('/[\x00-\x1F]+/', ' ', (string) ($l['label'] ?? ''))), 0, 60);
+            $book[] = [tillFreeItemId(), 1, $amount, $label !== '' ? mb_strtoupper(mb_substr($label, 0, 1)) . mb_substr($label, 1) : null];
             continue;
         }
         $qty = (int) ($l['qty'] ?? 0);
@@ -118,7 +121,7 @@ function tillCheckout(array $lines, ?int $targetOrderId, int $userId, ?string $c
             $unit = round((float) $l['amount'], 2);
             if ($unit <= 0 || $unit * min($qty, 99) > TILL_MAX_AMOUNT) return ['error' => 'till_err_amount'];
         }
-        $book[] = [(int) $p['id'], min($qty, 99), $unit];
+        $book[] = [(int) $p['id'], min($qty, 99), $unit, null];
     }
     if (!$book) return ['error' => 'till_err_empty'];
 
@@ -138,10 +141,10 @@ function tillCheckout(array $lines, ?int $targetOrderId, int $userId, ?string $c
     }
 
     // Handed over at the counter: served at once, never on the kitchen display or a slip.
-    $add = $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, status, served_at, added_by)
-                          VALUES (?, NULL, ?, ?, ?, ?, 'served', NOW(), ?)");
-    foreach ($book as [$itemId, $qty, $unit]) {
-        $add->execute([$orderId, $itemId, $qty, $unit, $unit * $qty, $userId]);
+    $add = $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, notes, status, served_at, added_by)
+                          VALUES (?, NULL, ?, ?, ?, ?, ?, 'served', NOW(), ?)");
+    foreach ($book as [$itemId, $qty, $unit, $label]) {
+        $add->execute([$orderId, $itemId, $qty, $unit, $unit * $qty, $label, $userId]);
     }
     calculateOrderTotals($orderId);
     logActivity($targetOrderId ? 'till_added_to_online_order' : 'till_counter_sale', 'orders', $orderId, ['lines' => count($book)]);

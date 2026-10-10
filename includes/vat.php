@@ -119,8 +119,8 @@ function fiscalLinesForOrder(int $orderId, int $totalCents): array
     $deps = vatDepartments();
     vatFillMissing();
     $st = $pdo->prepare("
-        SELECT mi.name, mi.vat_rate, oi.quantity, oi.unit_price, oi.total_price
-        FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id
+        SELECT " . TILL_LINE_NAME_SQL . " AS name, mi.vat_rate, oi.quantity, oi.unit_price, oi.total_price
+        FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id JOIN menu_categories mc ON mc.id = mi.category_id
         WHERE oi.order_id = ? AND oi.status <> 'cancelled' AND oi.total_price > 0
         ORDER BY oi.id
     ");

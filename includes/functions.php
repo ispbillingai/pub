@@ -420,12 +420,19 @@ function refreshOrderTableLabel($orderId) {
 }
 
 /**
+ * A till line's name in SQL (needs mi = menu_items, mc = menu_categories, oi = order_items):
+ * a "Varie" said by voice for a product not on the Menu cassa keeps the spoken name in
+ * its notes, and shows as "Varie - Pane" (receipt, payment page, fiscal receipt, WhatsApp).
+ */
+const TILL_LINE_NAME_SQL = "IF(mc.till_only = 1 AND COALESCE(oi.notes, '') <> '', CONCAT(mi.name, ' - ', oi.notes), mi.name)";
+
+/**
  * Get order items (added_by_name: the waiter who added the dish, null = the guest / online / older dishes)
  */
 function getOrderItems($orderId) {
     $pdo = getDBConnection();
     $stmt = $pdo->prepare("
-        SELECT oi.*, mi.name as item_name, mc.name as category_name, ua.full_name AS added_by_name
+        SELECT oi.*, " . TILL_LINE_NAME_SQL . " as item_name, mc.name as category_name, ua.full_name AS added_by_name
         FROM order_items oi
         JOIN menu_items mi ON oi.menu_item_id = mi.id
         JOIN menu_categories mc ON mi.category_id = mc.id

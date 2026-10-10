@@ -402,7 +402,7 @@ function tStep(i, d) {
 }
 function renderTicket() {
     $id('tLines').innerHTML = ticket.length ? ticket.map((l, i) => l.amount !== undefined
-        ? `<div class="t-line"><span class="n">${escH(TL.free)}</span><span class="p">${money(l.amount)}</span><button type="button" onclick="tStep(${i}, -1)">✕</button></div>`
+        ? `<div class="t-line"><span class="n">${escH(l.label ? TL.free + ' - ' + l.label : TL.free)}${l.label ? '<i class="fas fa-microphone vx" aria-hidden="true"></i>' : ''}</span><span class="p">${money(l.amount)}</span><button type="button" onclick="tStep(${i}, -1)">✕</button></div>`
         : `<div class="t-line"><span class="n">${l.qty}× ${escH(l.name)}${l.custom ? '<i class="fas fa-microphone vx" aria-hidden="true"></i>' : ''}</span><span class="p">${money(lineTotal(l))}</span>
                <button type="button" onclick="tStep(${i}, -1)">−</button><button type="button" onclick="tStep(${i}, 1)">+</button></div>`).join('')
         : `<div class="till-empty">${escH(TL.empty)}</div>`;
@@ -418,7 +418,7 @@ async function tCheckout() {
     if (!ticket.length) return;
     $id('tPay').disabled = true;
     try {
-        const lines = ticket.map(l => l.amount !== undefined ? { amount: l.amount }
+        const lines = ticket.map(l => l.amount !== undefined ? (l.label ? { amount: l.amount, label: l.label } : { amount: l.amount })
                                    : l.custom ? { id: l.id, qty: l.qty, amount: l.unit } : { id: l.id, qty: l.qty });
         const r = await (await fetch('/api/till.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'checkout', lines, target_order_id: $id('tTarget').value || null,

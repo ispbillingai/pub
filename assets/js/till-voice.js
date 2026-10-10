@@ -362,7 +362,7 @@
                 if (tk[i].voice) {
                     const gone = tk.splice(i, 1)[0];
                     host.changed();
-                    toast(fill(L.undone, { name: gone.name || L.free }), 'info', 2000);
+                    toast(fill(L.undone, { name: gone.name || (gone.label ? L.free + ' - ' + gone.label : L.free) }), 'info', 2000);
                     return;
                 }
             }
@@ -377,8 +377,10 @@
             // Same rule as the keypad: over 50 € it must be confirmed (a slip: "23" heard instead of "2,30").
             if (unit * l.qty > 50 && !root.confirm(fill(L.big, { amount: host.money(unit * l.qty) }))) continue;
             if (l.kind === 'free') {
-                for (let n = 0; n < l.qty; n++) tk.push({ amount: unit, voice: true });
-                done.push(L.free + ' ' + host.money(unit * l.qty));
+                // Not on the Menu cassa: a "Varie" that keeps the name said ("Varie - Pane").
+                const label = l.unknown && l.said ? l.said.charAt(0).toUpperCase() + l.said.slice(1) : '';
+                for (let n = 0; n < l.qty; n++) tk.push(label ? { amount: unit, voice: true, label } : { amount: unit, voice: true });
+                done.push((label ? L.free + ' - ' + label : L.free) + ' ' + host.money(unit * l.qty));
                 if (l.unknown) toast(fill(L.as_free, { name: l.said }), 'warning', 4000);
                 continue;
             }
