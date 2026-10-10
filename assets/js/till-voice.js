@@ -211,6 +211,7 @@
             if (is(/^(fatto|fine|ok fatto|nuova vendita|finito)$/)) return { cmd: 'done' };
             return null;
         }
+        if (is(/^(chiudi|esci|indietro|torna indietro|fatto|fine)$/)) return { cmd: 'noop' };     // payment words with no payment open
         if (is(/^(si|conferma|confermo|ok|va bene|certo)$/)) return { cmd: 'yes' };
         if (is(/^(no|lascia stare|niente|lascia)$/)) return { cmd: 'no' };
         if (is(/^(incassa|paga|pagamento|vai al pagamento|procedi( al pagamento)?|chiudi( lo)? scontrino|fai( il)? conto)$/)) return { cmd: 'checkout' };
@@ -448,6 +449,7 @@
                 toast(L.pay_open, 'info', 6000);
                 break;
             case 'collect': collect(c.words); break;
+            case 'noop': toast(L.no_btn, 'info', 2000); break;
             case 'total': {
                 const tot = host.total();
                 const e = Math.floor(tot + 1e-9), cents = Math.round((tot - e) * 100);
