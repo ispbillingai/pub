@@ -1780,5 +1780,9 @@ return [
     'online_err_addr' => 'A delivery needs the address and the house number.',
     'online_pay_rider' => 'You pay the rider in cash on delivery.',
     'online_pay_rider_short' => 'Cash to the rider',
-    'online_cart_hint_rider' => 'Once sent, the order is prepared. You pay the rider in cash on delivery.',
+    'online_ready_delivery_text' => 'Hi {name}, your order *{order}* from *{restaurant}* is ready! 🎉'."\n\n".'We\'re on our way: only the delivery to {address} is left. 🛵'."\n".'You pay the rider {total} in cash.',
+    'online_all_ready_delivery' => 'Your order is ready: we\'re on our way!',
+    'online_ready_body_delivery' => 'We\'re on our way: only the delivery is left.',
+    'online_st_ready_delivery' => 'Ready: on its way',
+    'online_cart_hint_rider' =>'Once sent, the order is prepared. You pay the rider in cash on delivery.',
 ];

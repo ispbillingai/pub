@@ -77,6 +77,9 @@ $L = [
     'pay_rider'         => t('online_pay_rider'),
     'cart_hint_till'    => t('online_cart_hint'),
     'cart_hint_rider'   => t('online_cart_hint_rider'),
+    'all_ready'         => t('online_all_ready'),
+    'all_ready_delivery'=> t('online_all_ready_delivery'),
+    'ready_body_delivery' => t('online_ready_body_delivery'),
 ];
 $countries = phoneCountryOptions();
 $mLang     = currentLang() === 'it' ? 'it' : 'en';
@@ -541,7 +544,7 @@ $footHtml = ob_get_clean(); ?>
 
 <!-- Signed in with an order: how it is doing -->
 <main id="app" hidden>
-    <div class="all-ready" id="allReady" hidden><i class="fas fa-bell-concierge"></i><div><?= te('online_all_ready') ?></div></div>
+    <div class="all-ready" id="allReady" hidden><i class="fas fa-bell-concierge"></i><div id="allReadyText"><?= te('online_all_ready') ?></div></div>
     <button class="order-more" onclick="openShop()"><i class="fas fa-plus"></i> <?= te('self_order_more') ?></button>
     <div class="card">
         <h2><i class="fas fa-receipt"></i> <span class="hello"></span></h2>
@@ -638,6 +641,7 @@ function render(s) {
     $('payNote').textContent = delivery ? L.pay_rider : L.pay_till;
     $('payNoteIcon').className = 'fas ' + (delivery ? 'fa-money-bill-wave' : 'fa-cash-register');
     $('payQrCard').hidden = delivery;
+    $('allReadyText').textContent = delivery ? L.all_ready_delivery : L.all_ready;
     $('allReady').hidden = !s.all_ready;
     renderPayQr(s.order && s.order.pay_url);
     notifyReady(s);
@@ -1149,12 +1153,14 @@ let wasReady = null;
 function notifyReady(s) {
     const ready = !!s.all_ready;
     if (wasReady === false && ready) {
+        // A delivery: "we're on our way" instead of "come to the counter".
+        const body = s.order && s.order.fulfil && s.order.fulfil.delivery ? L.ready_body_delivery : L.ready_body;
         $('readyTitle').textContent = L.ready_title;
-        $('readyBody').textContent = L.ready_body;
+        $('readyBody').textContent = body;
         $('readyBanner').hidden = false;
         try { navigator.vibrate && navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) {}
         playChime();
-        try { if ('Notification' in window && Notification.permission === 'granted') new Notification(L.ready_title, { body: L.ready_body }); } catch (e) {}
+        try { if ('Notification' in window && Notification.permission === 'granted') new Notification(L.ready_title, { body }); } catch (e) {}
     }
     wasReady = ready;
 }

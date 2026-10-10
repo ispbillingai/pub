@@ -840,10 +840,19 @@ function onlineNotifyReady(array $order): void
     $st = $pdo->prepare("SELECT 1 FROM whatsapp_outbox WHERE order_id = ? AND kind = 'online_ready' AND created_at >= ? LIMIT 1");
     $st->execute([(int) $order['id'], $it['last_added']]);
     if ($st->fetchColumn()) return;                                       // already told
+    $lang  = guestLang($order['customer_country'] ?? 'IT');
+    // A delivery: "it's ready, we're on our way", where to and the cash for the rider; no QR.
+    if (($order['fulfilment'] ?? '') === 'delivery') {
+        $ful = onlineFulfilmentInfo($order, $lang);
+        queueGuestWhatsapp((int) $order['id'], null, 'online_ready', $order['customer_phone'], tIn($lang, 'online_ready_delivery_text', [
+            'name' => strtok((string) $order['customer_name'], ' ') ?: '', 'restaurant' => restaurantName(),
+            'order' => $order['order_number'], 'total' => formatCurrency($order['total']), 'address' => $ful['address'],
+        ]));
+        return;
+    }
     // With the QR to show at the till (as an image, when the server can draw it)
     // and where to collect it: the address in Settings, with its Google Maps link.
     $token = onlinePayToken($order);
-    $lang  = guestLang($order['customer_country'] ?? 'IT');
     $body  = tIn($lang, 'online_ready_text', [
         'name' => strtok((string) $order['customer_name'], ' ') ?: '', 'restaurant' => restaurantName(),
         'order' => $order['order_number'], 'total' => formatCurrency($order['total']),
@@ -932,6 +941,7 @@ function onlineOrderState(array $customer): array
     $order = onlineOpenOrder($customer);
     $items = [];
     if ($order) {
+        $delivery = ($order['fulfilment'] ?? '') === 'delivery';
         foreach (getOrderItems((int) $order['id']) as $r) {
             if ($r['status'] === 'cancelled') continue;
             $items[] = [
@@ -939,7 +949,8 @@ function onlineOrderState(array $customer): array
                 'name'     => $r['item_name'],
                 'quantity' => (int) $r['quantity'],
                 'status'   => $r['status'],
-                'label'    => t('online_st_' . $r['status']),
+                // A delivery's ready dish isn't collected at the counter: it's on its way.
+                'label'    => t('online_st_' . $r['status'] . ($delivery && $r['status'] === 'ready' ? '_delivery' : '')),
             ];
         }
     }

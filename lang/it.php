@@ -1780,5 +1780,9 @@ return [
     'online_err_addr' => 'Per la consegna servono l\'indirizzo e il numero civico.',
     'online_pay_rider' => 'Paghi in contanti al fattorino alla consegna.',
     'online_pay_rider_short' => 'Contanti al fattorino',
-    'online_cart_hint_rider' => 'Dopo l\'invio l\'ordine va in preparazione. Paghi in contanti al fattorino alla consegna.',
+    'online_ready_delivery_text' => 'Ciao {name}, il tuo ordine *{order}* da *{restaurant}* è pronto! 🎉'."\n\n".'Stiamo arrivando: manca solo la consegna a {address}. 🛵'."\n".'Paghi {total} in contanti al fattorino.',
+    'online_all_ready_delivery' => 'Il tuo ordine è pronto: stiamo arrivando!',
+    'online_ready_body_delivery' => 'Stiamo arrivando: manca solo la consegna.',
+    'online_st_ready_delivery' => 'Pronto: in consegna',
+    'online_cart_hint_rider' =>'Dopo l\'invio l\'ordine va in preparazione. Paghi in contanti al fattorino alla consegna.',
 ];
