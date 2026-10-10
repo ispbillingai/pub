@@ -16,6 +16,8 @@ $ooAddToTicket = $ooAddToTicket ?? false;
 .oo-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
 .oo-name { font-size: 1.15rem; font-weight: 800; }
 .oo-sub { font-size: .82rem; color: var(--text-secondary); }
+.oo-ful { background: #eff6ff; color: #1e3a8a; border-radius: 8px; padding: 6px 10px; font-size: .88rem; display: grid; gap: 2px; }
+.oo-ful.delivery { background: #fff7ed; color: #9a3412; }
 .oo-intol { background: #fef2f2; color: #b91c1c; font-weight: 700; border-radius: 8px; padding: 6px 10px; font-size: .88rem; }
 .oo-items { font-size: .92rem; border-top: 1px dashed var(--border-color, #e5e7eb); padding-top: 8px; }
 .oo-items div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
@@ -37,10 +39,19 @@ $ooAddToTicket = $ooAddToTicket ?? false;
                     <div class="oo-sub"><?= htmlspecialchars($o['order_number']) ?> · <?= date('H:i', strtotime($o['created_at'])) ?> (<?= $min ?> <?= te('minutes_short') ?>)</div>
                     <div class="oo-sub"><i class="fas fa-mobile-screen"></i> <?= htmlspecialchars((string) $o['customer_phone']) ?>
                         <?php if (!empty($o['landline'])): ?> · <i class="fas fa-phone"></i> <?= htmlspecialchars($o['landline']) ?><?php endif; ?></div>
-                    <?php if (!empty($o['address'])): ?><div class="oo-sub"><i class="fas fa-location-dot"></i> <?= htmlspecialchars(onlineAddressLine($o['address'], $o['street_number'])) ?></div><?php endif; ?>
+                    <?php if (!empty($o['address']) && empty($o['fulfilment'])): ?><div class="oo-sub"><i class="fas fa-location-dot"></i> <?= htmlspecialchars(onlineAddressLine($o['address'], $o['street_number'])) ?></div><?php endif; ?>
                 </div>
                 <span class="oo-state <?= $o['ready'] ? 'ready' : 'cooking' ?>"><?= te($o['ready'] ? 'cash_online_st_ready' : 'cash_online_st_cooking') ?></span>
             </div>
+            <?php if ($ful = onlineFulfilmentInfo($o)): // pick-up or delivery, and when ?>
+                <div class="oo-ful <?= $ful['delivery'] ? 'delivery' : '' ?>">
+                    <strong><i class="fas <?= $ful['delivery'] ? 'fa-truck' : 'fa-store' ?>"></i> <?= htmlspecialchars($ful['title']) ?></strong>
+                    <?php if ($ful['delivery']): ?>
+                        <div><i class="fas fa-location-dot"></i> <?= htmlspecialchars($ful['address']) ?><?php if ($ful['intercom'] !== ''): ?> · <?= te('online_intercom') ?>: <?= htmlspecialchars($ful['intercom']) ?><?php endif; ?></div>
+                        <div><i class="fas fa-phone"></i> <?= htmlspecialchars($ful['phone']) ?></div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
             <?php if (!empty($o['intolerances'])): ?><div class="oo-intol"><i class="fas fa-triangle-exclamation"></i> <?= htmlspecialchars($o['intolerances']) ?></div><?php endif; ?>
             <div class="oo-items">
                 <?php foreach ($o['items'] as $it): ?>

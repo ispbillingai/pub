@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/online_order.php';
 requireRole(['admin', 'kitchen']);
 
 $pdo = getDBConnection();
@@ -24,6 +25,7 @@ $stmt = $pdo->query("
         o.number_of_people,
         o.channel,
         o.notes AS order_notes,
+        o.fulfilment, o.scheduled_at, o.customer_address, o.customer_street_number, o.delivery_intercom, o.contact_phone,
         COALESCE(o.table_label, t.table_number) AS table_number,
         r.name as room_name,
         mi.name as item_name,
@@ -66,6 +68,8 @@ foreach ($items as $item) {
             // Online customers: one "Order ready" for the whole order (one notice to the customer).
             'online' => ($item['channel'] ?? 'dine_in') === 'online',
             'order_notes' => (string) ($item['order_notes'] ?? ''),
+            // Online: pick-up or delivery, and the day and time it is wanted for.
+            'fulfil' => ($item['channel'] ?? '') === 'online' ? onlineFulfilmentInfo($item) : null,
             'first_item_time' => $item['sent_to_kitchen_at'] ?? $item['created_at'],
             'items' => [],
             'courses' => [],
@@ -266,6 +270,10 @@ include __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 
+                <?php if (!empty($group['fulfil'])): $ful = $group['fulfil']; ?>
+                    <div class="online-notes" style="background:#eff6ff;color:#1e3a8a;"><i class="fas <?= $ful['delivery'] ? 'fa-truck' : 'fa-store' ?>"></i> <strong><?= htmlspecialchars($ful['title']) ?></strong>
+                        <?php if ($ful['delivery']): ?><br><?= htmlspecialchars($ful['address']) ?><?php endif; ?></div>
+                <?php endif; ?>
                 <?php if ($group['online'] && $group['order_notes'] !== ''): ?>
                     <div class="online-notes"><i class="fas fa-triangle-exclamation"></i> <?= htmlspecialchars($group['order_notes']) ?></div>
                 <?php endif; ?>

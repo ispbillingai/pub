@@ -11,7 +11,8 @@
  *        address, landline, birthday in the profile: {action: 'profile', name, address, landline, birth_date, intol: [...], intol_other})
  * POST {action: 'request_code', mode: 'login', country, mobile} → returning customer: code on WhatsApp
  * POST {action: 'verify', code}                → the code signs them in
- * POST {action: 'send', cart: [{id, qty, note, add, remove}]} → dishes to the kitchen
+ * POST {action: 'send', cart: [{id, qty, note, add, remove}], fulfil?} → dishes to the kitchen; a new order needs
+ *       fulfil: {mode: 'pickup'|'delivery', date, time, address, number, intercom, phone_mode: 'mine'|'other', country, phone}
  * POST {action: 'logout'}                      → "not you?": sign out of this phone
  */
 
@@ -71,7 +72,8 @@ if (!$customer) {
 }
 
 if ($action === 'send') {
-    $res = onlineSendCart($customer, (array) ($input['cart'] ?? []), isset($input['intol']) ? (array) $input['intol'] : null);
+    $res = onlineSendCart($customer, (array) ($input['cart'] ?? []), isset($input['intol']) ? (array) $input['intol'] : null,
+                          isset($input['fulfil']) ? (array) $input['fulfil'] : null);
     if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
     jsonResponse(onlineOrderState($customer) + ['signed_in' => true, 'sent' => $res['ok']]);
 }

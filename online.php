@@ -64,6 +64,15 @@ $L = [
     'order_no'      => t('online_order_no'),
     'paid_text'     => t('online_paid_text'),
     'currency'      => formatCurrency(0),
+    // pick-up or delivery
+    'ful_when_pickup'   => t('online_fulfil_when_pickup'),
+    'ful_when_delivery' => t('online_fulfil_when_delivery'),
+    'ful_mine'          => t('online_fulfil_phone_mine'),
+    'err_fulfil'        => t('online_err_fulfil'),
+    'err_when'          => t('online_err_when'),
+    'err_addr'          => t('online_err_addr'),
+    'err_phone'         => t('cust_bad_phone'),
+    'intercom'          => t('online_intercom'),
 ];
 $countries = phoneCountryOptions();
 $mLang     = currentLang() === 'it' ? 'it' : 'en';
@@ -215,6 +224,17 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .intol-ask input:focus { outline: none; border-color: var(--p); }
 #pfIntolOther { width: 100%; }
 .intol-err { color: #b91c1c; font-weight: 600; margin: 8px 0 0; }
+/* pick-up or delivery, when, where */
+.ful-ask { margin: 14px 0 6px; padding: 14px; border-radius: 14px; background: #f0f9ff; border: 1px solid #bae6fd; }
+.ful-ask strong { color: #075985; }
+.ful-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.ful-mode { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border: 2px solid var(--line); border-radius: 12px; background: #fff; font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
+.ful-mode i { font-size: 1.4rem; color: var(--p); }
+.ful-mode.on { border-color: var(--p); background: #fff7ed; }
+.form label.ful-radio { display: flex; align-items: center; gap: 8px; font-size: .95rem; font-weight: 400; color: var(--ink); margin: 6px 0; }
+.ful-radio input { width: 20px; height: 20px; flex: 0 0 auto; }
+.ful-info { display: flex; gap: 10px; align-items: flex-start; background: #f0f9ff; border-radius: 12px; padding: 12px; margin-top: 12px; font-size: .9rem; }
+.ful-info i { color: var(--p); font-size: 1.2rem; margin-top: 2px; }
 .wa-card { border: 2px solid #25d366; }
 .tessera { text-align: center; background: linear-gradient(160deg, #fff 0%, #fff7ef 100%); border: 2px solid var(--p); }
 .tessera .t-brand { font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; color: #6b7280; }
@@ -473,7 +493,41 @@ $footHtml = ob_get_clean(); ?>
             <input id="askIntolOther" maxlength="200" placeholder="<?= te('online_intol_other_ph') ?>" oninput="intolAnswered()">
             <p class="intol-err" id="intolErr" hidden></p>
         </div>
-        <p class="hint-small"><?= te('online_cart_hint') ?></p>
+        <!-- A new order: collected at the shop or delivered, and when (the kitchen slip prints it all) -->
+        <div class="ful-ask" id="fulAsk" hidden>
+            <strong><i class="fas fa-bag-shopping"></i> <?= te('online_fulfil_q') ?></strong>
+            <div class="ful-modes">
+                <button type="button" class="ful-mode" data-mode="pickup" onclick="fulMode('pickup')"><i class="fas fa-store"></i><span><?= te('online_fulfil_pickup') ?></span></button>
+                <button type="button" class="ful-mode" data-mode="delivery" onclick="fulMode('delivery')"><i class="fas fa-truck"></i><span><?= te('online_fulfil_delivery') ?></span></button>
+            </div>
+            <div class="form" id="fulWhen" hidden>
+                <label id="fulWhenLabel"></label>
+                <div class="two">
+                    <input type="date" id="fulDate" min="<?= (new DateTime('now', new DateTimeZone(ONLINE_FULFIL_TZ)))->format('Y-m-d') ?>" max="<?= (new DateTime('+' . ONLINE_FULFIL_DAYS . ' days', new DateTimeZone(ONLINE_FULFIL_TZ)))->format('Y-m-d') ?>" oninput="fulAnswered()">
+                    <input type="time" id="fulTime" step="300" oninput="fulAnswered()">
+                </div>
+            </div>
+            <div class="form" id="fulAddr" hidden>
+                <label for="fulAddress"><?= te('online_fulfil_address') ?></label>
+                <div class="addr">
+                    <input id="fulAddress" maxlength="150" autocomplete="address-line1" placeholder="<?= te('online_fulfil_street_ph') ?>" oninput="fulAnswered()">
+                    <input id="fulNumber" maxlength="15" placeholder="<?= te('online_fulfil_number_ph') ?>" oninput="fulAnswered()">
+                </div>
+                <label for="fulIntercom"><?= te('online_intercom') ?> <small class="opt">(<?= te('self_consent_optional') ?>)</small></label>
+                <input id="fulIntercom" maxlength="60" placeholder="<?= te('online_intercom_ph') ?>">
+                <label><?= te('online_fulfil_phone_q') ?></label>
+                <label class="ful-radio"><input type="radio" name="fulPhone" value="mine" checked onchange="fulPhoneMode()"> <span id="fulMine"></span></label>
+                <label class="ful-radio"><input type="radio" name="fulPhone" value="other" onchange="fulPhoneMode()"> <?= te('online_fulfil_phone_other') ?></label>
+                <div class="phone" id="fulOther" hidden>
+                    <select id="fulCountry" aria-label="<?= te('cust_prefix') ?>">
+                        <?php foreach ($countries as $c): ?><option value="<?= $c['iso'] ?>"><?= $c['flag'] ?> <?= $c['dial'] ?></option><?php endforeach; ?>
+                    </select>
+                    <input id="fulPhone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel-national" placeholder="333 123 4567" oninput="fulAnswered()">
+                </div>
+            </div>
+            <p class="intol-err" id="fulErr" hidden></p>
+        </div>
+        <p class="hint-small" id="cartHint"><?= te('online_cart_hint') ?></p>
         <div class="row">
             <button class="btn-no" onclick="$('cartSheet').classList.remove('on')"><?= te('self_keep_ordering') ?></button>
             <button class="btn-go" id="cartSend" onclick="sendCart()"><i class="fas fa-paper-plane"></i> <?= te('online_send_order') ?></button>
@@ -490,6 +544,7 @@ $footHtml = ob_get_clean(); ?>
         <p class="sub" id="orderNo"></p>
         <div id="dishes"></div>
         <div class="total"><span><?= te('guest_to_pay') ?></span><span id="total"></span></div>
+        <div class="ful-info" id="fulInfo" hidden><i class="fas fa-store" id="fulInfoIcon"></i><div id="fulInfoText"></div></div>
         <div class="pay-note"><i class="fas fa-cash-register"></i><span><?= te('online_pay_at_till') ?></span></div>
     </div>
     <div class="card pay-qr">
@@ -565,6 +620,14 @@ function render(s) {
         <div class="dish"><div class="n">${i.quantity}× ${esc(i.name)}</div>
             <span class="st st-${esc(i.status)}">${esc(i.label)}</span></div>`).join('');
     $('total').textContent = s.total_fmt;
+    // Pick-up or delivery, when and where, as they chose it.
+    const ful = s.order && s.order.fulfil;
+    $('fulInfo').hidden = !ful;
+    if (ful) {
+        $('fulInfoIcon').className = 'fas ' + (ful.delivery ? 'fa-truck' : 'fa-store');
+        $('fulInfoText').innerHTML = `<strong>${esc(ful.title)}</strong>` + (ful.delivery
+            ? `<br>${esc(ful.address)}${ful.intercom ? ' · ' + esc(L.intercom) + ': ' + esc(ful.intercom) : ''}<br>${esc(ful.phone)}` : '');
+    }
     $('allReady').hidden = !s.all_ready;
     renderPayQr(s.order && s.order.pay_url);
     notifyReady(s);
@@ -865,7 +928,57 @@ function openCart() {
     const ask = state && state.customer && !state.customer.intolerances_asked;
     $('intolAsk').hidden = !ask;
     if (ask && !$('askIntol').children.length) renderChips('askIntol', [], true);
+    // A new order (none open yet): collected at the shop or delivered, and when.
+    const askFul = !!(state && !state.order);
+    $('fulAsk').hidden = !askFul;
+    if (askFul) fulPrepare();
     $('cartSheet').classList.add('on');
+}
+
+/* ---- Pick-up or delivery: day and time; for a delivery the address, intercom and the phone to call ---- */
+let fulChosen = '';
+function fulPrepare() {
+    const c = state.customer, pa = state.profile_address || {};
+    if (!$('fulDate').value) $('fulDate').value = $('fulDate').min;
+    if (!$('fulAddress').value && pa.address) { $('fulAddress').value = pa.address; $('fulNumber').value = pa.number || ''; }
+    $('fulMine').textContent = L.ful_mine.replace('{phone}', c.mobile);
+    fulMode(fulChosen, true);
+}
+function fulMode(m, quiet) {
+    fulChosen = m || '';
+    document.querySelectorAll('.ful-mode').forEach(b => b.classList.toggle('on', b.dataset.mode === fulChosen));
+    $('fulWhen').hidden = !fulChosen;
+    $('fulAddr').hidden = fulChosen !== 'delivery';
+    $('fulWhenLabel').textContent = fulChosen === 'delivery' ? L.ful_when_delivery : L.ful_when_pickup;
+    if (!quiet) fulAnswered();
+}
+function fulPhoneMode() {
+    const other = document.querySelector('input[name="fulPhone"]:checked').value === 'other';
+    $('fulOther').hidden = !other;
+    if (other) $('fulPhone').focus();
+    fulAnswered();
+}
+function fulAnswered() { $('fulErr').hidden = true; }
+function fulError(msg) {
+    $('fulErr').textContent = msg; $('fulErr').hidden = false;
+    $('fulAsk').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return null;
+}
+/** The answers for the API, or null (with the reason shown) when something is missing. */
+function fulCollect() {
+    if (!fulChosen) return fulError(L.err_fulfil);
+    if (!$('fulDate').value || !$('fulTime').value) return fulError(L.err_when);
+    const f = { mode: fulChosen, date: $('fulDate').value, time: $('fulTime').value };
+    if (fulChosen === 'delivery') {
+        f.address = $('fulAddress').value.trim(); f.number = $('fulNumber').value.trim(); f.intercom = $('fulIntercom').value.trim();
+        if (!f.address || !f.number) return fulError(L.err_addr);
+        f.phone_mode = document.querySelector('input[name="fulPhone"]:checked').value;
+        if (f.phone_mode === 'other') {
+            f.country = $('fulCountry').value; f.phone = $('fulPhone').value.trim();
+            if (f.phone.replace(/\D/g, '').length < 6) return fulError(L.err_phone);
+        }
+    }
+    return f;
 }
 function renderCartLines() {
     const lines = cartItems();
@@ -891,6 +1004,11 @@ async function sendCart() {
             return;
         }
         body.intol = { choices: picked, other };
+    }
+    if (!$('fulAsk').hidden) {
+        const f = fulCollect();
+        if (!f) return;
+        body.fulfil = f;
     }
     $('cartSend').disabled = true;
     shopOpen = false;

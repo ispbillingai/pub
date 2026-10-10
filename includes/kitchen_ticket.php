@@ -265,16 +265,28 @@ function printStationTicket(
         $banner = trim('*** ' . mb_strtoupper((string) $order['channel'], 'UTF-8') . ' *** ' . $banner);
     }
 
-    // Online customers: name, address and phones on the slip; no waiter.
+    // Online customers: pick-up or delivery and when (first line, bold), name, address and
+    // phones on the slip; no waiter. A delivery prints its own address, intercom and the phone to call.
     $customer = [];
     if (($order['channel'] ?? '') === 'online' && !empty($order['online_customer_id'])) {
-        $cs = $pdo->prepare("SELECT first_name, last_name, address, street_number, mobile, landline FROM online_customers WHERE id = ?");
+        require_once __DIR__ . '/online_order.php';
+        $ful = onlineFulfilmentInfo($order, 'it');
+        $cs  = $pdo->prepare("SELECT first_name, last_name, address, street_number, mobile, landline FROM online_customers WHERE id = ?");
         $cs->execute([(int) $order['online_customer_id']]);
         if ($c = $cs->fetch()) {
+            if ($ful) $customer[] = mb_strtoupper($ful['title'], 'UTF-8');
             $customer[] = 'CLIENTE: ' . trim($c['first_name'] . ' ' . $c['last_name']);
-            $addr = implode(', ', array_filter([trim((string) $c['address']), trim((string) $c['street_number'])], fn($v) => $v !== ''));
-            if ($addr !== '') $customer[] = $addr;
-            $customer[] = 'Cell: ' . $c['mobile'];
+            if ($ful && $ful['delivery']) {
+                $customer[] = 'Indirizzo: ' . $ful['address'];
+                if ($ful['intercom'] !== '') $customer[] = 'Citofono: ' . $ful['intercom'];
+                $customer[] = 'Tel. contatto: ' . $ful['phone'];
+                if ($ful['phone'] !== $c['mobile']) $customer[] = 'Cell registrazione: ' . $c['mobile'];
+            } else {
+                // Pick-up: no address needed (orders from before the question keep the profile's).
+                $addr = $ful ? '' : implode(', ', array_filter([trim((string) $c['address']), trim((string) $c['street_number'])], fn($v) => $v !== ''));
+                if ($addr !== '') $customer[] = $addr;
+                $customer[] = 'Cell: ' . $c['mobile'];
+            }
             if (!empty($c['landline'])) $customer[] = 'Tel: ' . $c['landline'];
         }
     }

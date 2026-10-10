@@ -698,12 +698,80 @@ function onlineSaveBirthday(array $customer, string $date): array
     return ['ok' => $customer];
 }
 
+/* ---- Pick-up or delivery (asked when the order is sent; migration 053) ---- */
+
+const ONLINE_FULFIL_TZ   = 'Europe/Rome';   // the customer's day and time, whatever PHP's own timezone
+const ONLINE_FULFIL_DAYS = 14;              // how far ahead an order can be booked
+
+/**
+ * What the customer chose for a new order: {mode: 'pickup'|'delivery', date: Y-m-d, time: H:i,
+ * address, number, intercom, phone_mode: 'mine'|'other', country, phone}.
+ * Returns ['ok' => order columns] or ['error' => lang key].
+ */
+function onlineFulfilmentFrom(array $in, array $customer): array
+{
+    $mode = (string) ($in['mode'] ?? '');
+    if (!in_array($mode, ['pickup', 'delivery'], true)) return ['error' => 'online_err_fulfil'];
+    $tz   = new DateTimeZone(ONLINE_FULFIL_TZ);
+    $when = DateTime::createFromFormat('!Y-m-d H:i', trim((string) ($in['date'] ?? '')) . ' ' . trim((string) ($in['time'] ?? '')), $tz);
+    if (!$when) return ['error' => 'online_err_when'];
+    $now = new DateTime('now', $tz);
+    if ($when < (clone $now)->modify('-5 minutes')) return ['error' => 'online_err_when_past'];
+    if ($when > (clone $now)->modify('+' . ONLINE_FULFIL_DAYS . ' days')) return ['error' => 'online_err_when_far'];
+    $f = fn($k, $max) => mb_substr(trim(preg_replace('/\s+/u', ' ', (string) ($in[$k] ?? ''))), 0, $max);
+    $out = ['fulfilment' => $mode, 'scheduled_at' => $when->format('Y-m-d H:i:s'),
+            'customer_address' => null, 'customer_street_number' => null, 'delivery_intercom' => null, 'contact_phone' => null];
+    if ($mode === 'delivery') {
+        if ($f('address', 150) === '' || $f('number', 15) === '') return ['error' => 'online_err_addr'];
+        $out['customer_address']       = $f('address', 150);
+        $out['customer_street_number'] = $f('number', 15);
+        $out['delivery_intercom']      = $f('intercom', 60) ?: null;
+        $out['contact_phone']          = $customer['mobile'];
+        if (($in['phone_mode'] ?? 'mine') === 'other') {
+            $phone = internationalPhone(strtoupper($f('country', 2)) ?: 'IT', $f('phone', 20));
+            if (!$phone) return ['error' => 'cust_bad_phone'];
+            $out['contact_phone'] = $phone;
+        }
+    }
+    return ['ok' => $out];
+}
+
+/** "sab 11/10 ore 13:30" (or "Sat 11/10 at 13:30") for the time the order is wanted. */
+function onlineWhenLabel(string $scheduledAt, string $lang = ''): string
+{
+    $lang = $lang ?: currentLang();
+    $d    = new DateTime($scheduledAt, new DateTimeZone(ONLINE_FULFIL_TZ));
+    $days = $lang === 'it' ? ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return $days[(int) $d->format('w')] . ' ' . $d->format('d/m') . ($lang === 'it' ? ' ore ' : ' at ') . $d->format('H:i');
+}
+
+/**
+ * How the order is handed over, as lines: ['title' => "Ritiro in negozio · sab 11/10 ore 13:30",
+ * 'address', 'intercom', 'phone'] ('' when not given). Null for an order sent before the question existed.
+ */
+function onlineFulfilmentInfo(array $order, string $lang = ''): ?array
+{
+    if (empty($order['fulfilment'])) return null;
+    $lang  = $lang ?: currentLang();
+    $title = tIn($lang, $order['fulfilment'] === 'delivery' ? 'online_fulfil_delivery' : 'online_fulfil_pickup');
+    if (!empty($order['scheduled_at'])) $title .= ' · ' . onlineWhenLabel((string) $order['scheduled_at'], $lang);
+    $delivery = $order['fulfilment'] === 'delivery';
+    return [
+        'title'    => $title,
+        'delivery' => $delivery,
+        'address'  => $delivery ? onlineAddressLine($order['customer_address'] ?? '', $order['customer_street_number'] ?? '') : '',
+        'intercom' => $delivery ? (string) ($order['delivery_intercom'] ?? '') : '',
+        'phone'    => $delivery ? (string) ($order['contact_phone'] ?? '') : '',
+    ];
+}
+
 /**
  * The cart goes to the kitchen: on the customer's open order, or a new one.
- * The intolerances go in the order notes (printed on every slip). The order
- * then waits at the till as a bill to collect. Returns ['ok' => dishes] or ['error' => lang key].
+ * The intolerances go in the order notes (printed on every slip). A new order
+ * needs $fulfil (pick-up or delivery, day and time: onlineFulfilmentFrom).
+ * The order then waits at the till as a bill to collect. Returns ['ok' => dishes] or ['error' => lang key].
  */
-function onlineSendCart(array $customer, array $cart, ?array $intol = null): array
+function onlineSendCart(array $customer, array $cart, ?array $intol = null, ?array $fulfil = null): array
 {
     if (!onlineOrderEnabled()) return ['error' => 'online_err_off'];
     // First order: the intolerances are asked once (an answer — even "none" — is needed).
@@ -716,18 +784,29 @@ function onlineSendCart(array $customer, array $cart, ?array $intol = null): arr
     $order = onlineOpenOrder($customer);
     $new   = !$order;
     if ($new) {
+        // Pick-up or delivery, and when: asked for every new order (more dishes join the open one).
+        $ful = onlineFulfilmentFrom((array) $fulfil, $customer);
+        if (isset($ful['error'])) return $ful;
+        $ful   = $ful['ok'];
         $sys   = onlineSystemIds();
         $notes = trim((string) $customer['intolerances']) !== '' ? 'INTOLLERANZE: ' . trim($customer['intolerances']) : null;
         $pdo->prepare("
             INSERT INTO orders (order_number, table_id, table_label, room_id, waiter_id, number_of_people, cover_charge_per_person,
-                                status, notes, channel, customer_name, customer_country, customer_phone, created_by_guest, online_customer_id, pay_token)
-            VALUES (?, ?, ?, ?, ?, 0, 0, 'open', ?, ?, ?, ?, ?, 1, ?, ?)
+                                status, notes, channel, customer_name, customer_country, customer_phone, created_by_guest, online_customer_id, pay_token,
+                                fulfilment, scheduled_at, customer_address, customer_street_number, delivery_intercom, contact_phone)
+            VALUES (?, ?, ?, ?, ?, 0, 0, 'open', ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
         ")->execute([
             generateOrderNumber(), $sys['table_id'], onlineOrderLabel($customer), $sys['room_id'], $sys['user_id'], $notes,
             ONLINE_CHANNEL, trim($customer['first_name'] . ' ' . $customer['last_name']), $customer['mobile_country'],
             $customer['mobile'], (int) $customer['id'], bin2hex(random_bytes(12)),
+            $ful['fulfilment'], $ful['scheduled_at'], $ful['customer_address'], $ful['customer_street_number'], $ful['delivery_intercom'], $ful['contact_phone'],
         ]);
         $order = getOrderById((int) $pdo->lastInsertId());
+        // First delivery and no address in their profile yet: keep it there for next time.
+        if ($ful['fulfilment'] === 'delivery' && trim((string) $customer['address']) === '') {
+            $pdo->prepare("UPDATE online_customers SET address = ?, street_number = ? WHERE id = ?")
+                ->execute([$ful['customer_address'], $ful['customer_street_number'], (int) $customer['id']]);
+        }
     }
     $n = addGuestCartItems((int) $order['id'], $cart, 'online');
     if (!$n) {
@@ -890,7 +969,10 @@ function onlineOrderState(array $customer): array
             // The card to show at the till (Clienti cassa code + QR).
             'card' => ($card = customerCardFor($customer)) ? ['code' => $card['code'], 'qr' => tillCustomerQrUrl($card)] : null,
         ],
-        'order'    => $order ? ['number' => $order['order_number'], 'pay_url' => onlinePayUrl(onlinePayToken($order))] : null,
+        'order'    => $order ? ['number' => $order['order_number'], 'pay_url' => onlinePayUrl(onlinePayToken($order)),
+                                'fulfil' => onlineFulfilmentInfo($order)] : null,
+        // The address in their profile, to start the delivery form from.
+        'profile_address' => ['address' => (string) $customer['address'], 'number' => (string) $customer['street_number']],
         'items'    => $items,
         'all_ready'=> $items && !array_filter($items, fn($i) => !in_array($i['status'], ['ready', 'served'], true)),
         'total_fmt'=> formatCurrency($order['total'] ?? 0),
