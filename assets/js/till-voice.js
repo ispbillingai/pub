@@ -272,7 +272,8 @@
         try {
             const u = new SpeechSynthesisUtterance(text);
             u.lang = 'it-IT';
-            speakingUntil = Date.now() + 8000;
+            // Until it ends (or its rough length, if the browser never says it ended).
+            speakingUntil = Date.now() + Math.min(6000, 1200 + String(text).length * 80);
             u.onend = u.onerror = () => { speakingUntil = Date.now() + 700; };
             root.speechSynthesis.cancel();
             root.speechSynthesis.speak(u);
@@ -382,9 +383,9 @@
             case 'close':
                 if (visible('[onclick^="cancelCash"]')) { payButton(doc, '[onclick^="cancelCash"]'); break; }
                 if (visible('#d-cancel')) { payButton(doc, '#d-cancel'); break; }
-                payButton(doc, '[onclick^="leavePay(false)"]');
+                payButton(doc, '[onclick*="leavePay(false)"]');
                 break;
-            case 'done':    payButton(doc, '[onclick^="leavePay(true)"]'); break;
+            case 'done':    payButton(doc, '[onclick*="leavePay(true)"]'); break;
         }
     }
     function runTill(c) {
