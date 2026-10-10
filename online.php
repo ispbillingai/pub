@@ -73,6 +73,10 @@ $L = [
     'err_addr'          => t('online_err_addr'),
     'err_phone'         => t('cust_bad_phone'),
     'intercom'          => t('online_intercom'),
+    'pay_till'          => t('online_pay_at_till'),
+    'pay_rider'         => t('online_pay_rider'),
+    'cart_hint_till'    => t('online_cart_hint'),
+    'cart_hint_rider'   => t('online_cart_hint_rider'),
 ];
 $countries = phoneCountryOptions();
 $mLang     = currentLang() === 'it' ? 'it' : 'en';
@@ -545,9 +549,10 @@ $footHtml = ob_get_clean(); ?>
         <div id="dishes"></div>
         <div class="total"><span><?= te('guest_to_pay') ?></span><span id="total"></span></div>
         <div class="ful-info" id="fulInfo" hidden><i class="fas fa-store" id="fulInfoIcon"></i><div id="fulInfoText"></div></div>
-        <div class="pay-note"><i class="fas fa-cash-register"></i><span><?= te('online_pay_at_till') ?></span></div>
+        <div class="pay-note"><i class="fas fa-cash-register" id="payNoteIcon"></i><span id="payNote"><?= te('online_pay_at_till') ?></span></div>
     </div>
-    <div class="card pay-qr">
+    <!-- Pick-up: the QR the cashier scans. A delivery is paid in cash to the rider: no QR. -->
+    <div class="card pay-qr" id="payQrCard">
         <h2><i class="fas fa-qrcode"></i> <?= te('online_pay_qr_title') ?></h2>
         <p class="sub"><?= te('online_pay_qr_text') ?></p>
         <div id="payQr"></div>
@@ -628,6 +633,11 @@ function render(s) {
         $('fulInfoText').innerHTML = `<strong>${esc(ful.title)}</strong>` + (ful.delivery
             ? `<br>${esc(ful.address)}${ful.intercom ? ' · ' + esc(L.intercom) + ': ' + esc(ful.intercom) : ''}<br>${esc(ful.phone)}` : '');
     }
+    // A delivery is paid in cash to the rider.
+    const delivery = !!(ful && ful.delivery);
+    $('payNote').textContent = delivery ? L.pay_rider : L.pay_till;
+    $('payNoteIcon').className = 'fas ' + (delivery ? 'fa-money-bill-wave' : 'fa-cash-register');
+    $('payQrCard').hidden = delivery;
     $('allReady').hidden = !s.all_ready;
     renderPayQr(s.order && s.order.pay_url);
     notifyReady(s);
@@ -950,6 +960,7 @@ function fulMode(m, quiet) {
     $('fulWhen').hidden = !fulChosen;
     $('fulAddr').hidden = fulChosen !== 'delivery';
     $('fulWhenLabel').textContent = fulChosen === 'delivery' ? L.ful_when_delivery : L.ful_when_pickup;
+    $('cartHint').textContent = fulChosen === 'delivery' ? L.cart_hint_rider : L.cart_hint_till;
     if (!quiet) fulAnswered();
 }
 function fulPhoneMode() {

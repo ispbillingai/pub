@@ -42,5 +42,5 @@ defined('CURRENCY_SYMBOL')      || define('CURRENCY_SYMBOL', '$');
 defined('APP_NAME')             || define('APP_NAME', 'RestoPOS');
 defined('APP_VERSION')          || define('APP_VERSION', '1.0.0');
 
-// Timezone
-date_default_timezone_set('Africa/Nairobi');
+// Timezone: Italy, the same as MariaDB's NOW() on the server (slips, receipts, closings)
+date_default_timezone_set('Europe/Rome');

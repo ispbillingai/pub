@@ -1778,4 +1778,7 @@ return [
     'online_err_when_past' => 'That day and time have already passed: choose others.',
     'online_err_when_far' => 'You can book at most 14 days ahead.',
     'online_err_addr' => 'A delivery needs the address and the house number.',
+    'online_pay_rider' => 'You pay the rider in cash on delivery.',
+    'online_pay_rider_short' => 'Cash to the rider',
+    'online_cart_hint_rider' => 'Once sent, the order is prepared. You pay the rider in cash on delivery.',
 ];

@@ -1778,4 +1778,7 @@ return [
     'online_err_when_past' => 'Il giorno e l\'ora scelti sono già passati: scegline altri.',
     'online_err_when_far' => 'Puoi prenotare al massimo 14 giorni in anticipo.',
     'online_err_addr' => 'Per la consegna servono l\'indirizzo e il numero civico.',
+    'online_pay_rider' => 'Paghi in contanti al fattorino alla consegna.',
+    'online_pay_rider_short' => 'Contanti al fattorino',
+    'online_cart_hint_rider' => 'Dopo l\'invio l\'ordine va in preparazione. Paghi in contanti al fattorino alla consegna.',
 ];

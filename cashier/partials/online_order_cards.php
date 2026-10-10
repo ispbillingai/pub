@@ -49,6 +49,7 @@ $ooAddToTicket = $ooAddToTicket ?? false;
                     <?php if ($ful['delivery']): ?>
                         <div><i class="fas fa-location-dot"></i> <?= htmlspecialchars($ful['address']) ?><?php if ($ful['intercom'] !== ''): ?> · <?= te('online_intercom') ?>: <?= htmlspecialchars($ful['intercom']) ?><?php endif; ?></div>
                         <div><i class="fas fa-phone"></i> <?= htmlspecialchars($ful['phone']) ?></div>
+                        <div><i class="fas fa-money-bill-wave"></i> <?= te('online_pay_rider_short') ?></div>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>

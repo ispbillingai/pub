@@ -281,6 +281,8 @@ function printStationTicket(
                 if ($ful['intercom'] !== '') $customer[] = 'Citofono: ' . $ful['intercom'];
                 $customer[] = 'Tel. contatto: ' . $ful['phone'];
                 if ($ful['phone'] !== $c['mobile']) $customer[] = 'Cell registrazione: ' . $c['mobile'];
+                // Paid in cash to the rider: what to collect (the whole order so far).
+                $customer[] = 'CONTANTI AL FATTORINO: ' . number_format((float) ($order['total'] ?? 0), 2, ',', '.') . ' EUR';
             } else {
                 // Pick-up: no address needed (orders from before the question keep the profile's).
                 $addr = $ful ? '' : implode(', ', array_filter([trim((string) $c['address']), trim((string) $c['street_number'])], fn($v) => $v !== ''));
