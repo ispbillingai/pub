@@ -104,6 +104,7 @@ $pushCard = '<div class="card push-card" hidden>'
     . '<label class="pc-promo"><input type="checkbox" class="pc-promos" onchange="pushPromosChanged(this)"> <span>' . te('push_promos') . '</span></label>'
     . '<button type="button" class="btn-go btn-no" onclick="pushDisable(this)"><i class="fas fa-bell-slash"></i> ' . te('push_disable') . '</button></div>'
     . '<div class="pc-denied"><p class="sub" style="margin:0;"><i class="fas fa-bell-slash"></i> ' . te('push_denied') . '</p></div>'
+    . '<div class="pc-old"><h2><i class="fas fa-bell-slash"></i> ' . te('push_title') . '</h2><p class="sub" style="margin:0;">' . te('push_unsupported') . '</p></div>'
     . '</div>';
 $mLang     = currentLang() === 'it' ? 'it' : 'en';
 header('Cache-Control: no-store');
@@ -293,7 +294,7 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 /* "Attiva le notifiche" */
 .push-card { border: 2px solid #fed7aa; }
 .push-card > div { display: none; }
-.push-card[data-st="off"] .pc-off, .push-card[data-st="ios"] .pc-ios, .push-card[data-st="on"] .pc-on, .push-card[data-st="denied"] .pc-denied { display: block; }
+.push-card[data-st="off"] .pc-off, .push-card[data-st="ios"] .pc-ios, .push-card[data-st="on"] .pc-on, .push-card[data-st="denied"] .pc-denied, .push-card[data-st="old"] .pc-old { display: block; }
 .pc-promo { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; font-size: .9rem; cursor: pointer; }
 .pc-promo input { width: 20px; height: 20px; flex: 0 0 auto; margin-top: 1px; }
 .wa-card { border: 2px solid #25d366; }
@@ -870,6 +871,7 @@ function pushRender() {
         if (Notification.permission === 'denied') st = 'denied';
         else st = pushSub && Notification.permission === 'granted' ? 'on' : 'off';
     } else if (IS_IOS && !STANDALONE) st = 'ios';
+    else if (state) st = 'old';   // no notifications here (iPhone before iOS 16.4, or an old browser): say so
     document.querySelectorAll('.push-card').forEach(c => { c.hidden = !st; c.dataset.st = st; });
     document.querySelectorAll('.pc-promos').forEach(b => { b.checked = pushPromosWanted(); });
 }
