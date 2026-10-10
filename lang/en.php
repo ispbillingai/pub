@@ -1474,6 +1474,21 @@ return [
 
     // ---- Till keypad: big amounts ----
     'till_big_amount_confirm' => 'Confirm the amount of {amount}? It is over €50.',
+    'till_voice_btn' => 'Voice',
+    'till_voice_listening' => 'Listening… go ahead',
+    'till_voice_hint' => 'E.g. «pane euro 2,30» · «2 taralli» · «varie 6 euro» · «pane 2,30 poi taralli 1,50» · «annulla»',
+    'till_voice_heard' => 'Heard: «{text}»',
+    'till_voice_added' => 'Added: {items}',
+    'till_voice_not_found' => 'Not in the till menu: {name}',
+    'till_voice_as_free' => '«{name}» is not in the till menu: added as Misc',
+    'till_voice_undone' => 'Removed: {name}',
+    'till_voice_nothing' => 'Did not catch that, say it again',
+    'till_voice_nothing_undo' => 'No spoken line to remove',
+    'till_voice_denied' => 'Microphone not allowed: enable it in the browser settings for this site',
+    'till_voice_unsupported' => 'This browser has no speech recognition: use Chrome, Edge or Safari',
+    'till_voice_free' => 'Misc',
+    'till_voice_words' => 'Words for the voice: other names to say it at the till, comma separated',
+    'till_voice_words_ph' => 'Voice: e.g. tarallini',
 
     // ---- User group: Ordini Cassa only ----
     'role_till' => 'Till orders operator',

@@ -14,6 +14,9 @@
  * buttons (with their photo) and a keypad for free amounts build a ticket, charged as a counter
  * sale or added to an online customer's bill.
  *
+ * Voice (assets/js/till-voice.js): "pane euro 2,30", "2 taralli", "varie 6 euro", "annulla"
+ * put lines on the ticket; products are also found by their Menu cassa "words for the voice".
+ *
  * Paying happens here too: the till's payment page (cash machine, card, Dojo,
  * manual, discounts) opens in a window over the panel (payment.php?embed=1)
  * and closes back into Ordini Cassa when it is done.
@@ -85,6 +88,17 @@ include __DIR__ . '/../includes/header.php';
 .till-products button img { width: 100%; height: 72px; object-fit: cover; border-radius: 8px; }
 .till-products button.has-img { padding-top: 6px; }
 .till-empty { color: var(--text-secondary); padding: 20px 4px; }
+/* Voice: microphone button and what was heard */
+.till-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+.voice-btn { display: inline-flex; align-items: center; gap: 8px; border: 2px solid var(--primary); background: #fff; color: var(--primary); border-radius: 999px; padding: 7px 16px; font-weight: 700; cursor: pointer; min-height: 44px; }
+.voice-btn.on { background: #dc2626; border-color: #dc2626; color: #fff; animation: voicePulse 1.4s ease-in-out infinite; }
+.voice-btn:disabled { opacity: .45; cursor: not-allowed; }
+@keyframes voicePulse { 50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, .18); } }
+.voice-bar { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 8px 12px; margin: -2px 0 10px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.voice-bar .h { font-weight: 600; }
+.voice-bar .h.interim { color: var(--text-secondary); font-style: italic; font-weight: 400; }
+.voice-bar small { color: var(--text-secondary); margin-left: auto; }
+.t-line .vx { color: #dc2626; font-size: .75em; margin-left: 4px; }
 .keypad-display { background: #111827; color: #34d399; font-family: var(--font-display, monospace); font-size: 2rem; text-align: right; padding: 12px 14px; border-radius: 10px; margin-bottom: 8px; }
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .keypad button { height: 54px; border: 0; border-radius: 10px; background: #f3f4f6; font-size: 1.35rem; font-weight: 700; cursor: pointer; }
@@ -130,7 +144,11 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- The till: Menu cassa products, keypad for a free amount, the ticket -->
 <div class="card mb-lg" style="padding:16px 18px;">
-    <h2 style="margin:0 0 10px;font-size:1.05rem;"><i class="fas fa-cash-register"></i> <?= te('till_title') ?></h2>
+    <div class="till-head">
+        <h2 style="margin:0;font-size:1.05rem;"><i class="fas fa-cash-register"></i> <?= te('till_title') ?></h2>
+        <button type="button" class="voice-btn" id="voiceBtn" aria-pressed="false" hidden><i class="fas fa-microphone"></i> <?= te('till_voice_btn') ?></button>
+    </div>
+    <div class="voice-bar" id="voiceBar" hidden aria-live="polite"><span class="h" id="voiceHeard"></span><small><?= te('till_voice_hint') ?></small></div>
     <div class="till">
         <div>
             <div class="till-cats" id="tillCats"></div>
@@ -322,7 +340,7 @@ function tSetCustomer(c) {
 function tAddProduct(id) {
     const it = TILL_MENU.flatMap(c => c.items).find(i => i.id === id);
     if (!it) return;
-    const same = ticket.find(l => l.id === id);
+    const same = ticket.find(l => l.id === id && !l.custom);   // not a line with a price said by voice
     if (same) same.qty = Math.min(99, same.qty + 1); else ticket.push({ id, name: it.name, unit: it.amount, qty: 1 });
     saveTicket(); renderTicket();
 }
@@ -349,7 +367,7 @@ function tStep(i, d) {
 function renderTicket() {
     $id('tLines').innerHTML = ticket.length ? ticket.map((l, i) => l.amount !== undefined
         ? `<div class="t-line"><span class="n">${escH(TL.free)}</span><span class="p">${money(l.amount)}</span><button type="button" onclick="tStep(${i}, -1)">✕</button></div>`
-        : `<div class="t-line"><span class="n">${l.qty}× ${escH(l.name)}</span><span class="p">${money(lineTotal(l))}</span>
+        : `<div class="t-line"><span class="n">${l.qty}× ${escH(l.name)}${l.custom ? '<i class="fas fa-microphone vx" aria-hidden="true"></i>' : ''}</span><span class="p">${money(lineTotal(l))}</span>
                <button type="button" onclick="tStep(${i}, -1)">−</button><button type="button" onclick="tStep(${i}, 1)">+</button></div>`).join('')
         : `<div class="till-empty">${escH(TL.empty)}</div>`;
     const tot = ticket.reduce((s, l) => s + lineTotal(l), 0);
@@ -364,7 +382,8 @@ async function tCheckout() {
     if (!ticket.length) return;
     $id('tPay').disabled = true;
     try {
-        const lines = ticket.map(l => l.amount !== undefined ? { amount: l.amount } : { id: l.id, qty: l.qty });
+        const lines = ticket.map(l => l.amount !== undefined ? { amount: l.amount }
+                                   : l.custom ? { id: l.id, qty: l.qty, amount: l.unit } : { id: l.id, qty: l.qty });
         const r = await (await fetch('/api/till.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'checkout', lines, target_order_id: $id('tTarget').value || null,
                                    customer_code: !$id('tTarget').value && ticketCustomer ? ticketCustomer.code : null }) })).json();
@@ -404,7 +423,16 @@ window.addEventListener('message', e => {
 // Keep the scan box ready for the scanner, and the list fresh (not while scanning
 // or while a ticket / an amount is being made).
 document.addEventListener('click', e => { if (!e.target.closest('input, button, a, select, #camBox')) document.getElementById('scanInput').focus(); });
-setInterval(() => { if (!cam && !document.getElementById('scanInput').value && !ticket.length && !kpCents && !ticketCustomer && $id('payOverlay').hidden) location.reload(); }, 20000);
+// Ordini Cassa by voice (assets/js/till-voice.js) works on this ticket.
+window.tillVoiceHost = { products: () => TILL_MENU.flatMap(c => c.items), ticket: () => ticket, changed: () => { saveTicket(); renderTicket(); }, money };
+window.TILL_VOICE_TEXT = <?= json_encode([
+    'listening' => t('till_voice_listening'), 'heard' => t('till_voice_heard'), 'added' => t('till_voice_added'),
+    'not_found' => t('till_voice_not_found'), 'as_free' => t('till_voice_as_free'), 'undone' => t('till_voice_undone'),
+    'nothing' => t('till_voice_nothing'), 'nothing_undo' => t('till_voice_nothing_undo'), 'denied' => t('till_voice_denied'),
+    'unsupported' => t('till_voice_unsupported'), 'big' => t('till_big_amount_confirm'), 'free' => t('till_voice_free'),
+], JSON_UNESCAPED_UNICODE) ?>;
+setInterval(() => { if (!cam && !(window.tillVoiceActive && window.tillVoiceActive()) && !document.getElementById('scanInput').value && !ticket.length && !kpCents && !ticketCustomer && $id('payOverlay').hidden) location.reload(); }, 20000);
 </script>
 
+<?php $extraJs = ['/assets/js/till-voice.js?v=' . @filemtime(__DIR__ . '/../assets/js/till-voice.js')]; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

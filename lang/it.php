@@ -1474,6 +1474,21 @@ return [
 
     // ---- Till keypad: big amounts ----
     'till_big_amount_confirm' => 'Confermi l\'importo di {amount}? Supera i 50 €.',
+    'till_voice_btn' => 'Voce',
+    'till_voice_listening' => 'In ascolto… parla pure',
+    'till_voice_hint' => 'Es. «pane euro 2,30» · «2 taralli» · «varie 6 euro» · «pane 2,30 poi taralli 1,50» · «annulla»',
+    'till_voice_heard' => 'Ho sentito: «{text}»',
+    'till_voice_added' => 'Aggiunto: {items}',
+    'till_voice_not_found' => 'Non trovato nel menu cassa: {name}',
+    'till_voice_as_free' => '«{name}» non è nel menu cassa: aggiunto come Varie',
+    'till_voice_undone' => 'Tolto: {name}',
+    'till_voice_nothing' => 'Non ho capito, ripeti',
+    'till_voice_nothing_undo' => 'Nessuna riga detta a voce da togliere',
+    'till_voice_denied' => 'Microfono non consentito: abilitalo nelle impostazioni del browser per questo sito',
+    'till_voice_unsupported' => 'Questo browser non riconosce la voce: usa Chrome, Edge o Safari',
+    'till_voice_free' => 'Varie',
+    'till_voice_words' => 'Parole per la voce: altri nomi con cui dirlo alla cassa, separati da virgola',
+    'till_voice_words_ph' => 'Voce: es. tarallini',
 
     // ---- User group: Ordini Cassa only ----
     'role_till' => 'Operatore Ordini Cassa',

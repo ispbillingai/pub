@@ -59,11 +59,11 @@ function tillFreeCategoryId(): int
     return (int) $stmt->fetchColumn();
 }
 
-/** The till's buttons: [['id', 'name', 'color', 'items' => [['id', 'name', 'price', 'amount', 'image', 'barcode']]]]. */
+/** The till's buttons: [['id', 'name', 'color', 'items' => [['id', 'name', 'price', 'amount', 'image', 'barcode', 'voice']]]]. */
 function tillMenu(): array
 {
     $rows = getDBConnection()->query("
-        SELECT mc.id AS category_id, mc.name AS category, mc.color, mi.id, mi.name, mi.base_price, mi.image_url, mi.barcode
+        SELECT mc.id AS category_id, mc.name AS category, mc.color, mi.id, mi.name, mi.base_price, mi.image_url, mi.barcode, mi.voice_words
         FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
         WHERE mc.till_only = 1 AND mc.active = 1 AND mi.active = 1
         ORDER BY mc.sort_order, mc.name, mi.sort_order, mi.name
@@ -73,13 +73,21 @@ function tillMenu(): array
         $cid = (int) $r['category_id'];
         $menu[$cid] ??= ['id' => $cid, 'name' => $r['category'], 'color' => $r['color'] ?: null, 'items' => []];
         $menu[$cid]['items'][] = ['id' => (int) $r['id'], 'name' => $r['name'], 'price' => formatCurrency($r['base_price']), 'amount' => (float) $r['base_price'],
-                                     'image' => $r['image_url'] ?: null, 'barcode' => $r['barcode'] ?: null];
+                                     'image' => $r['image_url'] ?: null, 'barcode' => $r['barcode'] ?: null, 'voice' => (string) ($r['voice_words'] ?? '')];
     }
     return array_values($menu);
 }
 
+/** Words a Menu cassa product is recognised by when spoken: "a, b, c", trimmed, max 255 chars. */
+function tillVoiceWords(string $raw): ?string
+{
+    $words = array_filter(array_map(static fn($w) => mb_substr(preg_replace('/\s+/u', ' ', trim($w)), 0, 60), preg_split('/[,;\n]+/u', $raw)));
+    $out = mb_substr(implode(', ', array_unique($words)), 0, 255);
+    return $out !== '' ? $out : null;
+}
+
 /**
- * Book the ticket: [['id' => till product, 'qty' => n] | ['amount' => euros]].
+ * Book the ticket: [['id' => till product, 'qty' => n] | ['id', 'qty', 'amount' => price said by voice] | ['amount' => euros]].
  * $targetOrderId: an online customer's open order to add it to, or null for a
  * new counter sale; $customerCode: the Clienti cassa customer scanned for it.
  * Returns ['ok' => order id] or ['error' => lang key].
@@ -94,7 +102,7 @@ function tillCheckout(array $lines, ?int $targetOrderId, int $userId, ?string $c
                            WHERE mi.id = ? AND mi.active = 1 AND mc.active = 1 AND mc.till_only = 1");
     $book = [];                                         // [menu item id, qty, unit price]
     foreach (array_slice($lines, 0, 100) as $l) {
-        if (isset($l['amount'])) {
+        if (isset($l['amount']) && !isset($l['id'])) {
             $amount = round((float) $l['amount'], 2);
             if ($amount <= 0 || $amount > TILL_MAX_AMOUNT) return ['error' => 'till_err_amount'];
             $book[] = [tillFreeItemId(), 1, $amount];
@@ -104,7 +112,13 @@ function tillCheckout(array $lines, ?int $targetOrderId, int $userId, ?string $c
         if ($qty < 1) continue;
         $prod->execute([(int) ($l['id'] ?? 0)]);
         if (!$p = $prod->fetch()) return ['error' => 'till_err_product'];
-        $book[] = [(int) $p['id'], min($qty, 99), (float) $p['base_price']];
+        // A price said by voice ("pane euro 2,30") replaces the menu price for that line.
+        $unit = (float) $p['base_price'];
+        if (isset($l['amount'])) {
+            $unit = round((float) $l['amount'], 2);
+            if ($unit <= 0 || $unit * min($qty, 99) > TILL_MAX_AMOUNT) return ['error' => 'till_err_amount'];
+        }
+        $book[] = [(int) $p['id'], min($qty, 99), $unit];
     }
     if (!$book) return ['error' => 'till_err_empty'];
 

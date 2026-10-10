@@ -45,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Menu online: the product's description instead.
     $code  = $isTill ? tillBarcode((string) ($_POST['barcode'] ?? '')) : '';
     $desc  = $isTill ? null : (mb_substr(trim((string) ($_POST['description'] ?? '')), 0, 500) ?: null);
+    $voice = $isTill ? tillVoiceWords((string) ($_POST['voice_words'] ?? '')) : null;   // words for Ordini Cassa by voice
     $taken = $isTill && in_array($a, ['add_item', 'update_item'], true) ? tillBarcodeTakenBy($code, $a === 'update_item' ? $id : 0) : null;
     if ($taken !== null) {
         header('Location: ' . $self . '?code_taken=' . rawurlencode($taken) . (!empty($_POST['cat']) ? '#cat-' . (int) $_POST['cat'] : ''));
@@ -68,14 +69,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($ok = (bool) $st->fetchColumn()) {
             $sort = $pdo->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_items WHERE category_id = ?");
             $sort->execute([$cat]);
-            $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, sort_order, image_url, barcode, active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)")
-                ->execute([$cat, $name, $desc, $price, (int) $sort->fetchColumn(), saveMenuImage('image'), $code !== '' ? $code : null]);
+            $pdo->prepare("INSERT INTO menu_items (category_id, name, description, base_price, sort_order, image_url, barcode, voice_words, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)")
+                ->execute([$cat, $name, $desc, $price, (int) $sort->fetchColumn(), saveMenuImage('image'), $code !== '' ? $code : null, $voice]);
         }
     } elseif ($a === 'update_item' && $name !== '' && ($price = tillPrice((string) ($_POST['price'] ?? ''))) !== null) {
         $pdo->prepare("UPDATE menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
-                       SET mi.name = ?, mi.base_price = ?, mi.sort_order = ?, " . ($isTill ? "mi.barcode = ?" : "mi.description = ?") . "
+                       SET mi.name = ?, mi.base_price = ?, mi.sort_order = ?, " . ($isTill ? "mi.barcode = ?, mi.voice_words = ?" : "mi.description = ?") . "
                        WHERE mi.id = ? AND mc.$flag = 1 AND mc.id <> ?")
-            ->execute([$name, $price, (int) ($_POST['sort_order'] ?? 0), $isTill ? ($code !== '' ? $code : null) : $desc, $id, $freeCat]);
+            ->execute(array_merge([$name, $price, (int) ($_POST['sort_order'] ?? 0)],
+                                  $isTill ? [$code !== '' ? $code : null, $voice] : [$desc], [$id, $freeCat]));
         // A new photo replaces the old one (none chosen = keep it).
         if ($img = saveMenuImage('image')) {
             $pdo->prepare("UPDATE menu_items SET image_url = ? WHERE id = ?")->execute([$img, $id]);
@@ -144,6 +146,8 @@ include __DIR__ . '/../includes/header.php';
 .tm-code { position: relative; }
 .tm-code i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); pointer-events: none; }
 .tm-code input { padding-left: 30px; font-family: monospace; }
+.tm-voice input { font-family: inherit; }
+.tm-row.has-voice { grid-template-columns: 56px minmax(150px, 1fr) 90px minmax(110px, 150px) minmax(140px, 220px) 64px minmax(140px, 190px) auto; }
 .tm-desc { font-size: .85rem; }
 .comp-photo { position: relative; display: inline-block; }
 .comp-photo label { cursor: pointer; display: block; }
@@ -154,7 +158,7 @@ include __DIR__ . '/../includes/header.php';
 .tm-cat-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .tm-cat-head input[type=text] { flex: 1; min-width: 160px; }
 .tm-swatch { width: 44px; height: 38px; padding: 2px; }
-@media (max-width: 900px) { .tm-row { grid-template-columns: 56px 1fr 90px; } }
+@media (max-width: 900px) { .tm-row, .tm-row.has-voice { grid-template-columns: 56px 1fr 90px; } }
 </style>
 
 <div class="page-header">
@@ -316,7 +320,7 @@ include __DIR__ . '/partials/menu_share.php';
     <div class="card-body">
         <?php foreach ($list as $it): ?>
             <?php $fid = 'item-' . (int) $it['id']; ?>
-            <div class="tm-row <?= $it['active'] ? '' : 'off' ?>">
+            <div class="tm-row <?= $isTill ? 'has-voice' : '' ?> <?= $it['active'] ? '' : 'off' ?>">
                 <?php if (!empty($it['image_url'])): ?>
                     <img class="tm-thumb" src="<?= htmlspecialchars($it['image_url']) ?>" alt="">
                 <?php else: ?>
@@ -326,6 +330,7 @@ include __DIR__ . '/partials/menu_share.php';
                 <input type="text" name="price" form="<?= $fid ?>" class="form-control" value="<?= number_format((float) $it['base_price'], 2, ',', '') ?>" inputmode="decimal" required title="<?= te('price') ?>">
                 <?php if ($isTill): ?>
                 <span class="tm-code"><i class="fas fa-barcode"></i><input type="text" name="barcode" form="<?= $fid ?>" class="form-control" value="<?= htmlspecialchars((string) $it['barcode']) ?>" maxlength="64" placeholder="<?= te('till_menu_code_ph') ?>" title="<?= te('till_menu_code') ?>" autocomplete="off"></span>
+                <span class="tm-code tm-voice"><i class="fas fa-microphone"></i><input type="text" name="voice_words" form="<?= $fid ?>" class="form-control" value="<?= htmlspecialchars((string) ($it['voice_words'] ?? '')) ?>" maxlength="255" placeholder="<?= te('till_voice_words_ph') ?>" title="<?= te('till_voice_words') ?>" autocomplete="off"></span>
                 <?php else: ?>
                 <input type="text" name="description" form="<?= $fid ?>" class="form-control tm-desc" value="<?= htmlspecialchars((string) $it['description']) ?>" maxlength="500" placeholder="<?= te('online_menu_desc_ph') ?>" title="<?= te('online_menu_desc_ph') ?>">
                 <?php endif; ?>
@@ -354,13 +359,14 @@ include __DIR__ . '/partials/menu_share.php';
         <?php endforeach; ?>
         <?php if (!$list): ?><p class="text-muted"><?= te('till_menu_no_items') ?></p><?php endif; ?>
 
-        <form method="POST" class="tm-row" style="border-bottom:0;margin-top:6px;" enctype="multipart/form-data">
+        <form method="POST" class="tm-row <?= $isTill ? 'has-voice' : '' ?>" style="border-bottom:0;margin-top:6px;" enctype="multipart/form-data">
             <input type="hidden" name="action" value="add_item"><input type="hidden" name="category_id" value="<?= (int) $c['id'] ?>"><input type="hidden" name="cat" value="<?= (int) $c['id'] ?>">
             <span class="tm-thumb"><i class="fas fa-plus"></i></span>
             <input type="text" name="name" class="form-control" maxlength="150" placeholder="<?= te('till_menu_item_ph') ?>" required>
             <input type="text" name="price" class="form-control" placeholder="0,00" inputmode="decimal" required>
             <?php if ($isTill): ?>
             <span class="tm-code"><i class="fas fa-barcode"></i><input type="text" name="barcode" class="form-control new-code" maxlength="64" placeholder="<?= te('till_menu_code_ph') ?>" title="<?= te('till_menu_code') ?>" autocomplete="off"></span>
+            <span class="tm-code tm-voice"><i class="fas fa-microphone"></i><input type="text" name="voice_words" class="form-control" maxlength="255" placeholder="<?= te('till_voice_words_ph') ?>" title="<?= te('till_voice_words') ?>" autocomplete="off"></span>
             <?php else: ?>
             <input type="text" name="description" class="form-control tm-desc" maxlength="500" placeholder="<?= te('online_menu_desc_ph') ?>">
             <?php endif; ?>
