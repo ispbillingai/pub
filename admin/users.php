@@ -24,6 +24,29 @@ function userPhoneFromPost(): ?string
     return $phone;
 }
 
+/**
+ * A user's RFID badge from the form (read into the field by the reader), or
+ * null when empty. Redirects back with an error when it is too short or taken.
+ */
+function userBadgeFromPost(int $userId = 0): ?string
+{
+    $code = badgeCode($_POST['rfid_code'] ?? '');
+    if ($code === '') return null;
+    $error = strlen($code) < BADGE_MIN_LENGTH ? 'badge_short'
+           : (badgeTakenBy($code, $userId) !== null ? 'badge_taken' : null);
+    if (!$error) {
+        // Ordini Cassa reads products' codes with the same scan box.
+        $stmt = getDBConnection()->prepare("SELECT 1 FROM menu_items WHERE barcode = ? LIMIT 1");
+        $stmt->execute([$code]);
+        if ($stmt->fetchColumn()) $error = 'badge_taken';
+    }
+    if ($error) {
+        header('Location: /admin/users.php?error=' . $error);
+        exit;
+    }
+    return $code;
+}
+
 $pdo = getDBConnection();
 
 // Handle form submissions
@@ -33,7 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'add_user') {
         $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
         $phone    = userPhoneFromPost();
-        $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, role, email, phone, phone_country) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $badge    = userBadgeFromPost();
+        $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, role, email, phone, phone_country, rfid_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $_POST['username'],
             $password,
@@ -42,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             trim($_POST['email'] ?? '') ?: null,
             $phone,
             $phone ? strtoupper($_POST['phone_country'] ?? 'IT') : null,
+            $badge,
         ]);
         header('Location: /admin/users.php?success=user_added');
         exit;
@@ -55,9 +80,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $phone = userPhoneFromPost();
-        $pdo->prepare("UPDATE users SET full_name = ?, email = ?, phone = ?, phone_country = ? WHERE id = ?")
+        $badge = userBadgeFromPost((int) $_POST['user_id']);
+        $pdo->prepare("UPDATE users SET full_name = ?, email = ?, phone = ?, phone_country = ?, rfid_code = ? WHERE id = ?")
             ->execute([trim($_POST['full_name'] ?? '') ?: $_POST['username_fallback'], $email ?: null, $phone,
-                       $phone ? strtoupper($_POST['phone_country'] ?? 'IT') : null, (int) $_POST['user_id']]);
+                       $phone ? strtoupper($_POST['phone_country'] ?? 'IT') : null, $badge, (int) $_POST['user_id']]);
         logActivity('user_contacts_updated', 'users', (int) $_POST['user_id']);
         header('Location: /admin/users.php?success=contacts_updated');
         exit;
@@ -137,9 +163,10 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
-<?php if (in_array($_GET['error'] ?? '', ['bad_phone', 'bad_email'], true)): ?>
+<?php $formErrors = ['bad_phone' => 'cust_bad_phone', 'bad_email' => 'err_bad_email', 'badge_short' => 'badge_err_short', 'badge_taken' => 'badge_err_taken']; ?>
+<?php if (isset($formErrors[$_GET['error'] ?? ''])): ?>
     <div class="alert alert-danger mb-lg" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 16px; border-radius: 8px;">
-        <i class="fas fa-exclamation-circle"></i> <?= te($_GET['error'] === 'bad_phone' ? 'cust_bad_phone' : 'err_bad_email') ?>
+        <i class="fas fa-exclamation-circle"></i> <?= te($formErrors[$_GET['error']], ['min' => BADGE_MIN_LENGTH]) ?>
     </div>
 <?php endif; ?>
 
@@ -189,6 +216,9 @@ include __DIR__ . '/../includes/header.php';
                         <?php if ($user['phone']): ?>
                             <div class="flag-font"><i class="fab fa-whatsapp" style="color:#25d366;"></i> <?= countryFlag($user['phone_country'] ?: 'IT') ?> <?= htmlspecialchars($user['phone']) ?></div>
                         <?php endif; ?>
+                        <?php if (!empty($user['rfid_code'])): ?>
+                            <div title="<?= te('badge_label') ?>"><i class="fas fa-id-badge text-muted"></i> <?= te('badge_set') ?></div>
+                        <?php endif; ?>
                         <?php if (!$user['email'] || !$user['phone']): ?>
                             <div class="text-muted" style="font-size:.75rem;"><i class="fas fa-triangle-exclamation" style="color:var(--warning);"></i> <?= te('user_no_reset') ?></div>
                         <?php endif; ?>
@@ -205,7 +235,8 @@ include __DIR__ . '/../includes/header.php';
                             <button class="btn btn-sm btn-outline" onclick='openContacts(<?= htmlspecialchars(json_encode([
                                 "id" => (int) $user["id"], "username" => $user["username"], "full_name" => $user["full_name"],
                                 "email" => $user["email"] ?? "", "country" => $user["phone_country"] ?: "IT",
-                                "phone" => $user["phone"] ? nationalPhone($user["phone_country"] ?: "IT", $user["phone"]) : ""]), ENT_QUOTES) ?>)' title="<?= te('user_contacts') ?>">
+                                "phone" => $user["phone"] ? nationalPhone($user["phone_country"] ?: "IT", $user["phone"]) : "",
+                                "rfid" => $user["rfid_code"] ?? ""]), ENT_QUOTES) ?>)' title="<?= te('user_contacts') ?>">
                                 <i class="fas fa-address-card"></i> <?= te('user_contacts') ?>
                             </button>
                             <button class="btn btn-sm btn-outline" onclick="openResetModal(<?= $user['id'] ?>, '<?= htmlspecialchars($user['username']) ?>')" title="<?= te('reset_password') ?>">
@@ -289,6 +320,12 @@ include __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
                 </div>
+
+                <div class="form-group">
+                    <label class="form-label"><i class="fas fa-id-badge"></i> <?= te('badge_label') ?></label>
+                    <input type="text" name="rfid_code" class="form-control" autocomplete="off" placeholder="<?= te('badge_ph') ?>" onkeydown="if (event.key === 'Enter') event.preventDefault()">
+                    <small class="text-muted"><?= te('badge_field_hint') ?></small>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeModal('addUserModal')"><?= te('cancel') ?></button>
@@ -327,6 +364,11 @@ include __DIR__ . '/../includes/header.php';
                         </select>
                         <input type="tel" name="phone" id="ctPhone" class="form-control" placeholder="333 123 4567">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><i class="fas fa-id-badge"></i> <?= te('badge_label') ?></label>
+                    <input type="text" name="rfid_code" id="ctRfid" class="form-control" autocomplete="off" placeholder="<?= te('badge_ph') ?>" onkeydown="if (event.key === 'Enter') event.preventDefault()">
+                    <small class="text-muted"><?= te('badge_field_hint') ?></small>
                 </div>
             </div>
             <div class="modal-footer">
@@ -373,6 +415,7 @@ function openContacts(u) {
     document.getElementById('ctEmail').value = u.email;
     document.getElementById('ctCountry').value = u.country || 'IT';
     document.getElementById('ctPhone').value = u.phone;
+    document.getElementById('ctRfid').value = u.rfid;
     openModal('contactsModal');
 }
 </script>

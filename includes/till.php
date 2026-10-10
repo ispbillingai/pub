@@ -480,24 +480,34 @@ function tillBarcodeTakenBy(string $code, int $exceptItemId = 0): ?string
     return $stmt->fetchColumn() ?: null;
 }
 
-/** Counter sales booked but not paid yet (the payment was left half-way). */
-function tillOpenSales(): array
+/**
+ * The operator whose counter sales the current user works on: each operator
+ * (switched by badge at the same till) has their own; null = all (admin).
+ */
+function tillSalesOwner(): ?int
+{
+    $user = getCurrentUser();
+    return ($user['role'] ?? '') === 'admin' ? null : (int) $user['id'];
+}
+
+/** Counter sales booked but not paid yet (the payment was left half-way); $ownerId: only that operator's. */
+function tillOpenSales(?int $ownerId = null): array
 {
     $stmt = getDBConnection()->prepare("
         SELECT o.id, o.order_number, o.total, o.created_at, u.full_name AS cashier
         FROM orders o JOIN users u ON u.id = o.waiter_id
-        WHERE o.channel = ? AND o.status NOT IN ('paid', 'cancelled') ORDER BY o.id
+        WHERE o.channel = ? AND o.status NOT IN ('paid', 'cancelled') AND (? IS NULL OR o.waiter_id = ?) ORDER BY o.id
     ");
-    $stmt->execute([TILL_CHANNEL]);
+    $stmt->execute([TILL_CHANNEL, $ownerId, $ownerId]);
     return $stmt->fetchAll();
 }
 
-/** Drop a counter sale nobody paid. */
-function tillCancelSale(int $orderId): bool
+/** Drop a counter sale nobody paid; $ownerId: only if it is that operator's. */
+function tillCancelSale(int $orderId, ?int $ownerId = null): bool
 {
     $stmt = getDBConnection()->prepare("UPDATE orders SET status = 'cancelled', closed_at = NOW()
-                                        WHERE id = ? AND channel = ? AND status NOT IN ('paid', 'cancelled')");
-    $stmt->execute([$orderId, TILL_CHANNEL]);
+                                        WHERE id = ? AND channel = ? AND status NOT IN ('paid', 'cancelled') AND (? IS NULL OR waiter_id = ?)");
+    $stmt->execute([$orderId, TILL_CHANNEL, $ownerId, $ownerId]);
     if ($stmt->rowCount()) logActivity('till_counter_sale_cancelled', 'orders', $orderId);
     return $stmt->rowCount() > 0;
 }

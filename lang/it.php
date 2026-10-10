@@ -1325,7 +1325,7 @@ return [
     'cash_online_scan_go' => 'Apri',
     'cash_online_camera' => 'Fotocamera',
     'cash_online_camera_err' => 'Fotocamera non disponibile: usa il lettore o apri l\'ordine dalla lista.',
-    'cash_online_scan_unknown' => 'Codice non riconosciuto: non è il QR di un ordine online né il codice di un prodotto (visibile) del Menu cassa.',
+    'cash_online_scan_unknown' => 'Codice non riconosciuto: non è il QR di un ordine online, né il codice di un prodotto (visibile) del Menu cassa, né il badge di un operatore.',
     'cash_online_scan_paid' => 'L\'ordine {order} di {name} è già stato pagato.',
     'cash_online_scan_cancelled' => 'L\'ordine {order} è stato annullato.',
     'cash_online_open' => 'Da incassare',
@@ -1741,4 +1741,16 @@ return [
     'closing_done_today' => 'Chiusura di oggi già eseguita alle {time} ({user})',
     'closing_z' => 'Z',
     'closing_document_open' => 'Il registratore ha uno scontrino aperto (forse la Cashmatic sta stampando). Attendere che finisca e riprovare.',
+
+    // Badge RFID del personale
+    'badge_label' => 'Badge RFID',
+    'badge_ph' => 'Clicca qui e passa il badge sul lettore',
+    'badge_field_hint' => 'Con il badge si entra senza password e si cambia operatore alla cassa. Vuoto = nessun badge.',
+    'badge_set' => 'Badge RFID assegnato',
+    'badge_err_short' => 'Codice del badge troppo corto (almeno {min} caratteri).',
+    'badge_err_taken' => 'Questo badge è già assegnato a un altro utente (o è il codice di un prodotto).',
+    'badge_unknown' => 'Badge non riconosciuto.',
+    'badge_login_hint' => 'Oppure passa il tuo badge sul lettore.',
+    'badge_operator' => 'Operatore: {name}',
+    'badge_switch_hint' => 'Passa il badge per cambiare operatore',
 ];

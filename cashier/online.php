@@ -64,9 +64,11 @@ $paid = $pdo->prepare("
 $paid->execute([ONLINE_CHANNEL]);
 $paid = $paid->fetchAll();
 
-// The till: Menu cassa buttons, and counter sales left unpaid.
+// The till: Menu cassa buttons, and counter sales left unpaid (each operator their own;
+// another one takes over this till with their badge, assets/js/badge.js).
+$operator  = getCurrentUser();
 $tillMenu  = tillMenu();
-$openSales = tillOpenSales();
+$openSales = tillOpenSales(tillSalesOwner());
 $tillTargets = array_map(fn($o) => ['id' => (int) $o['id'], 'label' => $o['customer_name'] . ' · ' . $o['order_number']], $orders);
 // Orders waiting below, for "incassa Mario" / "incassa 13 euro" by voice.
 $voiceCollect = array_merge(
@@ -78,6 +80,9 @@ $pageTitle  = t('cash_online_title');
 include __DIR__ . '/../includes/header.php';
 ?>
 <style>
+.till-operator { display: inline-flex; align-items: center; gap: 8px; background: #eef2ff; color: #3730a3; font-weight: 700; border-radius: 999px; padding: 8px 16px; }
+.till-operator small { font-weight: 400; color: #6366f1; }
+@media (max-width: 700px) { .till-operator small { display: none; } }
 .scan-box { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .scan-box input { flex: 1; min-width: 220px; font-size: 1.1rem; padding: 12px 14px; }
 #camBox { margin-top: 12px; max-width: 420px; }
@@ -135,6 +140,8 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="page-header">
     <h1><i class="fas fa-globe"></i> <?= te('cash_online_title') ?></h1>
+    <span class="till-operator" title="<?= te('badge_switch_hint') ?>"><i class="fas fa-id-badge"></i>
+        <?= te('badge_operator', ['name' => $operator['full_name']]) ?> <small><?= te('badge_switch_hint') ?></small></span>
     <?php if (hasRole(['admin', 'cashier'])): ?><a href="/cashier/index.php" class="btn btn-outline"><i class="fas fa-cash-register"></i> <?= te('nav_cashier') ?></a><?php endif; ?>
 </div>
 
@@ -269,12 +276,13 @@ const TL = <?= json_encode([
     'pay' => t('till_pay'), 'empty' => t('till_ticket_empty'), 'free' => t('till_free_line'), 'none' => t('till_no_products'),
     'failed' => t('toast_update_failed'), 'cancel_q' => t('till_cancel_confirm'), 'currency' => formatCurrency(0),
     'scanned' => t('till_scanned'), 'cust_set' => t('till_cust_scanned'), 'big_amount' => t('till_big_amount_confirm'),
-    'cf_new' => t('till_cf_scan_new'),
+    'cf_new' => t('till_cf_scan_new'), 'scan_unknown' => t('cash_online_scan_unknown'),
 ], JSON_UNESCAPED_UNICODE) ?>;
 const $id = id => document.getElementById(id);
 const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = v => TL.currency.replace(/0[.,]00/, v.toFixed(2).replace('.', TL.currency.includes(',') ? ',' : '.'));
-const TICKET_KEY = 'till-ticket';
+// The ticket being made is the operator's: switching by badge brings back each one's own.
+const TICKET_KEY = 'till-ticket-u<?= (int) $operator['id'] ?>';
 let ticket = [];       // [{id, name, unit, qty}] products, [{amount}] free amounts
 try { ticket = JSON.parse(localStorage.getItem(TICKET_KEY) || '[]') || []; if (!Array.isArray(ticket)) ticket = []; } catch (e) {}
 const saveTicket = () => { try { localStorage.setItem(TICKET_KEY, JSON.stringify(ticket)); } catch (e) {} };
@@ -307,8 +315,24 @@ function scanSubmit(e) {
     if (scanProduct(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
     if (scanTillCustomer(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
     if (scanFiscalCode(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
+    if (scanBadge(inp.value)) { e.preventDefault(); inp.value = ''; inp.focus(); return false; }
     return true;                         // a customer's QR: the server opens its payment
 }
+// An operator's badge (letters and digits, not an order's QR): they take over the till.
+function scanBadge(text) {
+    const code = String(text || '').trim();
+    if (!/^[A-Za-z0-9]{6,64}$/.test(code) || /[a-f0-9]{24}/i.test(code) || typeof staffBadgeRead !== 'function') return false;
+    staffBadgeRead(code).then(r => { if (!r.success) showToast(TL.scan_unknown, 'error', 4000); });
+    return true;
+}
+// A reader's burst while the scan box hasn't the focus (a product button was just pressed):
+// the same path as the scan box, so products and QRs still work.
+window.onBadgeRead = code => {
+    const inp = $id('scanInput');
+    inp.value = code;
+    inp.form.requestSubmit();
+    return true;
+};
 // A Clienti cassa customer's QR (C0007): the ticket's sale will start with their details.
 // A tessera sanitaria (its barcode is the codice fiscale): a known customer goes
 // on the ticket; a new one's codice fiscale waits for the payment's "Customer" box.
@@ -340,7 +364,7 @@ function scanTillCustomer(text) {
         }).catch(() => showToast(TL.failed, 'error'));
     return true;
 }
-const CUST_KEY = 'till-ticket-customer';
+const CUST_KEY = 'till-ticket-customer-u<?= (int) $operator['id'] ?>';
 let ticketCustomer = null;
 try { ticketCustomer = JSON.parse(localStorage.getItem(CUST_KEY) || 'null'); } catch (e) {}
 function tSetCustomer(c) {

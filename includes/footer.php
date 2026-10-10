@@ -38,6 +38,10 @@
     </script>
     <?php endif; ?>
     <script src="/assets/js/app.js?v=<?= @filemtime(__DIR__ . '/../assets/js/app.js') ?>"></script>
+    <?php if (empty($embedPage) && !empty($currentUser)): ?>
+    <!-- Staff badge (RFID): another operator takes over this device -->
+    <script src="/assets/js/badge.js?v=<?= @filemtime(__DIR__ . '/../assets/js/badge.js') ?>"></script>
+    <?php endif; ?>
     <?php if (isset($extraJs)): ?>
         <?php foreach ((array)$extraJs as $js): ?>
             <script src="<?= $js ?>"></script>

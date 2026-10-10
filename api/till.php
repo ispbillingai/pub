@@ -57,6 +57,6 @@ if ($action === 'lookup') {
     jsonResponse(['success' => true, 'customer' => tillCustomerLookup((string) ($input['country'] ?? 'IT'), (string) ($input['phone'] ?? ''))]);
 }
 if ($action === 'cancel') {
-    jsonResponse(['success' => tillCancelSale((int) ($input['order_id'] ?? 0))]);
+    jsonResponse(['success' => tillCancelSale((int) ($input['order_id'] ?? 0), tillSalesOwner())]);
 }
 jsonResponse(['success' => false, 'message' => 'Unknown action'], 400);

@@ -106,6 +106,68 @@ function requireRole($roles) {
     }
 }
 
+/** Where each role starts after logging in. */
+function roleHome($role) {
+    return [
+        'admin'            => '/admin/index.php',
+        'waiter'           => '/waiter/index.php',
+        'cashier'          => '/cashier/index.php',
+        'kitchen'          => '/kitchen/index.php',
+        TILL_OPERATOR_ROLE => '/cashier/online.php',
+    ][$role] ?? '/index.php';
+}
+
+/* ---- Staff badge (RFID): a USB reader types its code + Enter like a keyboard ---- */
+
+const BADGE_MIN_LENGTH = 6;
+const BADGE_MAX_FAILS  = 10;   // unknown badges from one address in 10 minutes, then it stops answering
+
+/** A badge as the reader typed it: letters and digits only, upper case ('' = none). */
+function badgeCode($raw) {
+    return substr(strtoupper(preg_replace('/[^a-z0-9]/i', '', (string) $raw)), 0, 64);
+}
+
+/** Another user (active or disabled) already holding this badge: their name, or null. */
+function badgeTakenBy($code, $exceptUserId = 0) {
+    $stmt = getDBConnection()->prepare("SELECT full_name FROM users WHERE rfid_code = ? AND id <> ? LIMIT 1");
+    $stmt->execute([$code, (int) $exceptUserId]);
+    return $stmt->fetchColumn() ?: null;
+}
+
+/**
+ * Log in with a staff badge: the active user it belongs to takes over this
+ * session (at the login page, or another operator at the same till).
+ * Returns the user, or null (unknown badge, or too many unknown ones from here).
+ */
+function staffBadgeLogin($raw) {
+    $pdo  = getDBConnection();
+    $code = badgeCode($raw);
+    $ip   = $_SERVER['REMOTE_ADDR'] ?? null;
+    $st   = $pdo->prepare("SELECT COUNT(*) FROM activity_log WHERE action = 'badge_unknown' AND ip_address <=> ? AND created_at > NOW() - INTERVAL 10 MINUTE");
+    $st->execute([$ip]);
+    if ((int) $st->fetchColumn() >= BADGE_MAX_FAILS) return null;
+
+    $user = null;
+    if (strlen($code) >= BADGE_MIN_LENGTH) {
+        $st = $pdo->prepare("SELECT * FROM users WHERE rfid_code = ? AND active = 1");
+        $st->execute([$code]);
+        $user = $st->fetch() ?: null;
+    }
+    if (!$user) {
+        logActivity('badge_unknown');
+        return null;
+    }
+    $from = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
+    if ($from !== (int) $user['id']) {
+        session_regenerate_id(true);
+        $_SESSION['user_id']   = $user['id'];
+        $_SESSION['user_role'] = $user['role'];
+        $_SESSION['user_name'] = $user['full_name'];
+        logActivity($from ? 'badge_switch' : 'login', 'users', (int) $user['id'], ['badge' => true, 'from_user' => $from]);
+    }
+    return $user;
+}
+
 /**
  * Generate unique order number
  */

@@ -120,12 +120,14 @@ function redirectToRole($role) {
                 <?= htmlspecialchars($error) ?>
             </div>
         <?php endif; ?>
-        
+        <div class="login-error" id="badgeMsg" hidden></div>
+
         <form method="POST" class="login-form">
             <div class="form-group">
                 <i class="fas fa-user"></i>
+                <!-- data-badge: a badge read here logs its user in (assets/js/badge.js) -->
                 <input type="text" name="username" class="form-control" placeholder="<?= te('login_username') ?>"
-                       value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required autofocus>
+                       value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required autofocus data-badge>
             </div>
             
             <div class="form-group">
@@ -138,10 +140,12 @@ function redirectToRole($role) {
                 <?= te('login_button') ?>
             </button>
         </form>
+        <p class="text-muted text-center" style="margin:10px 0 0;font-size:.85rem;"><i class="fas fa-id-badge"></i> <?= te('badge_login_hint') ?></p>
 
         <div class="mt-lg text-center">
             <a href="/forgot-password.php" class="pwr-back"><i class="fas fa-key"></i> <?= te('pwr_forgot') ?></a>
         </div>
     </div>
+    <script src="/assets/js/badge.js?v=<?= @filemtime(__DIR__ . '/assets/js/badge.js') ?>"></script>
 </body>
 </html>

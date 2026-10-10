@@ -1325,7 +1325,7 @@ return [
     'cash_online_scan_go' => 'Open',
     'cash_online_camera' => 'Camera',
     'cash_online_camera_err' => 'Camera not available: use the scanner or open the order from the list.',
-    'cash_online_scan_unknown' => 'Code not recognised: neither an online order QR nor the code of a (visible) Till menu product.',
+    'cash_online_scan_unknown' => 'Code not recognised: neither an online order QR, nor the code of a (visible) Till menu product, nor an operator\'s badge.',
     'cash_online_scan_paid' => 'Order {order} of {name} is already paid.',
     'cash_online_scan_cancelled' => 'Order {order} was cancelled.',
     'cash_online_open' => 'To collect',
@@ -1741,4 +1741,16 @@ return [
     'closing_done_today' => 'Closing for today already done at {time} ({user})',
     'closing_z' => 'Z',
     'closing_document_open' => 'The register has a receipt open (maybe the Cashmatic is printing). Wait for it to finish and try again.',
+
+    // Staff RFID badge
+    'badge_label' => 'RFID badge',
+    'badge_ph' => 'Click here and hold the badge to the reader',
+    'badge_field_hint' => 'With the badge you log in without a password and switch operator at the till. Empty = no badge.',
+    'badge_set' => 'RFID badge assigned',
+    'badge_err_short' => 'Badge code too short (at least {min} characters).',
+    'badge_err_taken' => 'This badge is already assigned to another user (or is a product\'s code).',
+    'badge_unknown' => 'Badge not recognised.',
+    'badge_login_hint' => 'Or hold your badge to the reader.',
+    'badge_operator' => 'Operator: {name}',
+    'badge_switch_hint' => 'Hold a badge to the reader to switch operator',
 ];
