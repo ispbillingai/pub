@@ -15,7 +15,8 @@
  *   "pagamento virtuale" (test mode button; the spoken command is its confirmation).
  * Wake phrase: with "Si attiva con «ok cassa»" ticked (per device) the microphone waits from
  * page load; "ok cassa" (also "ok cassa, pane 2,30") starts listening, 30 s of silence or
- * "basta" / "stop cassa" go back to waiting for "ok cassa".
+ * "basta" / "stop cassa" go back to waiting for "ok cassa" (on its own after 30 s of silence, but not
+ * while a sale is under way: lines on the ticket or the payment open). "in cassa" counts as "incassa".
  *
  * Products are found by their name or by the "words for the voice" set in
  * Admin › Menu cassa (e.g. "tarallini, taralli napoletani"), tolerating small
@@ -193,7 +194,9 @@
      *   both: stop, help, yes, no
      */
     function parseCommand(text, ctx) {
-        const n = tokens(text).join(' ').replace(/^(per favore|per piacere) /, '').replace(/ (per favore|per piacere|grazie)$/, '');
+        const n = tokens(text).join(' ').replace(/^(per favore|per piacere) /, '').replace(/ (per favore|per piacere|grazie)$/, '')
+            // The recogniser often writes "incassa" as "in cassa" (or incasso, incassare…).
+            .replace(/^(in cassa|in casa|incasso|incassare|incassi|incasa|ingassa|incassami)( |$)/, 'incassa$2');
         const is = re => re.test(n);
         if (is(/^(basta|stop|spegni|smetti( di ascoltare)?|fine ascolto|grazie)( grazie)?$/)) return { cmd: 'stop' };
         if (is(/^(aiuto|comandi|elenco( dei)? comandi|cosa posso dire)$/)) return { cmd: 'help' };
@@ -339,10 +342,17 @@
         if (m === 'standby') show(L.standby, true);
         if (m === 'off') stopEngine(); else startEngine();
     }
-    // Active and quiet for 30 s: back to standby (only when the wake phrase is on).
+    // Active and quiet for 30 s: back to standby (only when the wake phrase is on), but never in the
+    // middle of a sale (lines on the ticket, or the payment open): "incassa" must still be heard.
     function touch() {
         clearTimeout(idleTimer);
-        if (wakeOn()) idleTimer = setTimeout(() => { if (mode === 'active') { tone(false); setMode('standby'); } }, IDLE_MS);
+        if (!wakeOn()) return;
+        idleTimer = setTimeout(() => {
+            if (mode !== 'active') return;
+            if (host.ticket().length || host.payDoc()) { touch(); return; }
+            tone(false);
+            setMode('standby');
+        }, IDLE_MS);
     }
 
     function addLines(res) {
