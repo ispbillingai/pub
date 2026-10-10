@@ -450,6 +450,9 @@
         if (c && c.cmd === 'help') { show(ctx === 'pay' ? L.help_pay : L.help, false); return; }
         if (ctx === 'pay') { if (c) runPay(c); else toast(L.in_pay, 'warning', 3500); return; }
         if (c && (c.cmd === 'yes' || c.cmd === 'no')) return;          // nothing waiting for a yes / no
+        // A payment command with no payment open ("sconto 10 per cento") must never become an amount.
+        const payCmd = alts.map(a => parseCommand(a, 'pay')).find(Boolean);
+        if (!c && payCmd && ['card', 'cash', 'cash_nf', 'print', 'discount'].includes(payCmd.cmd)) { toast(L.pay_first, 'warning', 3500); return; }
         if (c) { runTill(c); return; }
         const [, res] = best(alts);
         addLines(res);

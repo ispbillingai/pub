@@ -1507,6 +1507,7 @@ return [
     'till_voice_help' => 'Products: «pane euro 2,30» · «2 taralli» · «varie 6 euro» · «annulla» · «togli saccottino» — Till: «incassa» · «totale» · «svuota» · «fotocamera» · «basta»',
     'till_voice_help_pay' => 'Payment: «carta» · «contanti» · «contanti senza scontrino» · «stampa conto» · «sconto 10 per cento» · «sconto 5 euro» · «conferma» · «chiudi» · «fatto»',
     'till_voice_in_pay' => 'Payment open: say «carta», «contanti», «stampa conto» or «chiudi» («aiuto» for the list)',
+    'till_voice_pay_first' => 'Open the payment first: say «incassa»',
 
     // ---- User group: Ordini Cassa only ----
     'role_till' => 'Till orders operator',
