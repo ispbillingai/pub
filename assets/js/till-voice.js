@@ -15,7 +15,8 @@
  *   "pagamento virtuale" (test mode button; the spoken command is its confirmation).
  * Wake phrase: with "Si attiva con «ok cassa»" ticked (per device) the microphone waits from
  * page load; "ok cassa" (also "ok cassa, pane 2,30") starts listening, 30 s of silence or
- * "basta" goes back to waiting.
+ * "basta" goes back to waiting. "stop cassa" (also "spegni il microfono") switches the
+ * microphone off altogether, even waiting, until "Voce" is tapped again (it stays off across reloads).
  *
  * Products are found by their name or by the "words for the voice" set in
  * Admin › Menu cassa (e.g. "tarallini, taralli napoletani"), tolerating small
@@ -254,7 +255,14 @@
         return pool.length ? { ambiguous: pool } : { ambiguous: byTime, notFound: true };
     }
 
-    root.TillVoice = { parseVoice, resolveVoice, matchProduct, parseCommand, stripWake, pickCollect, norm };
+    /** "stop cassa", "spegni / disattiva il microfono", "spegni la cassa": the microphone off altogether. */
+    function isOff(text) {
+        const n = norm(text).replace(/ poi /g, ' ');
+        return /(^| )(stop|stoppa|spegni|disattiva|chiudi)( la| il)? cassa( |$)/.test(n)
+            || /(^| )(spegni|disattiva|chiudi|stacca)( il)? microfono( |$)/.test(n);
+    }
+
+    root.TillVoice = { parseVoice, resolveVoice, matchProduct, parseCommand, stripWake, pickCollect, isOff, norm };
     if (typeof module !== 'undefined' && module.exports) module.exports = root.TillVoice;
     if (typeof document === 'undefined') return;
 
@@ -276,6 +284,7 @@
         return;
     }
     const WAKE_KEY = 'till-voice-wake';
+    const OFF_KEY = 'till-voice-off';      // "stop cassa": stays off across reloads until "Voce" is tapped
     const IDLE_MS = 30000;
     let rec = null, mode = 'off', idleTimer = null, pending = null, speakingUntil = 0;
     const wakeOn = () => !!(wakeBox && wakeBox.checked);
@@ -474,8 +483,18 @@
             }
         }
     }
+    const setOff = v => { try { v ? localStorage.setItem(OFF_KEY, '1') : localStorage.removeItem(OFF_KEY); } catch (e) {} };
+    const isSwitchedOff = () => { try { return localStorage.getItem(OFF_KEY) === '1'; } catch (e) { return false; } };
     function handle(alts) {
         if (Date.now() < speakingUntil) return;
+        // "stop cassa": off altogether, from standby too.
+        if (alts.some(isOff)) {
+            tone(false);
+            setOff(true);
+            setMode('off');
+            toast(L.off, 'info', 5000);
+            return;
+        }
         if (mode === 'standby') {
             const w = alts.map(stripWake).find(x => x.woke);
             if (!w) return;
@@ -551,16 +570,18 @@
 
     btn.addEventListener('click', () => {
         if (mode === 'active') { if (wakeOn()) { tone(false); setMode('standby'); } else setMode('off'); return; }
+        setOff(false);
         tone(true);
         setMode('active');
     });
     if (wakeBox) wakeBox.addEventListener('change', () => {
         try { localStorage.setItem(WAKE_KEY, wakeBox.checked ? '1' : '0'); } catch (e) {}
+        setOff(false);
         if (wakeBox.checked && mode === 'off') setMode('standby');
         if (!wakeBox.checked && mode === 'standby') setMode('off');
         if (mode === 'active') touch();
     });
-    if (wakeOn()) setMode('standby');
+    if (wakeOn() && !isSwitchedOff()) setMode('standby');
     // Only a spoken session holds the page's auto-refresh; the standby comes back by itself after a reload.
     root.tillVoiceActive = () => mode === 'active';
 })(typeof window !== 'undefined' ? window : globalThis);

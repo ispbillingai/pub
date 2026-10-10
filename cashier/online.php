@@ -452,7 +452,7 @@ window.TILL_VOICE_TEXT = <?= json_encode([
     'confirm_clear' => t('till_voice_confirm_clear'), 'cleared' => t('till_voice_cleared'), 'not_in_ticket' => t('till_voice_not_in_ticket'),
     'removed_one' => t('till_voice_removed_one'), 'no_btn' => t('till_voice_no_btn'), 'manual_cash' => t('till_voice_manual_cash'),
     'discount' => t('till_voice_discount'), 'discount_off' => t('till_voice_discount_off'), 'help' => t('till_voice_help'),
-    'help_pay' => t('till_voice_help_pay'), 'in_pay' => t('till_voice_in_pay'), 'pay_first' => t('till_voice_pay_first'),
+    'help_pay' => t('till_voice_help_pay'), 'in_pay' => t('till_voice_in_pay'), 'pay_first' => t('till_voice_pay_first'), 'off' => t('till_voice_off'),
     'collect_none' => t('till_voice_collect_none'), 'collect_which' => t('till_voice_collect_which'), 'collect_unknown' => t('till_voice_collect_unknown'), 'collect_counter' => t('till_voice_collect_counter'),
 ], JSON_UNESCAPED_UNICODE) ?>;
 setInterval(() => { if (!cam && !(window.tillVoiceActive && window.tillVoiceActive()) && !document.getElementById('scanInput').value && !ticket.length && !kpCents && !ticketCustomer && $id('payOverlay').hidden) location.reload(); }, 20000);
