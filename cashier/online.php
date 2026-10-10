@@ -89,7 +89,7 @@ include __DIR__ . '/../includes/header.php';
 .till-products button.has-img { padding-top: 6px; }
 .till-empty { color: var(--text-secondary); padding: 20px 4px; }
 /* Voice: microphone button and what was heard */
-.till-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+.till-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 0 0 10px; }   /* button on the left: toasts appear on the right */
 .voice-btn { display: inline-flex; align-items: center; gap: 8px; border: 2px solid var(--primary); background: #fff; color: var(--primary); border-radius: 999px; padding: 7px 16px; font-weight: 700; cursor: pointer; min-height: 44px; }
 .voice-btn.on { background: #dc2626; border-color: #dc2626; color: #fff; animation: voicePulse 1.4s ease-in-out infinite; }
 .voice-btn:disabled { opacity: .45; cursor: not-allowed; }
