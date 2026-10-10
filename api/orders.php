@@ -193,12 +193,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $totalPrice = $unitPrice * $quantity;
             
-            // Insert order item
+            // Insert order item, with the waiter adding it (another one may take over the table).
             $stmt = $pdo->prepare("
-                INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, notes, added_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
-            $stmt->execute([$orderId, $seat, $menuItemId, $quantity, $unitPrice, $totalPrice, $notes]);
+            $stmt->execute([$orderId, $seat, $menuItemId, $quantity, $unitPrice, $totalPrice, $notes, (int) $user['id']]);
             
             $orderItemId = $pdo->lastInsertId();
             
@@ -358,7 +358,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonResponse(['success' => false, 'message' => 'Order is closed']);
             }
 
-            $sent = sendPendingToKitchen((int) $orderId);
+            $sent = sendPendingToKitchen((int) $orderId, (int) $user['id']);
             if (!$sent['items']) {
                 jsonResponse(['success' => false, 'message' => 'No new items to send']);
             }

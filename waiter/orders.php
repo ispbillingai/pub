@@ -10,7 +10,8 @@ requireRole(['admin', 'waiter']);
 $user = getCurrentUser();
 $pdo = getDBConnection();
 
-// Get active orders for this waiter (or all if admin)
+// Get active orders for this waiter (or all if admin): their own tables, and the ones
+// they took over for a while (added dishes to a colleague's table).
 $sql = "
     SELECT o.*, COALESCE(o.table_label, t.table_number) AS table_number, r.name as room_name,
            (SELECT COUNT(*) FROM order_items WHERE order_id = o.id AND status != 'cancelled') as item_count
@@ -21,13 +22,13 @@ $sql = "
 ";
 
 if ($user['role'] !== 'admin') {
-    $sql .= " AND o.waiter_id = ?";
+    $sql .= " AND (o.waiter_id = ? OR EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.added_by = ?))";
 }
 
 $sql .= " ORDER BY o.opened_at DESC";
 
 $stmt = $pdo->prepare($sql);
-$stmt->execute($user['role'] !== 'admin' ? [$user['id']] : []);
+$stmt->execute($user['role'] !== 'admin' ? [$user['id'], $user['id']] : []);
 $orders = $stmt->fetchAll();
 
 $pageTitle = t('my_orders');

@@ -29,7 +29,9 @@ $stmt = $pdo->query("
         mi.name as item_name,
         mc.name as category_name,
         mc.sort_order as category_sort,
-        u.full_name as waiter_name
+        u.full_name as waiter_name,
+        -- A colleague who took over the table and sent this dish (else NULL).
+        IF(oi.sent_by <> o.waiter_id, us.full_name, NULL) AS sent_by_name
     FROM order_items oi
     JOIN orders o ON oi.order_id = o.id
     JOIN tables_restaurant t ON o.table_id = t.id
@@ -37,6 +39,7 @@ $stmt = $pdo->query("
     JOIN menu_items mi ON oi.menu_item_id = mi.id
     JOIN menu_categories mc ON mi.category_id = mc.id
     JOIN users u ON o.waiter_id = u.id
+    LEFT JOIN users us ON us.id = oi.sent_by
     WHERE oi.status IN ('in_kitchen', 'pending')
       AND o.status NOT IN ('paid', 'cancelled')
     ORDER BY 
@@ -288,6 +291,7 @@ include __DIR__ . '/../includes/header.php';
                                     <div>
                                         <span class="qty"><?= $item['quantity'] ?>×</span>
                                         <strong><?= htmlspecialchars($item['item_name']) ?></strong><?php if (!empty($item['seat'])): ?> <span class="badge badge-info"><?= te('seat') ?> <?= (int) $item['seat'] ?></span><?php endif; ?>
+                                        <?php if (!empty($item['sent_by_name'])): ?> <span class="badge badge-light" title="<?= te('added_by_title') ?>"><i class="fas fa-user-pen"></i> <?= htmlspecialchars($item['sent_by_name']) ?></span><?php endif; ?>
                                         <span class="badge badge-<?= $item['status'] === 'in_kitchen' ? 'info' : 'warning' ?>" style="margin-left: 8px;">
                                             <?= $item['status'] === 'in_kitchen' ? te('cooking') : te('queued') ?>
                                         </span>

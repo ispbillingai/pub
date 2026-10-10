@@ -1753,4 +1753,9 @@ return [
     'badge_login_hint' => 'Oppure passa il tuo badge sul lettore.',
     'badge_operator' => 'Operatore: {name}',
     'badge_switch_hint' => 'Passa il badge per cambiare operatore',
+
+    // Più camerieri sullo stesso tavolo
+    'waiter_also_served' => 'servito anche da',
+    'added_by_guest' => 'Cliente (QR)',
+    'added_by_title' => 'Chi ha aggiunto il piatto e a che ora',
 ];

@@ -138,10 +138,10 @@ function tillCheckout(array $lines, ?int $targetOrderId, int $userId, ?string $c
     }
 
     // Handed over at the counter: served at once, never on the kitchen display or a slip.
-    $add = $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, status, served_at)
-                          VALUES (?, NULL, ?, ?, ?, ?, 'served', NOW())");
+    $add = $pdo->prepare("INSERT INTO order_items (order_id, seat, menu_item_id, quantity, unit_price, total_price, status, served_at, added_by)
+                          VALUES (?, NULL, ?, ?, ?, ?, 'served', NOW(), ?)");
     foreach ($book as [$itemId, $qty, $unit]) {
-        $add->execute([$orderId, $itemId, $qty, $unit, $unit * $qty]);
+        $add->execute([$orderId, $itemId, $qty, $unit, $unit * $qty, $userId]);
     }
     calculateOrderTotals($orderId);
     logActivity($targetOrderId ? 'till_added_to_online_order' : 'till_counter_sale', 'orders', $orderId, ['lines' => count($book)]);

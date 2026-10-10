@@ -420,15 +420,16 @@ function refreshOrderTableLabel($orderId) {
 }
 
 /**
- * Get order items
+ * Get order items (added_by_name: the waiter who added the dish, null = the guest / online / older dishes)
  */
 function getOrderItems($orderId) {
     $pdo = getDBConnection();
     $stmt = $pdo->prepare("
-        SELECT oi.*, mi.name as item_name, mc.name as category_name
+        SELECT oi.*, mi.name as item_name, mc.name as category_name, ua.full_name AS added_by_name
         FROM order_items oi
         JOIN menu_items mi ON oi.menu_item_id = mi.id
         JOIN menu_categories mc ON mi.category_id = mc.id
+        LEFT JOIN users ua ON ua.id = oi.added_by
         WHERE oi.order_id = ?
         ORDER BY oi.created_at
     ");

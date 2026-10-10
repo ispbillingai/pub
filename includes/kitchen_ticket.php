@@ -313,9 +313,12 @@ function printStationTicket(
  * kitchen", or the guest ordering from the table page): dishes to in_kitchen,
  * kitchen display tickets, the work-point slips printed. Dishes added after
  * the first send print as an ADDITION so the work point tops up the table.
+ * $sentBy: the waiter sending them (null = the guest, an online order). When it
+ * is not the table's own waiter (a colleague took over), the slip names them
+ * too, so the dish goes to whoever ordered it.
  * Returns ['items' => how many, 'addition' => bool, 'print' => print result].
  */
-function sendPendingToKitchen(int $orderId): array
+function sendPendingToKitchen(int $orderId, ?int $sentBy = null): array
 {
     $pdo   = getDBConnection();
     $order = getOrderById($orderId);
@@ -328,8 +331,15 @@ function sendPendingToKitchen(int $orderId): array
     $ids = array_map('intval', array_column($stmt->fetchAll(), 'id'));
     if (!$ids) return ['items' => 0, 'addition' => false, 'print' => ['ok' => false]];
 
-    $pdo->prepare("UPDATE order_items SET status = 'in_kitchen', sent_to_kitchen_at = NOW() WHERE order_id = ? AND status = 'pending'")
-        ->execute([$orderId]);
+    $pdo->prepare("UPDATE order_items SET status = 'in_kitchen', sent_to_kitchen_at = NOW(), sent_by = ? WHERE order_id = ? AND status = 'pending'")
+        ->execute([$sentBy, $orderId]);
+    if ($sentBy && $sentBy !== (int) $order['waiter_id']) {
+        $st = $pdo->prepare("SELECT full_name FROM users WHERE id = ?");
+        $st->execute([$sentBy]);
+        if ($name = $st->fetchColumn()) {
+            $order['waiter_name'] = $name . ' (tav. ' . $order['waiter_name'] . ')';
+        }
+    }
     // Asking for the bill and then adding a dish puts the order back in the kitchen flow.
     $pdo->prepare("UPDATE orders SET status = 'sent_to_kitchen' WHERE id = ?")->execute([$orderId]);
     $pdo->prepare("

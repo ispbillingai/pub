@@ -39,8 +39,9 @@ function renderOrderPdf(int $orderId): string
     $in = implode(',', array_fill(0, count($orderIds), '?'));
 
     $stmt = $pdo->prepare("
-        SELECT oi.quantity, oi.unit_price, oi.total_price, oi.seat, oi.notes, mi.name, mc.name AS category
+        SELECT oi.quantity, oi.unit_price, oi.total_price, oi.seat, oi.notes, oi.created_at, mi.name, mc.name AS category, ua.full_name AS added_by_name
         FROM order_items oi JOIN menu_items mi ON mi.id = oi.menu_item_id JOIN menu_categories mc ON mc.id = mi.category_id
+        LEFT JOIN users ua ON ua.id = oi.added_by
         WHERE oi.order_id IN ($in) AND oi.status <> 'cancelled'
         ORDER BY oi.seat IS NULL, oi.seat, oi.created_at, oi.id
     ");
@@ -97,7 +98,8 @@ function renderOrderPdf(int $orderId): string
         t('pdf_date')   => $when . ($order['closed_at'] ? ' → ' . date('H:i', strtotime($order['closed_at'])) : ''),
         t('table')      => $order['table_number'] . ' · ' . $order['room_name'],
         t('guests')     => (string) (int) $people,
-        t('waiter')     => $order['waiter_name'],
+        // The table's waiter, then the colleagues who also served it.
+        t('waiter')     => implode(', ', array_unique(array_merge([$order['waiter_name']], array_filter(array_column($items, 'added_by_name'))))),
         t('status')     => statusLabel($order['status']),
     ];
     $right = [];
@@ -121,25 +123,30 @@ function renderOrderPdf(int $orderId): string
     $pdf->SetY(max($y0 + 6 * count($left), $y0 + 6 * count($right)) + 5);
 
     // Dishes
-    $w = [14, 90, 22, 26, 26];
+    // Dishes, each with the waiter who added it and when ("Luca 13:05").
+    $w = [12, 72, 14, 36, 22, 22];
+    $fit = function (string $text, float $width) use ($pdf): string {
+        if ($pdf->GetStringWidth(pdfText($text)) <= $width - 2) return $text;
+        while (mb_strlen($text) > 3 && $pdf->GetStringWidth(pdfText($text . '…')) > $width - 2) $text = mb_substr($text, 0, -1);
+        return $text . '…';
+    };
     $pdf->SetFillColor(243, 244, 246);
     $pdf->SetFont('Helvetica', 'B', 9);
-    foreach ([[t('pdf_qty'), 'C'], [t('pdf_dish'), 'L'], [t('seat'), 'C'], [t('pdf_unit'), 'R'], [t('total'), 'R']] as $i => [$h, $a]) {
+    foreach ([[t('pdf_qty'), 'C'], [t('pdf_dish'), 'L'], [t('seat'), 'C'], [t('waiter'), 'L'], [t('pdf_unit'), 'R'], [t('total'), 'R']] as $i => [$h, $a]) {
         $pdf->Cell($w[$i], 7, pdfText($h), 0, 0, $a, true);
     }
     $pdf->Ln();
     $pdf->SetFont('Helvetica', '', 10);
     foreach ($items as $it) {
         $pdf->Cell($w[0], 7, (string) (int) $it['quantity'], 'B', 0, 'C');
-        $name = $it['name'] . ($it['notes'] ? ' (' . $it['notes'] . ')' : '');
-        if ($pdf->GetStringWidth(pdfText($name)) > $w[1] - 2) {
-            while (mb_strlen($name) > 3 && $pdf->GetStringWidth(pdfText($name . '…')) > $w[1] - 2) $name = mb_substr($name, 0, -1);
-            $name .= '…';
-        }
-        $pdf->Cell($w[1], 7, pdfText($name), 'B', 0);
+        $pdf->Cell($w[1], 7, pdfText($fit($it['name'] . ($it['notes'] ? ' (' . $it['notes'] . ')' : ''), $w[1])), 'B', 0);
         $pdf->Cell($w[2], 7, $it['seat'] ? (string) (int) $it['seat'] : '-', 'B', 0, 'C');
-        $pdf->Cell($w[3], 7, pdfMoney($it['unit_price']), 'B', 0, 'R');
-        $pdf->Cell($w[4], 7, pdfMoney($it['total_price']), 'B', 1, 'R');
+        $pdf->SetFont('Helvetica', '', 8);
+        $by = $it['added_by_name'] ? $fit((string) $it['added_by_name'], $w[3] - 9) . ' ' . date('H:i', strtotime($it['created_at'])) : '-';
+        $pdf->Cell($w[3], 7, pdfText($by), 'B', 0);
+        $pdf->SetFont('Helvetica', '', 10);
+        $pdf->Cell($w[4], 7, pdfMoney($it['unit_price']), 'B', 0, 'R');
+        $pdf->Cell($w[5], 7, pdfMoney($it['total_price']), 'B', 1, 'R');
     }
     if (!$items) {
         $pdf->SetTextColor(107, 114, 128);

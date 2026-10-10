@@ -1753,4 +1753,9 @@ return [
     'badge_login_hint' => 'Or hold your badge to the reader.',
     'badge_operator' => 'Operator: {name}',
     'badge_switch_hint' => 'Hold a badge to the reader to switch operator',
+
+    // Several waiters on one table
+    'waiter_also_served' => 'also served by',
+    'added_by_guest' => 'Guest (QR)',
+    'added_by_title' => 'Who added the dish, and when',
 ];

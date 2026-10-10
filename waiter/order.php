@@ -202,6 +202,7 @@ include __DIR__ . '/../includes/header.php';
 .seat-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 .seat-chip.billed { opacity: .5; cursor: not-allowed; }
 .seat-group-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 4px 4px; margin-top: 6px; border-bottom: 2px solid var(--border-color); font-size: .9rem; }
+.item-by { margin-left: 6px; font-size: .75rem; color: var(--text-secondary); white-space: nowrap; }
 .seat-pill { margin-left: 6px; padding: 2px 8px; border: 1px dashed var(--border-color); border-radius: 999px; background: transparent; font-size: .75rem; color: var(--text-secondary); cursor: pointer; }
 .seat-bills { margin-top: 10px; }
 .seat-bill-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px; border-bottom: 1px dashed var(--border-color); color: inherit; text-decoration: none; }
@@ -308,7 +309,12 @@ include __DIR__ . '/../includes/header.php';
             echo $gw ? htmlspecialchars($gw) : '<span class="text-muted">' . te('take_nobody_yet') . '</span>';
         } else {
             echo htmlspecialchars($order['waiter_name']);
-        } ?></div>
+        }
+        // Colleagues who took over the table for a while (added dishes to it).
+        $helpers = array_diff(array_unique(array_filter(array_column($orderItems, 'added_by_name'))), [$order['waiter_name']]);
+        if ($helpers): ?>
+            <span class="text-muted"> · <?= te('waiter_also_served') ?> <?= htmlspecialchars(implode(', ', $helpers)) ?></span>
+        <?php endif; ?></div>
     <?php if (!$isSeatBill && !in_array($order['status'], ['paid', 'cancelled'], true) && empty($order['created_by_guest'])): // guest orders: no waiter alerts ?>
         <div class="d-flex align-center gap-sm ready-notify-pick">
             <strong><i class="fas fa-bell-concierge"></i> <?= te('ready_notify_label') ?>:</strong>
@@ -518,6 +524,11 @@ include __DIR__ . '/../includes/header.php';
                                 <span class="badge badge-<?= $isCancelled ? 'danger' : ($item['status'] === 'pending' ? 'warning' : ($item['status'] === 'ready' ? 'success' : 'info')) ?>">
                                     <?= htmlspecialchars(statusLabel($item['status'])) ?>
                                 </span>
+                                <?php // Who added the dish and when (a table can be served by several waiters).
+                                $by = $item['added_by_name'] ?: (!empty($order['created_by_guest']) ? t('added_by_guest') : null);
+                                if ($by): ?>
+                                    <span class="item-by" title="<?= te('added_by_title') ?>"><i class="fas fa-user-pen"></i> <?= htmlspecialchars($by) ?> · <?= date('H:i', strtotime($item['created_at'])) ?></span>
+                                <?php endif; ?>
                                 <?php if ($canEditItem && !$isSeatBill): ?>
                                     <button type="button" class="seat-pill" onclick="openSeatMove(<?= (int) $item['id'] ?>, <?= (int) $item['seat'] ?>)" title="<?= te('seat_move_title') ?>">
                                         <i class="fas fa-chair"></i> <?= $item['seat'] ? te('seat') . ' ' . (int) $item['seat'] : te('seat_shared') ?>
