@@ -13,7 +13,8 @@
  * POST {action: 'verify', code}                → the code signs them in
  * POST {action: 'send', cart: [{id, qty, note, add, remove}], fulfil?} → dishes to the kitchen; a new order needs
  *       fulfil: {mode: 'pickup'|'delivery', date, time, address, number, intercom, phone_mode: 'mine'|'other', country, phone}
- * POST {action: 'logout'}                      → "not you?": sign out of this phone
+ * POST {action: 'logout', push_endpoint?}      → "not you?": sign out of this phone (its notifications stop)
+ * POST {action: 'push_subscribe', sub: PushSubscription.toJSON(), promos: bool} → notifications on this phone (includes/web_push.php)
  */
 
 require_once __DIR__ . '/../includes/functions.php';
@@ -49,6 +50,7 @@ if ($action === 'verify') {
     jsonResponse(onlineOrderState($res['ok']) + ['signed_in' => true, 'welcome' => t('online_welcome', ['name' => $res['ok']['first_name']])]);
 }
 if ($action === 'logout') {
+    pushForget((string) ($input['push_endpoint'] ?? ''));   // this phone's notifications were theirs
     onlineSignOut();
     jsonResponse(signedOutState());
 }
@@ -76,6 +78,14 @@ if ($action === 'send') {
                           isset($input['fulfil']) ? (array) $input['fulfil'] : null);
     if (isset($res['error'])) jsonResponse(['success' => false, 'message' => t($res['error'])]);
     jsonResponse(onlineOrderState($customer) + ['signed_in' => true, 'sent' => $res['ok']]);
+}
+
+if ($action === 'push_subscribe') {
+    // "Attiva le notifiche" (or the promotions box changed): this phone gets their notifications.
+    if (!pushSubscribe((int) $customer['id'], (array) ($input['sub'] ?? []), !empty($input['promos']))) {
+        jsonResponse(['success' => false, 'message' => t('push_failed')]);
+    }
+    jsonResponse(onlineOrderState($customer) + ['signed_in' => true, 'push_saved' => true]);
 }
 
 if ($action === 'birthday') {

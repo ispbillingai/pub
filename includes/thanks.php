@@ -38,17 +38,18 @@ function thanksText(string $lang, ?string $name): string
 function thankGuestsForPaidOrder(int $orderId): int
 {
     try {
-        if (!guestWhatsappEnabled()) return 0;
         $pdo  = getDBConnection();
         $stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch();
         if (!$order || $order['status'] !== 'paid') return 0;
-        // Online customers: "payment received" + thank-you (Admin > Clienti online).
+        // Online customers: "payment received" + thank-you (Admin > Clienti online), and the
+        // notification on their phone even when WhatsApp is off.
         if ($order['channel'] === 'online') {
             require_once __DIR__ . '/online_order.php';
             return onlineThankPaid($order);
         }
+        if (!guestWhatsappEnabled()) return 0;
         // Counter sale with a Clienti cassa customer: the receipt with their QR.
         if ($order['channel'] === 'counter') {
             require_once __DIR__ . '/till.php';

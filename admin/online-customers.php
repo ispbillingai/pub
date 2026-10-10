@@ -30,6 +30,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: /admin/online-customers.php?success=saved');
         exit;
     }
+    if ($action === 'push_promo') {
+        // A promotion as a notification to every phone that said yes to promotions (includes/web_push.php).
+        $title = mb_substr(trim((string) ($_POST['push_title'] ?? '')), 0, 60);
+        $body  = mb_substr(trim((string) ($_POST['push_body'] ?? '')), 0, 200);
+        $link  = trim((string) ($_POST['push_url'] ?? ''));
+        if ($title === '' || $body === '' || ($link !== '' && !preg_match('#^https?://#i', $link))) {
+            header('Location: /admin/online-customers.php?push_error=1#push');
+            exit;
+        }
+        [$sent, $failed] = pushPromo($title, $body, $link);
+        header('Location: /admin/online-customers.php?' . http_build_query(['push_sent' => $sent, 'push_failed' => $failed]) . '#push');
+        exit;
+    }
     if ($action === 'delete') {
         $done = onlineCustomerDelete((int) ($_POST['id'] ?? 0));
         header('Location: /admin/online-customers.php?' . http_build_query(array_filter(['q' => $_POST['q'] ?? '', $done ? 'deleted' : 'x' => 1])));
@@ -208,6 +221,37 @@ include __DIR__ . '/../includes/header.php';
             </div>
         </form>
     </div>
+</div>
+
+<!-- Promotions as notifications on the customers' phones (Web Push) -->
+<?php $push = pushStats(); ?>
+<div class="card mb-lg no-print" id="push">
+    <div class="card-header">
+        <h2><i class="fas fa-bell"></i> <?= te('push_admin_title') ?></h2>
+        <span class="badge badge-info"><?= te('push_admin_stats', ['customers' => (int) $push['customers'], 'devices' => (int) $push['devices'], 'promos' => (int) $push['promos']]) ?></span>
+    </div>
+    <?php if (isset($_GET['push_sent'])): ?>
+        <div class="alert alert-success" style="background: rgba(39,174,96,0.1); color: var(--success); padding: 12px 16px; margin: 12px 16px 0; border-radius: 8px;">
+            <i class="fas fa-paper-plane"></i> <?= te('push_admin_sent', ['sent' => (int) $_GET['push_sent'], 'failed' => (int) ($_GET['push_failed'] ?? 0)]) ?></div>
+    <?php elseif (isset($_GET['push_error'])): ?>
+        <div class="alert alert-danger" style="background: rgba(231,76,60,0.1); color: var(--danger); padding: 12px 16px; margin: 12px 16px 0; border-radius: 8px;">
+            <i class="fas fa-exclamation-circle"></i> <?= te('push_admin_error') ?></div>
+    <?php endif; ?>
+    <form method="POST" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('push_admin_confirm', ['n' => (int) $push['promos']])), ENT_QUOTES) ?>)">
+        <input type="hidden" name="action" value="push_promo">
+        <div class="card-body">
+            <p class="text-muted" style="margin-top:0;font-size:.9rem;"><?= te('push_admin_intro') ?></p>
+            <label class="form-label"><?= te('push_admin_field_title') ?></label>
+            <input type="text" name="push_title" class="form-control" maxlength="60" required placeholder="<?= te('push_admin_title_ph') ?>">
+            <label class="form-label" style="margin-top:8px;"><?= te('push_admin_field_body') ?></label>
+            <textarea name="push_body" class="form-control" rows="2" maxlength="200" required placeholder="<?= te('push_admin_body_ph') ?>"></textarea>
+            <label class="form-label" style="margin-top:8px;"><?= te('push_admin_field_url') ?> <small class="text-muted">(<?= te('self_consent_optional') ?>)</small></label>
+            <input type="url" name="push_url" class="form-control" maxlength="300" placeholder="https://…">
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary" <?= (int) $push['promos'] ? '' : 'disabled' ?>><i class="fas fa-paper-plane"></i> <?= te('push_admin_send', ['n' => (int) $push['promos']]) ?></button>
+        </div>
+    </form>
 </div>
 
 <?php if ($detail): ?>

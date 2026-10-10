@@ -80,8 +80,21 @@ $L = [
     'all_ready'         => t('online_all_ready'),
     'all_ready_delivery'=> t('online_all_ready_delivery'),
     'ready_body_delivery' => t('online_ready_body_delivery'),
+    'push_on_toast'     => t('push_on_toast'),
+    'push_failed'       => t('push_failed'),
 ];
 $countries = phoneCountryOptions();
+// "Attiva le notifiche" (Web Push, includes/web_push.php): on the menu and on the order page.
+// The parts shown depend on the phone (pushRender): off / iPhone not on the Home screen / on / blocked.
+$pushCard = '<div class="card push-card" hidden>'
+    . '<div class="pc-off"><h2><i class="fas fa-bell"></i> ' . te('push_title') . '</h2><p class="sub">' . te('push_intro') . '</p>'
+    . '<label class="pc-promo"><input type="checkbox" class="pc-promos" onchange="pushPromosChanged(this)"> <span>' . te('push_promos') . '</span></label>'
+    . '<button type="button" class="btn-go" onclick="pushEnable(this)"><i class="fas fa-bell"></i> ' . te('push_enable') . '</button></div>'
+    . '<div class="pc-ios"><h2><i class="fas fa-bell"></i> ' . te('push_title') . '</h2><p class="sub">' . te('push_ios') . '</p></div>'
+    . '<div class="pc-on"><strong><i class="fas fa-bell" style="color:var(--ok);"></i> ' . te('push_on') . '</strong>'
+    . '<label class="pc-promo"><input type="checkbox" class="pc-promos" onchange="pushPromosChanged(this)"> <span>' . te('push_promos') . '</span></label></div>'
+    . '<div class="pc-denied"><p class="sub" style="margin:0;"><i class="fas fa-bell-slash"></i> ' . te('push_denied') . '</p></div>'
+    . '</div>';
 $mLang     = currentLang() === 'it' ? 'it' : 'en';
 header('Cache-Control: no-store');
 ?>
@@ -92,6 +105,13 @@ header('Cache-Control: no-store');
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title><?= htmlspecialchars($brand) ?></title>
+<!-- An app on the Home screen (iPhone: the only way to get notifications with the browser closed) -->
+<link rel="manifest" href="/online-manifest.php">
+<meta name="theme-color" content="#7a1428">
+<link rel="apple-touch-icon" href="/app-icon.php?s=180">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="<?= htmlspecialchars($brand) ?>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -242,6 +262,12 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .ful-radio input { width: 20px; height: 20px; flex: 0 0 auto; }
 .ful-info { display: flex; gap: 10px; align-items: flex-start; background: #f0f9ff; border-radius: 12px; padding: 12px; margin-top: 12px; font-size: .9rem; }
 .ful-info i { color: var(--p); font-size: 1.2rem; margin-top: 2px; }
+/* "Attiva le notifiche" */
+.push-card { border: 2px solid #fed7aa; }
+.push-card > div { display: none; }
+.push-card[data-st="off"] .pc-off, .push-card[data-st="ios"] .pc-ios, .push-card[data-st="on"] .pc-on, .push-card[data-st="denied"] .pc-denied { display: block; }
+.pc-promo { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; font-size: .9rem; cursor: pointer; }
+.pc-promo input { width: 20px; height: 20px; flex: 0 0 auto; margin-top: 1px; }
 .wa-card { border: 2px solid #25d366; }
 .tessera { text-align: center; background: linear-gradient(160deg, #fff 0%, #fff7ef 100%); border: 2px solid var(--p); }
 .tessera .t-brand { font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; color: #6b7280; }
@@ -411,6 +437,7 @@ $footHtml = ob_get_clean(); ?>
         <p class="sub"><?= te('online_shop_intro') ?></p>
         <button class="link-btn" id="shopBack" hidden onclick="closeShop()" style="padding-left:0;"><i class="fas fa-arrow-left"></i> <?= te('online_back_to_order') ?></button>
     </div>
+    <?= $pushCard ?>
     <div class="bday-banner" hidden><span>🎂 <?= te('online_bday_banner') ?></span><button type="button" onclick="openProfile()"><?= te('online_bday_add') ?></button></div>
     <div class="shop-cats" id="shopCats"></div>
     <div id="shopMenu"><div class="card"><div class="empty"><?= te('loading') ?></div></div></div>
@@ -554,6 +581,7 @@ $footHtml = ob_get_clean(); ?>
         <div class="ful-info" id="fulInfo" hidden><i class="fas fa-store" id="fulInfoIcon"></i><div id="fulInfoText"></div></div>
         <div class="pay-note"><i class="fas fa-cash-register" id="payNoteIcon"></i><span id="payNote"><?= te('online_pay_at_till') ?></span></div>
     </div>
+    <?= $pushCard ?>
     <!-- Pick-up: the QR the cashier scans. A delivery is paid in cash to the rider: no QR. -->
     <div class="card pay-qr" id="payQrCard">
         <h2><i class="fas fa-qrcode"></i> <?= te('online_pay_qr_title') ?></h2>
@@ -614,6 +642,8 @@ async function send(body) {
 function render(s) {
     if (!s.signed_in) return renderSignedOut(s);
     state = s;
+    pushRender();
+    pushKeepLinked();
     document.querySelectorAll('.hello').forEach(el => { el.textContent = L.hello.replace('{name}', s.customer.first_name); });
     document.querySelectorAll('.bday-banner').forEach(el => { el.hidden = !!s.customer.birth_date || bdayDismissed(); });
     if (profileOpen) { show('profile'); return; }   // (the form is filled once, on opening)
@@ -772,8 +802,79 @@ if (L.flash) setTimeout(() => toast(L.flash), 300);
 async function logout() {
     cart = []; saveCart();
     shopOpen = false; editing = false;
-    await send({ action: 'logout' });
+    // This phone's notifications were the customer's who is leaving: they stop.
+    const endpoint = pushSub ? pushSub.endpoint : '';
+    if (pushSub) { try { await pushSub.unsubscribe(); } catch (e) {} pushSub = null; }
+    pushSynced = false;
+    await send({ action: 'logout', push_endpoint: endpoint });
 }
+
+/* ---- Notifications with the page closed (Web Push, /sw.js) ----
+ * Android: always. iPhone: only once the page is on the Home screen (opened from there). */
+const PUSH_OK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const IS_IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+const PUSH_PROMOS_KEY = 'online-push-promos';
+let swReg = null, pushSub = null, pushSynced = false;
+function pushPromosWanted() {
+    try { const v = localStorage.getItem(PUSH_PROMOS_KEY); if (v !== null) return v === '1'; } catch (e) {}
+    return !!(state && state.push && state.push.promos_default);
+}
+function pushRender() {
+    let st = '';
+    if (PUSH_OK && state && state.push) {
+        if (Notification.permission === 'denied') st = 'denied';
+        else st = pushSub && Notification.permission === 'granted' ? 'on' : 'off';
+    } else if (IS_IOS && !STANDALONE) st = 'ios';
+    document.querySelectorAll('.push-card').forEach(c => { c.hidden = !st; c.dataset.st = st; });
+    document.querySelectorAll('.pc-promos').forEach(b => { b.checked = pushPromosWanted(); });
+}
+async function pushInit() {
+    if (PUSH_OK) {
+        try {
+            swReg = await navigator.serviceWorker.register('/sw.js', { scope: '/online' });
+            pushSub = await swReg.pushManager.getSubscription();
+        } catch (e) {}
+    }
+    pushRender();
+    pushKeepLinked();
+}
+// Already on: once per visit, tell the server this phone is the signed-in customer's.
+function pushKeepLinked() {
+    if (pushSub && state && !pushSynced) { pushSynced = true; pushSave(false); }
+}
+async function pushSave(announce) {
+    if (!pushSub) return false;
+    const ok = await send({ action: 'push_subscribe', sub: pushSub.toJSON(), promos: pushPromosWanted() });
+    if (ok && announce) toast(L.push_on_toast);
+    return ok;
+}
+const b64ToBytes = s => Uint8Array.from(atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+async function pushEnable(btn) {
+    if (!PUSH_OK || !state || !state.push) return;
+    btn.disabled = true;
+    try {
+        const box = btn.closest('.push-card').querySelector('.pc-promos');
+        try { localStorage.setItem(PUSH_PROMOS_KEY, box && box.checked ? '1' : '0'); } catch (e) {}
+        if (await Notification.requestPermission() !== 'granted') { pushRender(); return; }
+        swReg = swReg || await navigator.serviceWorker.register('/sw.js', { scope: '/online' });
+        pushSub = await swReg.pushManager.getSubscription()
+            || await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(state.push.key) });
+        pushSynced = true;
+        if (!await pushSave(true)) { try { await pushSub.unsubscribe(); } catch (e) {} pushSub = null; }
+    } catch (e) {
+        toast(L.push_failed);
+    } finally {
+        btn.disabled = false;
+        pushRender();
+    }
+}
+function pushPromosChanged(box) {
+    try { localStorage.setItem(PUSH_PROMOS_KEY, box.checked ? '1' : '0'); } catch (e) {}
+    document.querySelectorAll('.pc-promos').forEach(b => { b.checked = box.checked; });
+    if (pushSub) pushSave(false);
+}
+pushInit();
 
 /* ---- The menu and the cart (kept on this phone until sent) ---- */
 let shopOpen = false, shopMenu = null, shopCat = null;

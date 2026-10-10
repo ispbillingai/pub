@@ -38,6 +38,7 @@ require_once __DIR__ . '/system_place.php';
 require_once __DIR__ . '/qr.php';
 require_once __DIR__ . '/whatsapp_inbound.php';
 require_once __DIR__ . '/customer_card.php';
+require_once __DIR__ . '/web_push.php';
 
 const ONLINE_CHANNEL       = 'online';
 const ONLINE_COOKIE        = 'online_customer';
@@ -820,6 +821,10 @@ function onlineSendCart(array $customer, array $cart, ?array $intol = null, ?arr
     $pdo->prepare("UPDATE orders SET status = 'bill_requested' WHERE id = ?")->execute([(int) $order['id']]);
     onlineLogAccess((int) $customer['id'], 'order', (int) $order['id']);
     logActivity('online_order_sent', 'orders', (int) $order['id'], ['dishes' => $n]);
+    // A notification on their phone (also with the page closed): received, being prepared.
+    $lang = guestLang($customer['mobile_country'] ?? 'IT');
+    pushToCustomer((int) $customer['id'], tIn($lang, $new ? 'push_received_title' : 'push_added_title'),
+                   tIn($lang, 'push_received_body', ['order' => $order['order_number']]));
     return ['ok' => $n];
 }
 
@@ -830,13 +835,24 @@ function onlineSendCart(array $customer, array $cart, ?array $intol = null, ?arr
  */
 function onlineNotifyReady(array $order): void
 {
-    if (!guestWhatsappEnabled() || empty($order['customer_phone'])) return;
     $pdo = getDBConnection();
     $st  = $pdo->prepare("SELECT COUNT(*) AS n, SUM(status IN ('ready', 'served')) AS done, MAX(created_at) AS last_added
                           FROM order_items WHERE order_id = ? AND status <> 'cancelled'");
     $st->execute([(int) $order['id']]);
     $it = $st->fetch();
     if (!(int) $it['n'] || (int) $it['done'] < (int) $it['n']) return;   // still cooking
+    // The notification on their phones (Web Push): once, and again only after new dishes.
+    if (!empty($order['online_customer_id'])) {
+        $st = $pdo->prepare("SELECT 1 FROM activity_log WHERE action = 'online_ready_push' AND entity_type = 'orders' AND entity_id = ? AND created_at >= ? LIMIT 1");
+        $st->execute([(int) $order['id'], $it['last_added']]);
+        if (!$st->fetchColumn()) {
+            $plang = guestLang($order['customer_country'] ?? 'IT');
+            $n = pushToCustomer((int) $order['online_customer_id'], tIn($plang, 'online_ready_title'),
+                                tIn($plang, ($order['fulfilment'] ?? '') === 'delivery' ? 'online_ready_body_delivery' : 'online_ready_body'), 'ready');
+            logActivity('online_ready_push', 'orders', (int) $order['id'], ['phones' => $n]);
+        }
+    }
+    if (!guestWhatsappEnabled() || empty($order['customer_phone'])) return;
     $st = $pdo->prepare("SELECT 1 FROM whatsapp_outbox WHERE order_id = ? AND kind = 'online_ready' AND created_at >= ? LIMIT 1");
     $st->execute([(int) $order['id'], $it['last_added']]);
     if ($st->fetchColumn()) return;                                       // already told
@@ -871,8 +887,19 @@ function onlineNotifyReady(array $order): void
  */
 function onlineThankPaid(array $order): int
 {
-    if (empty($order['customer_phone'])) return 0;
     $pdo = getDBConnection();
+    // "Payment received" on their phones (Web Push), once.
+    if (!empty($order['online_customer_id'])) {
+        $st = $pdo->prepare("SELECT 1 FROM activity_log WHERE action = 'online_paid_push' AND entity_type = 'orders' AND entity_id = ? LIMIT 1");
+        $st->execute([(int) $order['id']]);
+        if (!$st->fetchColumn()) {
+            $plang = guestLang($order['customer_country'] ?? 'IT');
+            $n = pushToCustomer((int) $order['online_customer_id'], tIn($plang, 'push_paid_title'),
+                                tIn($plang, 'push_paid_body', ['order' => $order['order_number'], 'total' => formatCurrency($order['total'])]), 'paid');
+            logActivity('online_paid_push', 'orders', (int) $order['id'], ['phones' => $n]);
+        }
+    }
+    if (!guestWhatsappEnabled() || empty($order['customer_phone'])) return 0;
     $st  = $pdo->prepare("SELECT 1 FROM whatsapp_outbox WHERE order_id = ? AND kind = 'online_paid' LIMIT 1");
     $st->execute([(int) $order['id']]);
     if ($st->fetchColumn()) return 0;                                     // already thanked
@@ -984,6 +1011,9 @@ function onlineOrderState(array $customer): array
                                 'fulfil' => onlineFulfilmentInfo($order)] : null,
         // The address in their profile, to start the delivery form from.
         'profile_address' => ['address' => (string) $customer['address'], 'number' => (string) $customer['street_number']],
+        // Web Push: the server's key for the browser, and whether promotions start ticked
+        // (only when they already agreed to marketing).
+        'push' => ['key' => pushVapid()['public'], 'promos_default' => !empty($customer['marketing_consent'])],
         'items'    => $items,
         'all_ready'=> $items && !array_filter($items, fn($i) => !in_array($i['status'], ['ready', 'served'], true)),
         'total_fmt'=> formatCurrency($order['total'] ?? 0),
