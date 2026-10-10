@@ -9,7 +9,8 @@
  *   "annulla" / "togli"         → removes the last line added by voice; "togli saccottino" → one less
  * Till buttons: "incassa", "totale" (also said aloud), "svuota" (+ "sì"), "fotocamera", "aiuto".
  * Payment window: "carta", "contanti", "contanti senza scontrino", "stampa conto",
- *   "sconto 10 per cento" / "sconto 5 euro", "conferma", "chiudi", "fatto".
+ *   "sconto 10 per cento" / "sconto 5 euro", "conferma", "chiudi", "fatto",
+ *   "pagamento virtuale" (test mode button; the spoken command is its confirmation).
  * Wake phrase: with "Si attiva con «ok cassa»" ticked (per device) the microphone waits from
  * page load; "ok cassa" (also "ok cassa, pane 2,30") starts listening, 30 s of silence or
  * "basta" goes back to waiting.
@@ -186,7 +187,7 @@
     /**
      * A command instead of products: {cmd, …} or null. ctx 'till' (the ticket) or 'pay' (the payment window).
      *   till: checkout, total, clear, camera, remove {words}
-     *   pay:  card, cash, cash_nf, print, discount {type: 'percent'|'fixed'|'', value}, confirm, close, done
+     *   pay:  card, cash, cash_nf, print, discount {type: 'percent'|'fixed'|'', value}, confirm, close, done, virtual
      *   both: stop, help, yes, no
      */
     function parseCommand(text, ctx) {
@@ -195,6 +196,7 @@
         if (is(/^(basta|stop|spegni|smetti( di ascoltare)?|fine ascolto|grazie)( grazie)?$/)) return { cmd: 'stop' };
         if (is(/^(aiuto|comandi|elenco( dei)? comandi|cosa posso dire)$/)) return { cmd: 'help' };
         if (ctx === 'pay') {
+            if (is(/(^| )virtuale$/)) return { cmd: 'virtual' };
             if (is(/^((paga|pagamento|pagare) )?(con )?(la )?(carta( di credito)?|bancomat|pos)$/)) return { cmd: 'card' };
             if (is(/(contanti|cash).*(senza scontrino|non fiscale)$/) || is(/^(senza scontrino|non fiscale)$/)) return { cmd: 'cash_nf' };
             if (is(/^((paga|pagamento|pagare) )?(in |con )?(i )?(contanti|cash)$/)) return { cmd: 'cash' };
@@ -386,6 +388,14 @@
                 payButton(doc, '[onclick*="leavePay(false)"]');
                 break;
             case 'done':    payButton(doc, '[onclick*="leavePay(true)"]'); break;
+            case 'virtual': {
+                // Test mode only (Settings › Modalità test). Its "are you sure?" box can't be answered
+                // by voice: the spoken "pagamento virtuale" is the confirmation.
+                const w = doc.defaultView, ask = w.confirm;
+                w.confirm = () => true;
+                try { payButton(doc, '[onclick^="payVirtual"]'); } finally { setTimeout(() => { w.confirm = ask; }, 0); }
+                break;
+            }
         }
     }
     function runTill(c) {
@@ -452,7 +462,7 @@
         if (c && (c.cmd === 'yes' || c.cmd === 'no')) return;          // nothing waiting for a yes / no
         // A payment command with no payment open ("sconto 10 per cento") must never become an amount.
         const payCmd = alts.map(a => parseCommand(a, 'pay')).find(Boolean);
-        if (!c && payCmd && ['card', 'cash', 'cash_nf', 'print', 'discount'].includes(payCmd.cmd)) { toast(L.pay_first, 'warning', 3500); return; }
+        if (!c && payCmd && ['card', 'cash', 'cash_nf', 'print', 'discount', 'virtual'].includes(payCmd.cmd)) { toast(L.pay_first, 'warning', 3500); return; }
         if (c) { runTill(c); return; }
         const [, res] = best(alts);
         addLines(res);
