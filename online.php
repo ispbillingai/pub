@@ -338,7 +338,7 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .mk-safari { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px; background: #f2f2f7; border-top: 1px solid #ddd; color: #007aff; font-size: 15px; }
 .mk-safari b { flex: 1; min-width: 0; font-size: 10px; font-weight: 600; color: #333; background: #e3e3e8; border-radius: 8px; padding: 5px 8px; overflow: hidden; white-space: nowrap; }
 .mk-sheet { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 10px; background: #fff; border-radius: 14px 14px 0 0; }
-.mk-sheet div { height: 30px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #eee; font-weight: 600; }
+.mk-sheet div { height: 30px; display: flex; align-items: center; gap: 7px; border-bottom: 1px solid #eee; font-weight: 600; font-size: 9.5px; white-space: nowrap; letter-spacing: -.1px; }
 .mk-sheet div:last-child { border-bottom: 0; }
 .mk-sheet span { width: 16px; text-align: center; color: #555; }
 .mk-home { background: linear-gradient(160deg, #f59e0b, #e8590c 45%, #7a1428); }
@@ -349,11 +349,11 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .mk-grid small { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 8px; white-space: nowrap; }
 .mk-card { background: #fff; border: 2px solid #fed7aa; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; }
 .mk-card b { display: block; font-size: 10px; line-height: 18px; white-space: nowrap; overflow: hidden; }
-.mk-btn { display: block; margin-top: 6px; height: 30px; line-height: 30px; text-align: center; border-radius: 8px; background: var(--p); color: #fff !important; }
+.iphone .mk-btn { display: block; margin-top: 6px; height: 30px; line-height: 30px; text-align: center; border-radius: 8px; background: var(--p); color: #fff !important; white-space: nowrap; }
 .mk-alert { position: absolute; left: 15px; right: 15px; top: 115px; height: 110px; background: rgba(250,250,250,.97); border-radius: 12px; text-align: center; overflow: hidden; }
 .mk-alert b { display: flex; align-items: center; justify-content: center; height: 70px; padding: 0 10px; font-size: 10.5px; }
 .mk-alert div { display: flex; height: 40px; border-top: 1px solid #ddd; }
-.mk-alert div span { flex: 1; line-height: 40px; color: #007aff; }
+.mk-alert div span { flex: 1; line-height: 40px; color: #007aff; font-size: 10px; white-space: nowrap; }
 .mk-alert div span + span { border-left: 1px solid #ddd; }
 .iphone .tap { position: absolute; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--p); background: rgba(232,89,12,.3); animation: iosTap 1.3s ease-in-out infinite; }
 @keyframes iosTap { 0%, 100% { transform: translate(-50%, -50%) scale(.6); opacity: .35; } 50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; } }
