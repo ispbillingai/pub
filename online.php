@@ -87,6 +87,7 @@ $L = [
     'push_on_toast'     => t('push_on_toast'),
     'push_off_toast'    => t('push_off_toast'),
     'push_later_toast'  => t('push_later_toast'),
+    'ios_steps'         => [t('ios_demo_step1'), t('ios_demo_step2'), t('ios_demo_step3'), t('ios_demo_step4'), t('ios_demo_step5')],
     'promo_label'       => t('promo_label'),
     'promo_order'       => t('promo_order'),
     'promo_more'        => t('promo_more'),
@@ -94,6 +95,33 @@ $L = [
     'push_failed'       => t('push_failed'),
 ];
 $countries = phoneCountryOptions();
+// iPhone in Safari: a short looping animation of the steps (Share › Add to Home Screen ›
+// open the icon › "Attiva le notifiche" › Allow), drawn here, played by iosDemoPlay().
+$bEsc = htmlspecialchars($brand);
+$iosDemo = '<div class="ios-demo" aria-hidden="true"><div class="iphone">'
+    // 1. Safari: the Share button (iOS 26: under •••)
+    . '<div class="scene"><div class="mk-page"><div class="mk-head">' . $bEsc . '</div><i></i><i></i><i class="s"></i><i></i><i class="s"></i></div>'
+    . '<div class="mk-safari"><span class="fas fa-chevron-left"></span><b>focacciami…</b><span class="fas fa-arrow-up-from-bracket hot"></span><span class="fas fa-ellipsis"></span></div>'
+    . '<span class="tap" style="left:75%;top:94%"></span></div>'
+    // 2. The share sheet: Add to Home Screen
+    . '<div class="scene"><div class="mk-page dim"><div class="mk-head">' . $bEsc . '</div><i></i><i></i></div><div class="mk-sheet">'
+    . '<div><span class="fas fa-copy"></span>' . te('ios_demo_copy') . '</div><div><span class="far fa-star"></span>' . te('ios_demo_fav') . '</div>'
+    . '<div class="hot"><span class="far fa-square-plus"></span>' . te('ios_demo_add') . '</div><div><span class="fas fa-print"></span>' . te('ios_demo_print') . '</div></div>'
+    . '<span class="tap" style="left:50%;top:84%"></span></div>'
+    // 3. The Home screen: the new icon
+    . '<div class="scene mk-home"><div class="mk-grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i>'
+    . '<b class="hot"><img src="/app-icon.php?s=96" alt="" loading="lazy"><small>' . $bEsc . '</small></b></div>'
+    . '<span class="tap" style="left:83%;top:30%"></span></div>'
+    // 4. The app: "Attiva le notifiche"
+    . '<div class="scene"><div class="mk-page"><div class="mk-head">' . $bEsc . '</div><div class="mk-card"><b>' . te('push_title') . '</b>'
+    . '<span class="mk-btn hot"><span class="fas fa-bell"></span> ' . te('push_enable') . '</span></div><i></i><i class="s"></i></div>'
+    . '<span class="tap" style="left:50%;top:26%"></span></div>'
+    // 5. iPhone asks: Allow
+    . '<div class="scene"><div class="mk-page dim"><div class="mk-head">' . $bEsc . '</div><i></i><i></i></div>'
+    . '<div class="mk-alert"><b>' . te('ios_demo_alert', ['name' => $brand]) . '</b><div><span>' . te('ios_demo_deny') . '</span><span class="hot">' . te('ios_demo_allow') . '</span></div></div>'
+    . '<span class="tap" style="left:70%;top:60%"></span></div>'
+    . '</div><p class="ios-step"></p><div class="ios-dots"><span></span><span></span><span></span><span></span><span></span></div></div>';
+
 // "Attiva le notifiche" (Web Push, includes/web_push.php): always in "Il mio profilo"; on the
 // main page too until they are on (or "Non ora"). The parts shown depend on the phone
 // (pushRender): off / iPhone not on the Home screen / on / blocked / not possible.
@@ -101,7 +129,7 @@ $pushCard = '<div class="card push-card" hidden>'
     . '<div class="pc-off"><h2><i class="fas fa-bell"></i> ' . te('push_title') . '</h2><p class="sub">' . te('push_intro') . '</p>'
     . '<label class="pc-promo"><input type="checkbox" class="pc-promos" onchange="pushPromosChanged(this)"> <span>' . te('push_promos') . '</span></label>'
     . '<button type="button" class="btn-go" onclick="pushEnable(this)"><i class="fas fa-bell"></i> ' . te('push_enable') . '</button></div>'
-    . '<div class="pc-ios"><h2><i class="fas fa-bell"></i> ' . te('push_title') . '</h2><p class="sub">' . te('push_ios') . '</p></div>'
+    . '<div class="pc-ios"><h2><i class="fas fa-bell"></i> ' . te('push_title') . '</h2><p class="sub">' . te('push_ios') . '</p>' . $iosDemo . '</div>'
     . '<div class="pc-on"><strong><i class="fas fa-bell" style="color:var(--ok);"></i> ' . te('push_on') . '</strong>'
     . '<label class="pc-promo"><input type="checkbox" class="pc-promos" onchange="pushPromosChanged(this)"> <span>' . te('push_promos') . '</span></label>'
     . '<button type="button" class="btn-go btn-no" onclick="pushDisable(this)"><i class="fas fa-bell-slash"></i> ' . te('push_disable') . '</button></div>'
@@ -296,6 +324,43 @@ main { padding: 16px; max-width: 560px; margin: 0 auto; }
 .promo-box .pb-actions a, .promo-box .pb-actions button { border: 0; border-radius: 10px; padding: 9px 14px; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; background: #fff; color: #7a1428; }
 .promo-box .pb-actions .pb-more { background: rgba(255,255,255,.2); color: #fff; }
 .promo-box .pb-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255,255,255,.2); color: #fff; cursor: pointer; }
+/* iPhone: the steps as a short looping animation (fixed 180×340 screen: the taps sit on the drawn buttons) */
+.ios-demo { display: flex; flex-direction: column; align-items: center; margin-top: 12px; }
+.iphone { position: relative; width: 180px; height: 340px; box-sizing: content-box; border: 7px solid #111; border-radius: 30px; overflow: hidden; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.18); font-size: 11px; color: #111; }
+.iphone .scene { position: absolute; inset: 0; opacity: 0; transition: opacity .45s; }
+.iphone .scene.on { opacity: 1; }
+.iphone .hot { color: var(--p) !important; font-weight: 800; }
+.mk-page { position: absolute; inset: 0; padding: 0 10px; background: #f7f5f2; }
+.mk-page.dim::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,.35); }
+.mk-head { height: 30px; line-height: 30px; margin: 0 -10px 10px; text-align: center; font-weight: 800; color: #7a1428; background: #fff; border-bottom: 3px solid #7a1428; }
+.mk-page > i { display: block; height: 9px; margin: 8px 0; border-radius: 5px; background: #e5e2dc; }
+.mk-page > i.s { width: 60%; }
+.mk-safari { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px; background: #f2f2f7; border-top: 1px solid #ddd; color: #007aff; font-size: 15px; }
+.mk-safari b { flex: 1; min-width: 0; font-size: 10px; font-weight: 600; color: #333; background: #e3e3e8; border-radius: 8px; padding: 5px 8px; overflow: hidden; white-space: nowrap; }
+.mk-sheet { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 10px; background: #fff; border-radius: 14px 14px 0 0; }
+.mk-sheet div { height: 30px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #eee; font-weight: 600; }
+.mk-sheet div:last-child { border-bottom: 0; }
+.mk-sheet span { width: 16px; text-align: center; color: #555; }
+.mk-home { background: linear-gradient(160deg, #f59e0b, #e8590c 45%, #7a1428); }
+.mk-grid { display: grid; grid-template-columns: repeat(4, 32px); justify-content: space-around; row-gap: 22px; padding: 30px 14px 0; }
+.mk-grid i, .mk-grid b { width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,.55); position: relative; }
+.mk-grid b { background: #fff; }
+.mk-grid img { width: 32px; height: 32px; border-radius: 8px; display: block; }
+.mk-grid small { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 8px; white-space: nowrap; }
+.mk-card { background: #fff; border: 2px solid #fed7aa; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; }
+.mk-card b { display: block; font-size: 10px; line-height: 18px; white-space: nowrap; overflow: hidden; }
+.mk-btn { display: block; margin-top: 6px; height: 30px; line-height: 30px; text-align: center; border-radius: 8px; background: var(--p); color: #fff !important; }
+.mk-alert { position: absolute; left: 15px; right: 15px; top: 115px; height: 110px; background: rgba(250,250,250,.97); border-radius: 12px; text-align: center; overflow: hidden; }
+.mk-alert b { display: flex; align-items: center; justify-content: center; height: 70px; padding: 0 10px; font-size: 10.5px; }
+.mk-alert div { display: flex; height: 40px; border-top: 1px solid #ddd; }
+.mk-alert div span { flex: 1; line-height: 40px; color: #007aff; }
+.mk-alert div span + span { border-left: 1px solid #ddd; }
+.iphone .tap { position: absolute; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--p); background: rgba(232,89,12,.3); animation: iosTap 1.3s ease-in-out infinite; }
+@keyframes iosTap { 0%, 100% { transform: translate(-50%, -50%) scale(.6); opacity: .35; } 50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; } }
+.ios-step { min-height: 2.6em; margin: 10px 0 4px; text-align: center; font-weight: 700; }
+.ios-dots { display: flex; gap: 6px; }
+.ios-dots span { width: 7px; height: 7px; border-radius: 50%; background: #e5e2dc; }
+.ios-dots span.on { background: var(--p); }
 /* "Attiva le notifiche" */
 .push-card { border: 2px solid #fed7aa; }
 .push-card > div { display: none; }
@@ -888,6 +953,19 @@ function pushRender() {
         c.dataset.st = st;
     });
     document.querySelectorAll('.pc-promos').forEach(b => { b.checked = pushPromosWanted(); });
+    if (st === 'ios') iosDemoPlay();
+}
+// iPhone in Safari: the animation of the steps, a scene every 3 s, in a loop.
+let iosDemoTimer = null, iosDemoStep = 0;
+function iosDemoPlay() {
+    if (iosDemoTimer) return;
+    const show = () => document.querySelectorAll('.ios-demo').forEach(d => {
+        d.querySelectorAll('.scene').forEach((s, k) => s.classList.toggle('on', k === iosDemoStep));
+        d.querySelectorAll('.ios-dots span').forEach((s, k) => s.classList.toggle('on', k === iosDemoStep));
+        d.querySelector('.ios-step').textContent = L.ios_steps[iosDemoStep];
+    });
+    show();
+    iosDemoTimer = setInterval(() => { if (document.hidden) return; iosDemoStep = (iosDemoStep + 1) % L.ios_steps.length; show(); }, 3000);
 }
 const PUSH_LATER_KEY = 'online-push-later';
 function pushLaterChosen() { try { return localStorage.getItem(PUSH_LATER_KEY) === '1'; } catch (e) { return false; } }
